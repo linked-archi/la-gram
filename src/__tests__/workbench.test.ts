@@ -1574,7 +1574,7 @@ describe('the workbench', () => {
     expect(toggle().getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('changes an element\u2019s type from the property panel — in the view or not — and offers a right-click menu', async () => {
+  it('changes an element\u2019s and a relationship\u2019s type from the property panel — in the view or not — and offers a right-click menu', async () => {
     const els = app.components.elementManager;
     const model = app.session.modelIri!;
     const view = app.session.activeViewIri!;
@@ -1624,9 +1624,42 @@ describe('the workbench', () => {
     await ui.propertyPanel.updateComplete;
     expect(ui.propertyPanel.heading?.typeLabel).toBe('Role');
 
-    // A relationship's type stays read-only here.
-    const rel = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Assignment`, sourceIri: placed, targetIri: unplaced, modelIri: model }).iri;
-    expect(await typePicker(rel)).toBeNull();
+    // A relationship's type is a choice too (Req 4.23), of the types its ends permit, best first. Not drawn in the
+    // open view (selected in the tree): changed in the model, its IRI kept, one step to undo.
+    const relationships = app.components.relationshipManager;
+    const classOf = (iri: string) => relationships.getRelationship!(iri)?.classIri;
+    const rel = relationships.createQualifiedRelationship!({ typeIri: `${AM4}Assignment`, sourceIri: placed, targetIri: unplaced, modelIri: model }).iri;
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const relPicker = (await typePicker(rel))!;
+    expect(relPicker).not.toBeNull();
+    expect(relPicker.choice?.iri).toBe(`${AM4}Assignment`);
+    await openList(relPicker);
+    const offered = [...relPicker.shadowRoot!.querySelectorAll('.option')].map((o) => o.getAttribute('data-iri'));
+    expect(offered).toEqual(expect.arrayContaining([`${AM4}Assignment`, `${AM4}Association`]));
+    expect(offered).not.toContain(`${AM4}Specialization`); // an actor is not a kind of role
+    expect(offered).not.toContain(`${AM4}BusinessActor`); // relationship types only
+    await pick(relPicker, `${AM4}Association`);
+    expect(classOf(rel)).toBe(`${AM4}Association`);
+    expect(relationships.getRelationship!(rel)).toMatchObject({ sourceIri: placed, targetIri: unplaced });
+    await ui.propertyPanel.updateComplete;
+    expect(ui.propertyPanel.heading?.typeLabel).toBe('Association');
+    await ui.runCommand({ command: 'undo' });
+    expect(classOf(rel)).toBe(`${AM4}Assignment`);
+
+    // Drawn in the open view: changed as the line's own Change type changes it, the line redrawn; one undo.
+    const role = els.createElement(`${AM4}Role`, model, { label: 'Cashier' }).value;
+    app.components.viewManager.addElementToView(view, role, { x: 400, y: 100, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const drawnRel = relationships.createQualifiedRelationship!({ typeIri: `${AM4}Assignment`, sourceIri: placed, targetIri: role, modelIri: model }).iri;
+    expect(ui.diagramCanvas.drawExistingRelationship(drawnRel)).toBe(true);
+    const lineType = () => [...ui.diagramCanvas.getRelationships().values()].find((r) => r.relationshipIri === drawnRel)?.typeIri;
+    await pick((await typePicker(drawnRel))!, `${AM4}Association`);
+    expect(classOf(drawnRel)).toBe(`${AM4}Association`);
+    expect(lineType()).toBe(`${AM4}Association`);
+    await ui.runCommand({ command: 'undo' });
+    expect(classOf(drawnRel)).toBe(`${AM4}Assignment`);
+    expect(lineType()).toBe(`${AM4}Assignment`);
+    await ui.runCommand({ command: 'undo' }); // the line drawn
 
     // The right-click menu on the shape: edit, relate, show, copy, delete.
     const shape = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry').get(placed);

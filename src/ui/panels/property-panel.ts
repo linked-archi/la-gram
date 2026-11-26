@@ -42,7 +42,6 @@ import {
 import type { AppearanceSelection, FigureChoices, ImageChoices, ImageScope, LabelChoices } from '../appearance-selection.js';
 import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '@linked-archi/kernel/model-manager/property-catalog.js';
-import type { ElementGroup } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import { localName } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import { contextNamesOf } from '@linked-archi/kernel/model-manager/context-names.js';
 import { picturesOf } from '@linked-archi/kernel/model-manager/element-pictures.js';
@@ -72,6 +71,22 @@ const SH_IN = NAMESPACES.sh + 'in';
 const SH_CLASS = NAMESPACES.sh + 'class';
 const SH_NODE_KIND = NAMESPACES.sh + 'nodeKind';
 /** Node kinds that admit an IRI: a property so constrained takes links. */
+/** A group of the types the *Type* field offers: a palette group's element types, or a category of relationship types. */
+export interface TypeChoiceGroup {
+  category: string;
+  elements: ReadonlyArray<{ iri: string; label: string }>;
+}
+
+/**
+ * An IRI as shown in the panel: a link that opens what it names in a new window, for an `http:` or `https:` IRI —
+ * a metamodel's term resolves to its page, a model's IRI to wherever it is published; any other, as text.
+ */
+export function iriLink(iri: string) {
+  return /^https?:\/\//i.test(iri)
+    ? html`<a href=${iri} target="_blank" rel="noopener noreferrer" title="Open ${iri} in a new window">${iri}</a>`
+    : iri;
+}
+
 const LINK_NODE_KINDS = new Set(['IRI', 'BlankNodeOrIRI', 'IRIOrLiteral'].map((k) => NAMESPACES.sh + k));
 const RDF_FIRST = NAMESPACES.rdf + 'first';
 const RDF_REST = NAMESPACES.rdf + 'rest';
@@ -923,6 +938,16 @@ export class PropertyPanel extends LitElement {
       color: #80868b;
     }
 
+    /* An IRI is a link: it opens what it names, in a new window. */
+    .iris a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+    .iris a:hover,
+    .iris a:focus-visible {
+      text-decoration: underline;
+    }
+
     .iris dd {
       margin: 0;
       min-width: 0;
@@ -1551,12 +1576,13 @@ export class PropertyPanel extends LitElement {
   concepts?: () => NamedOption[];
 
   /**
-   * The element types an element can be changed to — the loaded metamodels',
-   * grouped as in the palette. Set for elements only; the type field is then a
-   * choice rather than read-only.
+   * The types the selected concept can be changed to: an element's, the loaded
+   * metamodels' element types grouped as in the palette; a relationship's, the
+   * types its ends permit (Req 4.23). Set, the type field is a choice rather
+   * than read-only.
    */
   @property({ attribute: false })
-  typeChoices?: readonly ElementGroup[];
+  typeChoices?: readonly TypeChoiceGroup[];
 
   /** Names values in the loaded data, for labelling choices; absent, choices are labelled by their IRIs. */
   @property({ attribute: false })
@@ -1993,7 +2019,7 @@ export class PropertyPanel extends LitElement {
    * choice goes back to the current type when it did not (a cancelled warning,
    * say).
    */
-  private _renderTypeChoice(entry: PropertyEntry, groups: readonly ElementGroup[]) {
+  private _renderTypeChoice(entry: PropertyEntry, groups: readonly TypeChoiceGroup[]) {
     const options: NamedOption[] = groups.flatMap((group) =>
       group.elements.map((type) => ({ iri: type.iri, label: type.label, groupLabel: group.category || 'Other' })),
     );
@@ -2034,7 +2060,7 @@ export class PropertyPanel extends LitElement {
             @click=${() => this._toggleIris(rowKey(entry))}
           >IRI</button>
         </div>
-        ${this._renderIris(entry)}
+        ${this._irisShown(rowKey(entry)) ? html`<dl class="iris"><dt>IRI</dt><dd>${iriLink(entry.value)}</dd></dl>` : nothing}
       </li>
     `;
   }
@@ -2078,8 +2104,8 @@ export class PropertyPanel extends LitElement {
     if (!this._irisShown(rowKey(entry))) return nothing;
     return html`<dl class="iris">
       <dt>Property IRI</dt>
-      <dd>${entry.predicate}</dd>
-      ${entry.isIri ? html`<dt>Value IRI</dt><dd>${entry.value}</dd>` : nothing}
+      <dd>${iriLink(entry.predicate)}</dd>
+      ${entry.isIri ? html`<dt>Value IRI</dt><dd>${iriLink(entry.value)}</dd>` : nothing}
     </dl>`;
   }
 
@@ -3048,7 +3074,7 @@ export class PropertyPanel extends LitElement {
           <button class="field-name" title="Show the IRI" aria-expanded=${shown ? 'true' : 'false'} @click=${() => this._toggleIris(ID_ROW)}>ID</button>
         </div>
         ${this._renderNamed(ID_ROW, localName(this.selectedIri))}
-        ${shown ? html`<dl class="iris"><dt>IRI</dt><dd>${this.selectedIri}</dd></dl>` : nothing}
+        ${shown ? html`<dl class="iris"><dt>IRI</dt><dd>${iriLink(this.selectedIri)}</dd></dl>` : nothing}
       </li>
     `;
   }

@@ -3287,6 +3287,39 @@ export class DiagramCanvas {
   }
 
   /**
+   * The types a relationship may have between its two ends, as the metamodel permits them, best-ranked first —
+   * what its *Type* in the Properties tab offers (Req 4.23). None for a relationship without an IRI of its own (a
+   * bare triple) or with an end of no known type.
+   */
+  relationshipTypeChoices(relationshipIri: string): RelationshipTypeInfo[] {
+    const relationship = this.relationshipManager.getRelationship?.(relationshipIri);
+    if (!relationship || !this.relationshipManager.retypeRelationship) return [];
+    const sourceType = this.describeElement?.(relationship.sourceIri)?.typeIri;
+    const targetType = this.describeElement?.(relationship.targetIri)?.typeIri;
+    return sourceType && targetType ? this.relationshipManager.getValidRelationships(sourceType, targetType) : [];
+  }
+
+  /**
+   * Change a relationship's type to another its ends permit, as one undoable step (Req 4.23): where it is drawn in
+   * the open view, as the line's *Change type* does (`rdf.relationship.retype`); else — a relationship picked in the
+   * model tree — in the store, recorded on the open view's undo stack. Its IRI, ends, name and properties stay.
+   *
+   * @returns Whether the type was changed.
+   */
+  retypeRelationship(relationshipIri: string, typeIri: string): boolean {
+    const line = this.linesOf(relationshipIri)[0];
+    if (line && this.relationships.has(line.id)) return this.changeRelationshipType(line.id, typeIri);
+    const current = this.relationshipManager.getRelationship?.(relationshipIri);
+    const retype = this.relationshipManager.retypeRelationship?.bind(this.relationshipManager);
+    if (!current || !retype || current.classIri === typeIri) return false;
+    if (!this.relationshipTypeChoices(relationshipIri).some((candidate) => candidate.iri === typeIri)) return false;
+    if (!this.recordChange(() => retype(relationshipIri, typeIri))) {
+      this.eventBus.emit('model-changed', { origin: 'properties', iri: relationshipIri });
+    }
+    return true;
+  }
+
+  /**
    * Replace an existing connection's relationship type, undoably.
    *
    * Delegates to the `rdf.relationship.retype` command, so retracting the old

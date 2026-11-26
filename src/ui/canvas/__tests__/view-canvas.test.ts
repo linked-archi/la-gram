@@ -2049,3 +2049,29 @@ describe('the canvas of the pane not in use (Req 24; split view SV-DD-2)', () =>
     expect(listening()).toEqual([0, 0, 0, 0, 0]);
   });
 });
+
+describe('a relationship’s type changed from outside the canvas (Req 4.23)', () => {
+  it('offers the types its ends permit, best first, and changes to one of them only — in place, its IRI kept', () => {
+    const f = mount();
+    const actor = f.elements.createElement(ACTOR, f.modelIri, { label: 'Clerk' }).value;
+    const component = f.elements.createElement(COMPONENT, f.modelIri, { label: 'Web shop' }).value;
+    const serving = `${AM4}Serving`;
+    const rel = f.relationships.createQualifiedRelationship!({ typeIri: serving, sourceIri: component, targetIri: actor, modelIri: f.modelIri }).iri;
+    const offered = f.canvas.relationshipTypeChoices(rel).map((t) => t.iri);
+    expect(offered).toContain(serving);
+    expect(offered).toEqual(f.relationships.getValidRelationships(COMPONENT, ACTOR).map((t) => t.iri));
+    // Not drawn: in the store. A type the ends do not permit is refused, nothing changed.
+    expect(f.canvas.retypeRelationship(rel, `${AM4}Specialization`)).toBe(false);
+    expect(f.relationships.getRelationship!(rel)?.classIri).toBe(serving);
+    const other = offered.find((iri) => iri !== serving)!;
+    expect(f.canvas.retypeRelationship(rel, other)).toBe(true);
+    expect(f.relationships.getRelationship!(rel)).toMatchObject({ iri: rel, classIri: other, sourceIri: component, targetIri: actor });
+    // Its own type again: nothing to do.
+    expect(f.canvas.retypeRelationship(rel, other)).toBe(false);
+    // Recorded on the open view's undo stack.
+    f.commandStack.undo();
+    expect(f.relationships.getRelationship!(rel)?.classIri).toBe(serving);
+    // No relationship of that IRI (a bare triple has none): nothing offered.
+    expect(f.canvas.relationshipTypeChoices('urn:x:no-such-relationship')).toEqual([]);
+  });
+});

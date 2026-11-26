@@ -150,6 +150,7 @@ import type {
   ContextPictureChangeDetail,
   LabelExpressionChangeDetail,
   ReferenceViewChangeDetail,
+  TypeChoiceGroup,
 } from './panels/property-panel.js';
 import type {
   ModelExplorer,
@@ -1202,10 +1203,27 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   // ── An element's type: from the property panel ───────────────────────
   /** An element can be changed to any loaded element type; other concepts show theirs read-only. */
-  const typeChoicesFor = (heading: { kind: string } | undefined) =>
-    heading?.kind === 'Element' ? currentPalette.elementGroups : undefined;
+  /**
+   * What the *Type* of the selected concept offers: an element's, the loaded element types as the palette groups them;
+   * a relationship's, the types its ends permit, best-ranked first, by their category (Req 4.23).
+   */
+  const typeChoicesFor = (heading: { kind: string } | undefined): readonly TypeChoiceGroup[] | undefined => {
+    if (heading?.kind === 'Element') return currentPalette.elementGroups;
+    if (heading?.kind !== 'Relationship' || !propertyPanel.selectedIri) return undefined;
+    const groups = new Map<string, TypeChoiceGroup & { elements: Array<{ iri: string; label: string }> }>();
+    for (const type of diagramCanvas.relationshipTypeChoices(propertyPanel.selectedIri)) {
+      const category = type.category || 'Relationships';
+      if (!groups.has(category)) groups.set(category, { category, elements: [] });
+      groups.get(category)!.elements.push({ iri: type.iri, label: type.label });
+    }
+    return groups.size > 0 ? [...groups.values()] : undefined;
+  };
   const onPropertyRetype = (e: Event): void => {
     const { elementIri, typeIri, reply } = (e as CustomEvent<{ elementIri: string; typeIri: string; reply?: (changed: boolean) => void }>).detail;
+    if (propertyPanel.heading?.kind === 'Relationship') {
+      reply?.(diagramCanvas.retypeRelationship(elementIri, typeIri));
+      return;
+    }
     void diagramCanvas.retypeElement(elementIri, typeIri).then((changed) => reply?.(changed));
   };
   propertyPanel.addEventListener('property-retype', onPropertyRetype);

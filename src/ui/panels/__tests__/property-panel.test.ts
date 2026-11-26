@@ -340,6 +340,8 @@ describe('PropertyPanel', () => {
       return ctx;
     }
 
+    const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
     function flat(t: any): string {
       if (!t) return '';
       if (typeof t === 'string') return t;
@@ -597,17 +599,46 @@ describe('PropertyPanel', () => {
       expect(shown).not.toContain(MODEL);
       expect(shown).not.toContain('https://example.org/m/element-web');
 
-      // The link's row: the property's IRI and the value's; the ID: the concept's IRI.
+      // The link's row: the property's IRI and the value's; the ID: the concept's IRI — each a link that opens it
+      // in a new window.
       ctx._toggleIris(`${NAMESPACES.arch}inModel ${MODEL}`);
       ctx._toggleIris('id');
       const opened = render();
-      expect(opened).toContain(`<dd>${NAMESPACES.arch}inModel</dd>`);
-      expect(opened).toContain(`<dd>${MODEL}</dd>`);
-      expect(opened).toContain('<dd>https://example.org/m/element-web</dd>');
-      expect(opened).not.toContain(`<dd>${RDF_TYPE}</dd>`);
+      // (Rendered as a string here, an attribute's value without its quotes.)
+      const link = (iri: string) => new RegExp(`<dd><a href="?${esc(iri)}"? target="_blank" rel="noopener noreferrer"[^>]*>${esc(iri)}</a></dd>`);
+      expect(opened).toMatch(link(`${NAMESPACES.arch}inModel`));
+      expect(opened).toMatch(link(MODEL));
+      expect(opened).toMatch(link('https://example.org/m/element-web'));
+      expect(opened).not.toContain(RDF_TYPE);
       // A second click hides them.
       ctx._toggleIris('id');
-      expect(render()).not.toContain('<dd>https://example.org/m/element-web</dd>');
+      expect(render()).not.toMatch(link('https://example.org/m/element-web'));
+    });
+
+    it('links an IRI only when it is a web address: a urn stays text', () => {
+      const ctx = makeCtx({ selectedIri: 'urn:x:element-1', _entries: TABBED.slice(0, 1) });
+      ctx._toggleIris('id');
+      const opened = flat((PropertyPanel.prototype as any).render.call(ctx));
+      expect(opened).toContain('<dd>urn:x:element-1</dd>');
+      expect(opened).not.toContain('href="urn:');
+    });
+
+    it('shows the type’s IRI alone under the Type, a link — not the property’s (Req 4.23)', () => {
+      const TYPE = 'https://meta.linked.archi/archimate4/onto#Serving';
+      const entries: PropertyEntry[] = [{ predicate: RDF_TYPE, label: 'Type', value: TYPE, valueLabel: 'Serving', readonly: true, isIri: true }];
+      const ctx = makeCtx({
+        selectedIri: 'https://example.org/m/relationship/1',
+        _entries: entries,
+        heading: { kind: 'Relationship', typeIri: TYPE, typeLabel: 'Serving' },
+        typeChoices: [{ category: 'Dependency Relationship', elements: [{ iri: TYPE, label: 'Serving' }] }],
+      });
+      const render = () => flat((PropertyPanel.prototype as any).render.call(ctx));
+      expect(render()).toContain('type-picker');
+      ctx._toggleIris(`${RDF_TYPE} ${TYPE}`);
+      const opened = render();
+      expect(opened).toMatch(new RegExp(`<dt>IRI</dt><dd><a href="?${esc(TYPE)}"? target="_blank"`));
+      expect(opened).not.toContain('Property IRI');
+      expect(opened).not.toContain(`>${RDF_TYPE}<`);
     });
 
     it('names a value’s language when it is not English, the language names are read in', () => {

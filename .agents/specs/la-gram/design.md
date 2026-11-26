@@ -514,6 +514,16 @@ model runs its model operation inside a nested command:
 undo applies the inverse diff, redo re-applies it. Re-running logic on redo
 would mint new IRIs; replaying the diff cannot.
 
+A relationship's type from the property panel (Req 4.23) is
+`DiagramCanvas.retypeRelationship(iri, type)`: drawn in the open view, the line's
+own `changeRelationshipType` (`rdf.relationship.retype`); else the kernel's
+`retypeRelationship`, in place, inside `recordChange`. Its field's choices,
+`relationshipTypeChoices(iri)`, are `getValidRelationships` for the types of its
+two ends — the order the line's menu proposes — grouped by category in mount-ui.
+The field's *IRI* shows the type's IRI only; every IRI the panel shows that is a
+web address is a link opening a new window (`iriLink`), which the desktop app
+hands to the system's browser (`setWindowOpenHandler`).
+
 Changing an element's type (`rdf-element-replace-menu-provider.ts`,
 `rdf-element-retype.ts`) is `DiagramCanvas.retypeElement(iri, type)`, asked by
 the property panel's type field (`property-retype`, answered so a cancelled

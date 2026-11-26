@@ -1,6 +1,6 @@
 ---
 title: Properties
-description: The Properties tab in la-gram, with its information, properties, analysis and views tabs, adding properties, who changed a concept and when, and changing an element's type.
+description: The Properties tab in la-gram, with its information, properties, analysis and views tabs, adding properties, who changed a concept and when, and changing a type.
 ---
 # Properties
 
@@ -11,6 +11,11 @@ drawing, not model: it has its information and its look only. A
 with the reference's own *Text* and *Opens* after the view's information, and the reference's look.
 ++up++ and ++down++ move through the tabs, and the tab last open stays open for the next selection, and
 the next visit.
+
+Fields are named in words, and links by the name of what they link to. Click a field's name, or a link,
+for the IRIs behind it: the property's, and the value's for a link. Each IRI that is a web address is a
+link itself: click it to open what it names in a new window — a metamodel's type opens its page on
+meta.linked.archi.
 
 | Tab | For |
 |---|---|
@@ -27,8 +32,8 @@ The first tab is named after what is selected: *Element information*, *Relations
 
 | Field | What it is |
 |---|---|
-| *ID* | its local name (`web-shop`); click *ID* for the full IRI |
-| *Type* | its type: for an element, a choice of every element type ([Change type](#change-type)); the *IRI* button beside the field shows or hides the current type's full IRI without opening the choice |
+| *ID* | its local name (`web-shop`); click *ID* for the full IRI, a link that opens it in a new window |
+| *Type* | its type: for an element, a choice of every element type; for a relationship, a choice of the types its two ends permit ([Change type](#change-type)). The *IRI* button beside the field shows or hides the current type's full IRI without opening the choice |
 | *Model* | the model it is in |
 | *Name* | its name, `skos:prefLabel`, in English |
 | *Definition* | its definition, `skos:definition` (*Add a definition…* while empty) |
@@ -139,14 +144,21 @@ one opens it with the concept selected, and ← in the toolbar goes back.
 
 ## Change type {#change-type}
 
-An element's type changes in place: it keeps its identity, its name, its properties and its placements.
+An element's or a relationship's type changes in place: it keeps its identity, its name, its properties
+and its placements.
 
 - In *Element information*, the *Type* field searches every element type of the loaded metamodels by
   name, grouped as in the palette. Types that share a name show their IRIs; *Show IRIs* shows every
   one's, a switch remembered for every such list.
-- To inspect the current type, click *IRI* beside the field. Its full IRI appears below, selectable
-  for copying; click *IRI* again to hide it. The type stays the same.
-- On the canvas, right-click › *Change type…* opens *Change element type*, a searchable menu of the same.
+- In *Relationship information*, the *Type* field lists the relationship types the metamodel permits
+  between the relationship's two ends, the one proposed first at the top, grouped by their category
+  (*Structural Relationship*, *Dependency Relationship*…). It changes a relationship drawn in the open
+  view as its line's *Change relationship type…* does, and one selected in the model tree in the model.
+  A link stated only as a triple has no *Type* to change: its type is read-only.
+- To inspect the current type, click *IRI* beside the field. Its full IRI appears below, a link that
+  opens it in a new window; click *IRI* again to hide it. The type stays the same.
+- On the canvas, right-click › *Change type…* (an element) or *Change relationship type…* (a line) opens
+  a searchable menu of the same.
 
 Relationships the new type does not permit are named before the change, in *Change Web shop to
 Application Interface?*: they are kept, and validation flags them until they are changed or deleted.
@@ -155,3 +167,5 @@ Application Interface?*: they are kept, and validation flags them until they are
 1. Select "Gift wrapping", and in *Type* type "process".
 2. Pick **Process**. "Gift wrapping" is now a Process, in the same place, with the same name.
 3. Undo, to make it a Service again.
+4. In the model tree, under *Relationships*, select the Assignment from "Customer" to "Place order". Its
+   *Type* lists what may relate a business actor to a process. Pick **Association**, then undo.

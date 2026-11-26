@@ -89,7 +89,7 @@ Right-click a row for its menu.
 | the *Relationships* group | *New folder…* |
 | a folder | of views: *New diagram view*, *New catalog view*, *New matrix view*; of elements: *New element…*; then *New folder…*, *Rename…*, *Move to folder…*, *Delete folder (keeps its contents)* |
 | an element type, under *Elements* | *New ‹type›…*: *New Business Actor…* on **Business Actor** |
-| a view | *Open*, *Select on canvas* (when the open diagram references it), *Reference in the open view* (while another view, a diagram, is open), *Rename…*, *Set viewpoint…*, *Duplicate*, *Move to folder…*, *Delete view (keeps its elements)* |
+| a view | *Open*, *Open beside* ([Two views at once](models-and-views.md#split-view)), *Select on canvas* (when the open diagram references it), *Reference in the open view* (while another view, a diagram, is open), *Rename…*, *Set viewpoint…*, *Duplicate*, *Move to folder…*, *Delete view (keeps its elements)* |
 | an element | *Select on canvas* (when the open view shows it) or *Add to current view*, *Rename…*, *Copy*, *Move to folder…*, *Delete from model…* |
 | a relationship | *Select on canvas* or *Add to current view*, *Confirm — state it in the model* (a potential derivation), *Show source*, *Show target*, *Rename…*, *Copy*, *Move to folder…*, *Delete from model…* |
 | one of several selected | *Copy 2 elements* (or relationships), and *Move 2 elements to folder…* when the model has folders |

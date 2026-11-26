@@ -292,6 +292,7 @@ In parts, each reviewed before the next.
 - [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; drawn by walking the store; the query behind it as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported as `.rq`, the drawn triples as `.ttl`; ＋ New view laid out as drawn; tests hold walk and both query forms to the same result — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Relationship graph, live force layout (Req 17.2, 17.7–17.12) (2026-11-10): Force the default, d3-force stepped by la-gram's own loop (`graph-force.ts`); animated up to 100 elements, laid out at once up to 800, rings above with a note on the stats line; seeding beside the parent, turned clear of what is drawn; the middle element pinned; drags live, held or alone, released on drop; the camera moved only at rest; paused while hidden; a refresh that changes nothing moves nothing; the limits measured and checked by `npm run bench -- --graph` — *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
 - [x] A loader while something large opens (Req 11.13; key design decision 47; 2026-11-26): models opened and imported, diagrams of 500 shapes and lines or more; painted before the work, turned by the compositor — *busy.test, workbench.test, workbench.spec*
+- [x] A relationship's type changed from the property panel, as an element's (Req 4.23; 2026-11-26): the types its ends permit, best first, by category; drawn or not, one undoable step. The type's IRI alone beside *Type*, and every IRI the panel shows a link to a new window (Req 3.4, 3.11) — *property-panel.test, view-canvas.test, workbench.test, workbench.spec*
 - [x] Two views at once (Req 24; key design decision 48; `.agents/tasks/split-view/`; 2026-11-26): *Split* side by side or one above the other, a divider dragged or moved with the keys, the pane in use and what follows it, *Open beside* from the tree and from a view reference, any view in either pane, kept up to date from the store, *Sync selection*, closed with another model — *split-view.test (both), view-canvas.test, model-explorer.test, mount-ui.test, workbench.spec*
 - [x] Git messages kept until closed (Req 18.31; 2026-11-26): sticky toasts with a ×, links in every toast; a step on the way transient — *dialogs.test, git-module.test*
 - [x] The Git tab's *Save to Git* (Req 18.25; 2026-11-26): the File menu's action, its commit message asked the same way, enabled while bound and no Git operation runs — *git-sync.test, git-module.test*
@@ -481,6 +482,23 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-26 — A relationship's type from the property panel; IRIs as links
+
+- **A relationship's *Type*** (Req 4.23; `DiagramCanvas.retypeRelationship`, `relationshipTypeChoices`). An
+  element's *Type* in the Properties tab was a choice of types; a relationship's was read-only, its type
+  changed only from its line's right-click menu, and not at all for one not drawn in the open view. Now it
+  is a choice as an element's is: the relationship types the metamodel permits between its two ends, in
+  the order the line's menu proposes them, grouped by category. Drawn in the open view, it changes as the
+  line's *Change relationship type…* does; picked in the model tree, in the model, in place (the kernel's
+  `retypeRelationship`), recorded on the open view's undo stack. A link stated only as a triple keeps its
+  type read-only.
+- **IRIs** (Req 3.4, 3.11): the *IRI* button beside *Type* shows the type's IRI alone — not `rdf:type`, the
+  property's — and every IRI the panel shows (under *ID*, behind a field's name or a link) that is a web
+  address is a link that opens what it names in a new window; the desktop app opens it in the system's
+  browser. *property-panel.test, view-canvas.test, workbench.test, workbench.spec*
+- **Docs**: README; *Properties* (the IRIs, *Type*, *Change type*). Also *Open beside* in the right-click
+  menu lists of *Model tree* and *Canvas*, which the split view's change had left out.
 
 ### 2026-11-26 — How to release: `RELEASING.md`, not the documentation site
 

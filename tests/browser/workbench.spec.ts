@@ -1867,6 +1867,55 @@ describe('changing an element’s type', () => {
     findings.push('change element type: right-click menu and property panel (search, current marked), default name follows, undo, not-permitted relationships named and kept: ok');
   }, 90_000);
 
+  it('changes a relationship’s type from the property panel; the type’s IRI a link to a new window (Req 4.23)', async () => {
+    const { session, page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const rel = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (type: string, label: string, x: number) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x, y: 120, width: 140, height: 60 });
+        return iri;
+      };
+      const actor = make('BusinessActor', 'Clerk', 120);
+      const process = make('Process', 'Handle order', 420);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      const iri = app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Assignment', sourceIri: actor, targetIri: process, modelIri: m }).iri;
+      (window as any).__LA_GRAM_UI__.diagramCanvas.drawExistingRelationship(iri);
+      return iri as string;
+    });
+    const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+    const classOf = () => page.evaluate((r) => (window as any).__LA_GRAM_APP__.components.relationshipManager.getRelationship(r)?.classIri, rel);
+    await page.evaluate((r) => {
+      const ui = (window as any).__LA_GRAM_UI__;
+      ui.showBottomTab('properties');
+      ui.selectConcept(r);
+    }, rel);
+    const typeField = page.locator('property-panel named-picker.type-picker input[type="text"]');
+    await typeField.waitFor({ state: 'visible' });
+    expect(await typeField.inputValue()).toBe('Assignment');
+    // The type's IRI, alone, a link that opens it in a new window.
+    const typeRow = page.locator('property-panel .property-row').filter({ has: page.locator('named-picker.type-picker') });
+    await typeRow.getByRole('button', { name: 'Show the type IRI', exact: true }).click();
+    const link = typeRow.locator('.iris a');
+    expect(await link.getAttribute('href')).toBe(AM4 + 'Assignment');
+    expect(await link.getAttribute('target')).toBe('_blank');
+    expect(await typeRow.locator('.iris').innerText()).not.toContain('Property IRI');
+    await session.screenshot('workbench-relationship-type');
+    // The types the two ends permit; Association picked: the line is an Association now, one undo back.
+    await typeField.click();
+    await typeField.fill('Association');
+    await page.locator(`property-panel named-picker.type-picker .option[data-iri="${AM4}Association"]`).click();
+    await until(async () => (await classOf()) === AM4 + 'Association', 'the association');
+    await until(async () => (await page.locator(`.djs-connection [data-type-iri="${AM4}Association"], .djs-connection[data-type-iri="${AM4}Association"], [data-type-iri="${AM4}Association"]`).count()) > 0, 'the line redrawn');
+    expect(await typeField.inputValue()).toBe('Association');
+    await page.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'undo' }));
+    await until(async () => (await classOf()) === AM4 + 'Assignment', 'the assignment again');
+    findings.push('relationship type from the property panel: the ends’ types offered, picked, line redrawn, undone; the type IRI a link: ok');
+  }, 90_000);
+
   it('opens the right-click menu on a relationship — even over its handles — and on the empty canvas, for the view', async () => {
     const { page } = await openPage();
     await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
