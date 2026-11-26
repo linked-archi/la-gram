@@ -24,7 +24,7 @@ Until registry publication, put the kernel's packed archive in `vendor/` and ins
 package. For the current package:
 
 ```sh
-npm install ./vendor/linked-archi-kernel-0.1.4.tgz
+npm install ./vendor/linked-archi-kernel-0.1.5-k02b.1.tgz
 npm run typecheck
 npm test
 npm run build
