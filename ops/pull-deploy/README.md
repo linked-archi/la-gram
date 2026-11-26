@@ -36,8 +36,11 @@ Before anything is served, each file it downloads must:
 The web app must also unpack to a folder with `index.html`, `docs/index.html` and its version's page, with no
 path outside the folder and no link.
 
-Then it points the link at the new folder in one rename, and fetches `SITE/<link>/index.html`. If that
-is not the new `index.html`, it points the link back and removes the folder. A build it refuses or rolls
+Then it points the link at the new folder in one rename, and asks the site for it: `SITE/<link>/index.html`
+must name the build's entry script, `bundle.<content hash>.js`, and `SITE/<link>/` must serve that script
+with the new folder's bytes. (The page is not compared byte for byte: the server may add to its HTML,
+with `sub_filter`; it passes scripts through as they are.) If not, it points the link back and removes the
+folder. A build it refuses or rolls
 back is **held**: not fetched again until a newer one is published, or `--force`. Each check that finds
 nothing new is an answer of 304 from GitHub, which costs nothing of its limit of 60 questions an hour.
 
@@ -48,7 +51,17 @@ release served.
 
 On the server, as root. The script needs `bash` 4.4 or later, `curl`, `jq`, `tar`, GNU `coreutils` and
 `flock` (util-linux), and the GitHub CLI, `gh`, 2.70 or later (`gh attestation verify --help` lists
-`--source-ref` and `--deny-self-hosted-runners`).
+`--source-ref` and `--deny-self-hosted-runners`). Ubuntu's own `gh` is older; GitHub's package is not:
+
+```bash
+mkdir -p -m 755 /etc/apt/keyrings
+wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg > /etc/apt/keyrings/githubcli-archive-keyring.gpg
+chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  > /etc/apt/sources.list.d/github-cli.list
+apt update && apt install -y gh jq curl
+gh --version
+```
 
 ```bash
 # The user it runs as: no shell, no home, no sudo.
@@ -83,12 +96,23 @@ ls /var/lib/la-gram-pull/staging/production/*/ /var/lib/la-gram-pull/staging/pro
 A dry run downloads, checks and unpacks into `/var/lib/la-gram-pull/staging/` only. If `gh` asks to log
 in, set `GH_TOKEN` in the configuration (it says which token). If a check fails, it says which file and why.
 
-To see a refusal: copy a release file, change a byte, and verify it as the script does. It must fail:
+To see a refusal: download the alpha's files, change a byte, and verify it as the script does, with the
+build record the release carries. As published it is accepted; claimed as built from a tag, or with one
+byte changed, it is refused:
 
 ```bash
-gh attestation verify ./la-gram-web-0.2.0.tar.gz --repo linked-archi/la-gram \
-  --signer-workflow linked-archi/la-gram/.github/workflows/la-gram.yml \
-  --source-ref refs/tags/la-gram-v0.2.0 --deny-self-hosted-runners
+cd "$(mktemp -d)" && export HOME=/var/lib/la-gram-pull
+gh release download la-gram-alpha -R linked-archi/la-gram -p 'la-gram-web-*.tar.gz' -p '*.attestation.*'
+verify() {
+  gh attestation verify "$1" --repo linked-archi/la-gram --bundle la-gram-*.attestation.* \
+    --signer-workflow linked-archi/la-gram/.github/workflows/la-gram.yml \
+    --source-ref "$2" --deny-self-hosted-runners > /dev/null 2>&1 && echo accepted || echo refused
+}
+verify la-gram-web-*.tar.gz refs/heads/main            # accepted
+verify la-gram-web-*.tar.gz refs/tags/la-gram-v0.4.0   # refused
+cp la-gram-web-*.tar.gz changed.tar.gz
+printf '\x00' | dd of=changed.tar.gz bs=1 seek=1000 count=1 conv=notrunc 2> /dev/null
+verify changed.tar.gz refs/heads/main                  # refused
 ```
 
 ## Switch over
@@ -147,7 +171,7 @@ OnFailure=notify-failure@%n.service
 |---|---|
 | `its build record does not say … built it from …` | the file was not built by the workflow from that ref: published by hand, from another branch, or changed since. Held: the next check will not fetch it again |
 | `GitHub answered 403` | GitHub's hourly limit, or a token it refuses: set or renew `GH_TOKEN` |
-| `… does not answer its index.html; … is served again` | nginx does not serve the new folder: `disable_symlinks`, a cache in front, or the server cannot reach its own address (set `CHECK_RESOLVE`) |
+| `… does not serve the new build; … is served again` | nginx does not serve the new folder: `disable_symlinks`, a cache in front, or the server cannot reach its own address (set `CHECK_RESOLVE`) |
 | `… is a folder, not a link: run la-gram-pull adopt once` | `adopt` has not run on this server yet: see *Switch over* |
 | `alpha: la-gram-alpha is not published (now)` | between the deletion of the last alpha and the publication of the next, on a push to main. Not a failure |
 

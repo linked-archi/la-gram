@@ -31,8 +31,10 @@ say of the SSH deploy (`tasks.md`).
   `refs/tags/<tag>` (production) or `refs/heads/main` (alpha).
 - **DP-8** A web app is installed only with `index.html`, `docs/index.html` and its version's page, and
   with no path outside its folder and no link.
-- **DP-9** What is served changes in one rename, and is the new build only if the site then answers the
-  new `index.html`. Otherwise the build served before is served again.
+- **DP-9** What is served changes in one rename, and is the new build only if the site then serves it: its
+  `index.html` names the new build's entry script, and the script the site serves has the new folder's
+  bytes. Otherwise the build served before is served again. (The page is not compared byte for byte: the
+  server may add to its HTML. Decision confirmed on 2026-11-26.)
 - **DP-10** A build refused (DP-7, DP-8, DP-9) or rolled back is not fetched again until a newer one is
   published, or the operator forces it.
 - **DP-11** Every version's page stays served at `/la-gram/v<version>/`, the alpha's too, which each alpha
