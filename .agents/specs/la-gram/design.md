@@ -1593,6 +1593,28 @@ and passes its viewpoint (`viewpointOfAnswer`): the one it fits, or the one it
 was asked about (`?viewpoint`, `viewpoint-scope`) — `createViewWith(…, {
 viewpointIri })`.
 
+### Drawing order
+
+What is drawn above what (Req 22.11, 22.12; `.agents/tasks/drawing-order/`). A node's `arch-vis:zOrder` (core-vis
+0.10, linked-archi-meta's DD-45) orders it among the nodes in its place; the kernel compares
+(`compareDrawingOrder`: zOrder, then node IRI by code point) and reorders (`reorder`). On the canvas
+(`rdf-ordering.ts`), each shape's business object carries its node's `zOrder`, from the store (`zOrderToDraw`, as
+`appearanceToDraw`); `shapeIndex(parent, shape)` puts a shape among its parent's shapes in that order, before the
+first line, wherever one is added — `syncFromStore`, a re-parent, diagram-js's create and move through `RdfOrdering` —
+so a move keeps a shape's place. At the end of every sync, `applyDrawingOrder` takes each placement's zOrder from the
+store and `sortShapes` puts a parent's shapes back in order in the places shapes held, its lines and labels where
+they were; the shapes that moved are said changed, and the canvas's re-stacking puts their graphics in place. A
+canvas command that wrote zOrders — `rdf.store.change` whose diff holds `arch-vis:zOrder` — done, undone or
+redone, applies it once the stack settles; an edit outside the canvas (`rdf.store.edit`) is followed by a sync.
+
+The four (`DiagramCanvas.reorderSelection`) group the selected placements, less what is in a selected container and
+what a collaborator holds, by parent, ask `reorder` for each, and write the changes with `recordChange`: one
+`rdf.store.edit`. New placements (`inFront`): after a `shape.create` has written the node and its container
+(priority 400, after nesting at 500), a placement under one it overlaps in its place is brought to the front of it, in
+a nested `rdf.store.change`; a paste does the same inside its recorded change (`placeInFront` on the clipboard's
+host); `writeLayout` does it when a move changes a node's container. The ArchiMate exchange import writes each
+place's file order as zOrder where any of its nodes overlap.
+
 ### Search
 
 Search on the canvas and in the RDF panel (Req 23; `.agents/tasks/search/`). Both use one find bar, `find-bar`, a
@@ -3582,7 +3604,15 @@ dialog; the modules' section).
     `applyGitObservation` only for an opted-in scheduled check; that helper checks the clean-only
     precondition again synchronously before the existing undoable store change. Local status is
     debounced from effective model changes, independently of the app's local-file dirty marker.
-    The Git tab reports status without opening itself; File provides the manual check action.
+    The Git tab reports status without opening itself; File provides the manual check action. The tab's buttons
+    send the module the File menu's actions (`git-sync-action`): its *Save to Git* is the menu's `save`, run by the
+    same `run`, enabled by the status's `canSave` — bound, and no check, commit or other Git operation running —
+    which a room or unchosen conflicts do not clear, as they do not hide the menu's (2026-11-26). What a Git action
+    says is kept on screen until closed (Req 18.31): the module's one `report` (`gitReport`) asks the app's for a
+    `sticky` toast, which has a × and no timeout; a call marked `progress` — *Pulling …* — stays transient. Every
+    toast's web addresses are links (`linkedText`: http(s) only, trailing punctuation left out, the rest as text).
+    A message covers what is under it until closed; the gaps between stacked ones pass clicks through
+    (`pointer-events`), and they sit above dialogs, so an error during one is seen.
     Personal defaults are Off, with intervals 1/2/5/10 minutes and clean-only auto-pull Off.
     A queued Web Lock selects the visible, online owner per destination; a different short lock
     coordinates Git operations, allowing a waiting editor to act manually. Lifecycle/environment
@@ -3897,6 +3927,15 @@ dialog; the modules' section).
     rewrite it on every keystroke and split its tokens, so the matches are highlights (`CSS.highlights`), which paint
     ranges and leave the DOM as it is. Ctrl/⌘+F takes the browser's find only where la-gram has a better one: not in
     the SPARQL editor, and not over a catalog or a matrix, which are tables the browser's find reads well.
+
+46. **Drawing order is a number per node, written only where it shows** (Req 22.11, 22.12; 2026-11-26;
+    `.agents/tasks/drawing-order/`; linked-archi-meta's DD-45). la-gram drew a view's nodes in the order the store
+    returned them — by IRI hash — and put a moved shape on top until the next reload, so what was drawn was not what
+    was saved. A core-vis term makes the order data that every tool reads, merges and copies; the order of nodes
+    without one is their IRIs', so most nodes never get one: a node is given a zOrder when it is reordered, or placed
+    over another, and nowhere else — fewer triples, smaller diffs, fewer conflicts. A step goes past the next shape
+    a shape overlaps, because order shows only between shapes that overlap, and changes no other two that do. A move
+    keeps the order, so that what is drawn is what is saved.
 
 ## Running
 

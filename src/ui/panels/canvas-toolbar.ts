@@ -6,6 +6,8 @@ import { FIGURE_CHOICES, type FigureChoice } from '../figure-bar.js';
 import type { SizeReference } from '../../layout/arrange-geometry.js';
 import { GRID_DEFAULTS, type GridSettings } from '../arrange-settings.js';
 import { LINE_SHAPES, type LineShape } from '../../layout/line-shapes.js';
+import { DRAWING_ORDER_ACTIONS } from '../canvas/drawing-order-actions.js';
+import type { DrawingOrderChange } from '@linked-archi/kernel/model-manager';
 
 /**
  * Emitted when a figure's button is pressed or clicked: the start of a gesture
@@ -78,6 +80,15 @@ const ENDS: Record<LineShape, [number, number, number, number]> = {
   'horizontal-first': [2.5, 2.5, 13.5, 13.5],
   'vertical-first': [2.5, 2.5, 13.5, 13.5],
 };
+/** Each drawing-order change's picture (DO-3): two squares, the one moved filled — in front, or behind. */
+const ORDER_GLYPHS: Record<DrawingOrderChange, ReturnType<typeof svg>> = {
+  front: svg`<rect x="1.5" y="5.5" width="8" height="8"/><rect x="5.5" y="1.5" width="9" height="9" fill="currentColor"/>`,
+  forward: svg`<rect x="1.5" y="5.5" width="8" height="8"/><rect x="5.5" y="1.5" width="9" height="9" fill="currentColor" fill-opacity="0.45"/>`,
+  backward: svg`<rect x="5.5" y="1.5" width="9" height="9" fill="currentColor" fill-opacity="0.45"/><rect x="1.5" y="5.5" width="8" height="8" fill="#fff"/>`,
+  back: svg`<rect x="5.5" y="1.5" width="9" height="9" fill="currentColor"/><rect x="1.5" y="5.5" width="8" height="8" fill="#fff"/>`,
+};
+const orderGlyph = (change: DrawingOrderChange) => glyph(ORDER_GLYPHS[change]);
+
 const lineShapeGlyph = (shape: LineShape) => {
   const [x1, y1, x2, y2] = ENDS[shape];
   return glyph(svg`<path d=${LINE_SHAPE_PATHS[shape]}/><circle cx=${x1} cy=${y1} r="1.4" fill="currentColor"/><circle cx=${x2} cy=${y2} r="1.4" fill="currentColor"/>`);
@@ -144,7 +155,9 @@ function quickButtons(reference: SizeReference, grid: GridSettings): QuickButton
  * once with what its dialog last chose, disabled until the selection
  * (`arrangeSelected`) is big enough. Then *Line shape* (Req 22.9): a button whose menu gives the
  * selected lines a shape — straight, right angles, horizontal or vertical first — disabled until a line
- * is selected (`linesSelected`). Then 🔍, which opens the search of the diagram (Req 23.2). Then one switch: *Relationship names*, which shows relationships'
+ * is selected (`linesSelected`). Then *Order* (DO-3), whose menu brings the selected elements and figures to the
+ * front or forward, or sends them backward or to the back, disabled until one is selected. Then 🔍, which opens the
+ * search of the diagram (Req 23.2). Then one switch: *Relationship names*, which shows relationships'
  * names on their lines (off by default; the host remembers it). Pressed is on.
  *
  * Then *Shapes*, which opens a second row: figures drawn with no model element
@@ -343,21 +356,27 @@ export class CanvasToolbar extends LitElement {
   @property({ type: Boolean, attribute: false })
   lineShapeMenuOpen = false;
 
+  /** Whether the *Order* menu is open (DO-3): enabled while an element or a figure is selected (`arrangeSelected`). */
+  @property({ type: Boolean, attribute: false })
+  orderMenuOpen = false;
+
   private readonly closeMenu = (event: Event): void => {
     if (event instanceof KeyboardEvent && event.key !== 'Escape') return;
     if (!(event instanceof KeyboardEvent) && event.composedPath().includes(this)) return;
     this.arrangeMenuOpen = false;
     this.lineShapeMenuOpen = false;
+    this.orderMenuOpen = false;
   };
 
   /** No line selected any more: its menu closes, in the same update. */
   override willUpdate(changed: Map<string, unknown>): void {
     if (changed.has('linesSelected') && this.linesSelected === 0) this.lineShapeMenuOpen = false;
+    if (changed.has('arrangeSelected') && this.arrangeSelected === 0) this.orderMenuOpen = false;
   }
 
   override updated(changed: Map<string, unknown>): void {
-    if (!changed.has('arrangeMenuOpen') && !changed.has('lineShapeMenuOpen')) return;
-    if (this.arrangeMenuOpen || this.lineShapeMenuOpen) {
+    if (!changed.has('arrangeMenuOpen') && !changed.has('lineShapeMenuOpen') && !changed.has('orderMenuOpen')) return;
+    if (this.arrangeMenuOpen || this.lineShapeMenuOpen || this.orderMenuOpen) {
       document.addEventListener('pointerdown', this.closeMenu, true);
       document.addEventListener('keydown', this.closeMenu, true);
     } else {
@@ -380,6 +399,12 @@ export class CanvasToolbar extends LitElement {
       return;
     }
     this.dispatchEvent(new CustomEvent<{ dialog: ArrangeDialog }>('arrange-dialog', { detail: { dialog }, bubbles: true, composed: true }));
+  }
+
+  /** A change picked from the *Order* menu: `drawing-order` with `{ change }` (DO-3). */
+  private _onOrder(change: DrawingOrderChange): void {
+    this.orderMenuOpen = false;
+    this.dispatchEvent(new CustomEvent<{ change: DrawingOrderChange }>('drawing-order', { detail: { change }, bubbles: true, composed: true }));
   }
 
   /** The search's button: `canvas-search` (Req 23.2). */
@@ -502,6 +527,7 @@ export class CanvasToolbar extends LitElement {
             @click=${() => {
               this.arrangeMenuOpen = !this.arrangeMenuOpen;
               this.lineShapeMenuOpen = false;
+              this.orderMenuOpen = false;
             }}
           >
             ▾
@@ -551,6 +577,7 @@ export class CanvasToolbar extends LitElement {
             @click=${() => {
               this.lineShapeMenuOpen = !this.lineShapeMenuOpen;
               this.arrangeMenuOpen = false;
+              this.orderMenuOpen = false;
             }}
           >
             ${lineShapeGlyph('horizontal-first')}<span class="caret" aria-hidden="true">▾</span>
@@ -566,6 +593,34 @@ export class CanvasToolbar extends LitElement {
                     @click=${() => this._onLineShape(shape)}
                   >
                     ${lineShapeGlyph(shape)}<span>${label}</span>
+                  </button>`,
+                )}
+              </div>`
+            : nothing}
+        </span>
+        <span class="arrange">
+          <button
+            type="button"
+            class="line-shape"
+            data-action="order-menu"
+            title="Order — what is drawn above what: bring to front, bring forward, send backward, send to back"
+            aria-label="Order"
+            aria-haspopup="menu"
+            aria-expanded=${this.orderMenuOpen ? 'true' : 'false'}
+            ?disabled=${this.arrangeSelected === 0}
+            @click=${() => {
+              this.orderMenuOpen = !this.orderMenuOpen;
+              this.arrangeMenuOpen = false;
+              this.lineShapeMenuOpen = false;
+            }}
+          >
+            ${orderGlyph('front')}<span class="caret" aria-hidden="true">▾</span>
+          </button>
+          ${this.orderMenuOpen && this.arrangeSelected > 0
+            ? html`<div class="menu" role="menu" aria-label="Order">
+                ${DRAWING_ORDER_ACTIONS.map(
+                  ({ change, label, title }) => html`<button type="button" role="menuitem" data-order=${change} title=${title} @click=${() => this._onOrder(change)}>
+                    ${orderGlyph(change)}<span>${label}</span>
                   </button>`,
                 )}
               </div>`

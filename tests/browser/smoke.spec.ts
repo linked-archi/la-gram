@@ -61,6 +61,19 @@ const toolButton = (tool: string): string => `canvas-toolbar button[data-tool="$
  */
 const DRAWN_SHAPE = '.la-shape[data-element-iri]';
 
+/** The IRIs of the shapes drawn. */
+const drawnIris = (page: Page) => page.locator(DRAWN_SHAPE).evaluateAll((els) => els.map((e) => e.getAttribute('data-element-iri')!));
+
+/**
+ * The selector of the one shape drawn since `before`. Shapes are in their drawing order — a new one that overlaps
+ * nothing, by its IRI — not in the order they were made, so the new one need not be the last.
+ */
+async function newShape(page: Page, before: readonly string[]): Promise<string> {
+  const added = (await drawnIris(page)).filter((iri) => !before.includes(iri));
+  expect(added).toHaveLength(1);
+  return `.la-shape[data-element-iri="${added[0]}"]`;
+}
+
 /** The colour the ArchiMate 4.0 notation gives every Business-layer element. */
 const BUSINESS_LAYER_FILL = '#FFFFB5';
 
@@ -396,6 +409,7 @@ describe('4. the sidebar palette (Lit, shadow DOM)', () => {
 describe('5. creating a shape from the sidebar by real pointer input', () => {
   it('places a BusinessActor by click-to-place, and paints it with real geometry', async () => {
     const before = await page.locator(DRAWN_SHAPE).count();
+    const drawnBefore = await drawnIris(page);
 
     // Click the sidebar entry, then click on the canvas. The panel reports the
     // click, `DiagramCanvas.startCreate` hands it to diagram-js's `create`, and
@@ -412,7 +426,7 @@ describe('5. creating a shape from the sidebar by real pointer input', () => {
 
     await expectCount(page.locator(DRAWN_SHAPE), before + 1);
 
-    const shape = page.locator(DRAWN_SHAPE).last();
+    const shape = page.locator(await newShape(page, drawnBefore));
     const box = await shape.boundingBox();
     findings.push(`click-to-place shape client rect: ${JSON.stringify(box)}`);
 
@@ -439,6 +453,7 @@ describe('5. creating a shape from the sidebar by real pointer input', () => {
     // outside the canvas is tracked all the way onto it, so this is a real
     // press-move-release with no synthetic events anywhere.
     const before = await page.locator(DRAWN_SHAPE).count();
+    const drawnBefore = await drawnIris(page);
 
     const entry = await page.locator(BUSINESS_ACTOR_PALETTE_ENTRY).boundingBox();
     const host = await page.locator('.la-diagram-host').boundingBox();
@@ -455,7 +470,7 @@ describe('5. creating a shape from the sidebar by real pointer input', () => {
 
     await expectCount(page.locator(DRAWN_SHAPE), before + 1);
 
-    const box = await page.locator(DRAWN_SHAPE).last().boundingBox();
+    const box = await page.locator(await newShape(page, drawnBefore)).boundingBox();
     findings.push(`sidebar drag → drop shape client rect: ${JSON.stringify(box)}`);
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThan(20);

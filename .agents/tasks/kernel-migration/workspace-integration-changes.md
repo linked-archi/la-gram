@@ -1,5 +1,16 @@
 # Why la-gram changes during workspace completion
 
+## K02b shared candidate — 2026-11-26
+
+| File | Reason |
+|---|---|
+| `package.json` | Select the same K02b candidate archive as the workspace so both load the same code and metamodel bytes. |
+| `package-lock.json` | Pin the archive resolution and integrity for repeatable installed builds. |
+| `vendor/linked-archi-kernel-0.1.5-k02b.0.tgz` | Supply the qualified offline dependency for `npm ci`, including the ArchiMate 3.2 notation update and shared conformance fixtures. |
+| `src/__tests__/kernel-interoperability.test.ts` | Run the reusable package conformance check through la-gram's own `App` and validation, on the existing CI path. |
+| `.agents/tasks/kernel-migration/tasks.md` | Record candidate identity, checks and the remaining release dependency. |
+| `.agents/tasks/kernel-migration/workspace-integration-changes.md` | Record each modeller change and its reason for owner review. |
+
 Updated 2026-11-24 at the user's request to justify every la-gram change. Existing unrelated work is retained.
 The workspace must edit the same RDF through the same model implementation; independent copies can diverge.
 These changes originate in the kernel and are mirrored here until L01 consumes its package.

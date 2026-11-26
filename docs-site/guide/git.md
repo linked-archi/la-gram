@@ -36,6 +36,18 @@ as ▸*: opening first, then saving and the rest.
 1. Open *File*, and point at *Git*: with Git storage on, *Open from Git…* is first.
 2. Save the model to Git once: *Save to Git…* becomes *Save to Git*, with its repository and branch.
 
+## Messages {#messages}
+
+What a Git action did — *Committed abc12345 to acme/arch · main · models/shop.ttl — https://…*, a pull's
+outcome, the conflicts a merge left, an error — stays in the bottom right corner until you close it with its
+×; several stack, the newest last. It covers what is under it — the Conflicts tab's buttons, say — until you
+close it. Select its text to copy it. A web address in it is a link, which opens in
+a new tab (the desktop app opens it in your browser). *Pulling … from …*, a step on the way, goes by itself,
+as messages outside Git do.
+
+1. Choose *Save to Git*, and *OK* with a message: *Committed …* appears, with the commit's link.
+2. Click the link to see the commit on GitHub or GitLab, then close the message with ×.
+
 ## Open from Git {#open-from-git}
 
 *File › Git › Open from Git…* asks for:
@@ -177,6 +189,20 @@ changes; the last successful check; the next scheduled check; and why checks are
 The tab's badge says *New* when incoming changes are available, *Paused* when regular checks are
 paused, or *!* when a failure or conflict needs attention. Background updates leave your current tab
 and editing focus in place.
+
+The tab's buttons:
+
+| Button | Does |
+|---|---|
+| *Save to Git* | commits the model to its file, asking for a message — the same as *File › Git › Save to Git*. Available while no other Git action is running |
+| *Check for remote changes* | checks now, as *File › Git › Check for remote changes* does |
+| *Pull from Git* | incorporates the newer model, as *File › Git › Pull from Git* does |
+| *Git settings…* | opens *File › Settings… › Git storage* |
+| *Pause auto-commit*, *Resume auto-commit* | shown while [auto-commit](#auto-commit) is on: stops automatic commits, and starts them again |
+
+1. Change the model, then open the *Git* tab: *Local changes* says *Not saved to Git*.
+2. Choose *Save to Git*, type a commit message and choose *OK*: the change is committed, and *Local
+   changes* says *None*.
 
 Choose *File › Git › Check for remote changes*, or the button in the *Git* tab, to check now. It observes the
 repository without pulling, even when automatic pull is enabled. A commit affecting another file, or

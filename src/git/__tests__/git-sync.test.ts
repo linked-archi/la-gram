@@ -313,6 +313,31 @@ it('pauses for unresolved conflicts and pending branch merges, then resumes when
   expect(head).toHaveBeenCalledTimes(1);
 });
 
+it('Save to Git in the tab: offered whenever the model is bound and no Git operation runs — in a room and with conflicts too, as the menu offers it (Req 18.25)', async () => {
+  const f = await setup();
+  f.sync.refresh();
+  expect(f.state.status).toMatchObject({ canSave: true, canCheck: true });
+  // A shared room, or conflicts to choose: no check or pull, but saving is the menu's, which they do not hold back.
+  f.state.room = 'shared';
+  f.state.conflicts = 1;
+  f.sync.refresh();
+  expect(f.state.status).toMatchObject({ canSave: true, canCheck: false, canPull: false });
+  f.state.room = undefined;
+  f.state.conflicts = 0;
+  // While a check runs: not now.
+  const read = deferred<string>();
+  vi.spyOn(f.repo, 'branchHead').mockReturnValueOnce(read.promise as never);
+  const checking = f.sync.check();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(f.state.status).toMatchObject({ phase: 'checking', canSave: false });
+  read.reject(new GitError('network', 'Offline'));
+  await checking.catch(() => undefined);
+  // Unbound: none.
+  f.ctx.bindings.forget(MODEL);
+  f.sync.refresh();
+  expect(f.state.status?.canSave).toBe(false);
+});
+
 it('background authentication failures never prompt or retry until a manual action', async () => {
   const f = await setup();
   const head = vi.spyOn(f.repo, 'branchHead').mockRejectedValue(new GitError('not-found', 'Private repository'));

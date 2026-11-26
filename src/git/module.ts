@@ -132,9 +132,12 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   };
   eventBus.on('model-loaded', onLoaded);
 
+  // What a Git action did stays on screen until closed (Req 18.31); a step on the way goes by itself.
+  const gitReport = (message: string, level?: 'info' | 'warning' | 'error', options?: { progress?: boolean }) =>
+    ui.report(message, level, { sticky: !options?.progress });
   const openContext: GitOpenContext = {
     dialogs: ui.dialogs,
-    report: (message, level) => ui.report(message, level),
+    report: gitReport,
     tokens,
     bindings,
     provider,
@@ -163,7 +166,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     serialize: (format) => app.modelIO.serialize(app.session.modelIri, { format }),
     saved: (fileName) => eventBus.emit('model-saved', { fileName }),
     dialogs: ui.dialogs,
-    report: (message, level) => ui.report(message, level),
+    report: gitReport,
     tokens,
     bindings,
     provider,
@@ -189,7 +192,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     gitSettingsSection({ config, personal: settings, tokens, hostKinds, autoCommits,
       target: () => { const modelIri = context.modelIri(); const binding = modelIri ? bindings.get(modelIri) : undefined;
         return modelIri && binding ? { modelIri, binding } : undefined; },
-      report: (message) => ui.report(message), changed: () => sync?.refresh(true) }),
+      report: (message) => gitReport(message), changed: () => sync?.refresh(true) }),
   );
 
   // Shared by manual flows and scheduled checks; the owner lock never blocks manual work.
@@ -226,7 +229,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
       else if (id === 'update') await updateFromBranch(context);
       else if (id === 'review') await openMergeRequest(context);
     }, false);
-    if (!result.ran) ui.report('A Git operation is in progress. Wait for it to finish.', 'warning');
+    if (!result.ran) gitReport('A Git operation is in progress. Wait for it to finish.', 'warning');
   };
 
   const syncPanel = document.createElement('git-sync-status');

@@ -83,7 +83,8 @@ export async function pullFromGit(ctx: GitPullContext): Promise<PullOutcome> {
   const current = () => ctx.current() && !ctx.room() && ctx.modelIri() === modelIri
     && bindingKey(ctx.bindings.get(modelIri)) === key && merge.unresolved() === 0;
   try {
-    ctx.report(`Pulling ${bound.path} from ${bound.branch}…`);
+    // A step on the way: it goes by itself, and what the pull did stays (Req 18.31).
+    ctx.report(`Pulling ${bound.path} from ${bound.branch}…`, 'info', { progress: true });
     const observed = await observeGit(ctx, bound, current, true);
     if (!observed) return 'stopped';
     const { head, incoming } = observed;

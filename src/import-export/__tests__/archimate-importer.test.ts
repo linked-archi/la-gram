@@ -322,6 +322,46 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     });
     expect(views.getNode(viewIri, `${ns}element/id-node`)?.parentElementIri).toBeUndefined();
   });
+  it('keeps the file’s drawing order where nodes in one place overlap: the later above (DO-5)', () => {
+    const ORDERED = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-m">
+  <name xml:lang="en">Ordered</name>
+  <elements>
+    <element identifier="id-a" xsi:type="ApplicationComponent"><name xml:lang="en">A</name></element>
+    <element identifier="id-b" xsi:type="ApplicationComponent"><name xml:lang="en">B</name></element>
+    <element identifier="id-c" xsi:type="ApplicationComponent"><name xml:lang="en">C</name></element>
+  </elements>
+  <views><diagrams>
+    <view identifier="id-v" xsi:type="Diagram"><name xml:lang="en">Overlapping</name>
+      <node identifier="n-band" xsi:type="Container" x="0" y="0" w="500" h="120"/>
+      <node identifier="n-a" elementRef="id-a" xsi:type="Element" x="20" y="20" w="120" h="55"/>
+      <node identifier="n-b" elementRef="id-b" xsi:type="Element" x="60" y="40" w="120" h="55"/>
+    </view>
+    <view identifier="id-w" xsi:type="Diagram"><name xml:lang="en">Apart</name>
+      <node identifier="n-c" elementRef="id-c" xsi:type="Element" x="0" y="0" w="120" h="55"/>
+      <node identifier="n-a2" elementRef="id-a" xsi:type="Element" x="300" y="0" w="120" h="55"/>
+    </view>
+  </diagrams></views>
+</model>`;
+    const views = new OxigraphViewManager(store);
+    const ns = 'https://example.org/archimate/ordered/';
+    applyExchangeModel(parseArchiMateExchange(ORDERED), {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views,
+      modelIri: `${ns}model`,
+      knownClass: () => true,
+    });
+    const view = (label: string) => views.getViews().find((v) => v.label === label)!.iri;
+    // The band behind the two elements it is drawn under, not holding them; A under B.
+    const overlapping = views.getNodes(view('Overlapping'));
+    const band = overlapping.find((n) => n.figure)!;
+    expect(band.zOrder).toBeUndefined();
+    expect(views.getNode(view('Overlapping'), `${ns}element/id-a`)?.zOrder).toBe(1);
+    expect(views.getNode(view('Overlapping'), `${ns}element/id-b`)?.zOrder).toBe(2);
+    // Apart, nothing is written.
+    expect(views.getNodes(view('Apart')).some((n) => n.zOrder !== undefined)).toBe(false);
+  });
   it('draws a Label opening a view of the file as a reference to that view, on the view or in a box; one opening none as a note', () => {
     // The view it opens comes later in the file, as an index view's do.
     const REFERENCES = `<?xml version="1.0" encoding="UTF-8"?>

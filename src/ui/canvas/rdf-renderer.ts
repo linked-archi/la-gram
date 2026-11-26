@@ -328,6 +328,11 @@ export interface RdfBusinessObject {
   kind?: 'element' | 'relationship' | 'figure' | 'connector';
   /** A figure — a group, a shape, a note — standing for no model element: its node is its `iri`. */
   figure?: FigureInfo;
+  /**
+   * Its node's drawing order among the shapes in the same place (`arch-vis:zOrder`, core-vis 0.10): drawn above
+   * those with a lower one; absent, 0 — the same, by its node's IRI (`rdf-ordering.ts`).
+   */
+  zOrder?: number;
   /** How this placement or line looks in the view, from its own style; a figure's is in its {@link figure}. */
   appearance?: Appearance;
   /**

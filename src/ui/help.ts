@@ -217,6 +217,8 @@ export function shortcutBlocks(mac: boolean, channel?: string): DetailBlock[] {
       [keys('Mod+Shift+V'), 'Paste as copies: new elements and relationships'],
       [keys('Mod+Alt+V'), 'Paste as references: the same elements, placed again'],
       [keys('Mod+D'), 'Duplicate the selection, as copies'],
+      [keys('Mod+Shift+]', 'Mod+]'), 'Bring the selection to the front, one step forward'],
+      [keys('Mod+[', 'Mod+Shift+['), 'Send the selection one step backward, to the back'],
       [keys('Shift+Click'), 'Add to the selection, or take from it'],
       [keys('Shift+Drag'), 'Select with a lasso'],
       [keys('Drag'), 'Move around the diagram, from the empty canvas'],

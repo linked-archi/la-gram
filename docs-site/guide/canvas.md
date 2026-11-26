@@ -23,8 +23,8 @@ After them come the format painter (🖌, see [Appearance](appearance.md#format-
 (three boxes in two rows joined by right-angled lines; see [Arrange view](#arrange-view)) with ▾ beside
 it for the other ways to arrange, the quick actions that align, distribute, size and route what is
 selected (see [Tidy a diagram](#tidy-a-diagram)), *Line shape* (a bent line with ▾; see
-[Line shape](#line-shape)), 🔍 ([Search](#search)), and three switches: *Relationship names*, *Notation
-only* and *Shapes*.
+[Line shape](#line-shape)), *Order* (two squares with ▾; see [Order](#order)), 🔍 ([Search](#search)), and
+three switches: *Relationship names*, *Notation only* and *Shapes*.
 
 1. Click ⬚ in the canvas toolbar.
 2. Drag a rectangle round "Customer" and "Place order": both are selected.
@@ -408,12 +408,13 @@ view*](sparql.md#render-as-new-view), are laid out the same way, with the choice
 
 ## Tidy a diagram {#tidy-a-diagram}
 
-To tidy a diagram without laying it out again, la-gram offers five more ways to arrange it, each one
+To tidy a diagram without laying it out again, la-gram offers six more ways to arrange it, each one
 step to undo:
 
 - **Arrange relationships:** the lines are routed again at right angles, around the elements in their
   way. The elements stay where they are.
 - **Line shape:** the selected lines are made straight, routed at right angles, or bent once.
+- **Order:** the selected elements and shapes are drawn in front of, or behind, the ones they overlap.
 - **Align and distribute:** the selected elements are lined up, or spaced with equal gaps.
 - **Align to grid:** each element's top-left corner moves to the nearest grid line.
 - **Sizes:** the selected elements are made the same size, or each is reset to its default size.
@@ -493,6 +494,34 @@ them.
 2. Select its line to "Customer", and choose *Line shape* › *Vertical first* in the canvas toolbar: the
    line leaves "Gift wrapping" upwards, and turns into the side of "Customer".
 3. Right-click the line and choose *Straight*: the bend is gone.
+
+### Order {#order}
+
+Where elements and shapes overlap, *Order* says which is drawn on top: a shape behind the elements it frames, a
+note in front of what it covers. Select one or more, then choose *Order* in the canvas toolbar, right-click one
+of them, or press the keys:
+
+| Choose | Keys (Windows and Linux / macOS) | The selected |
+|---|---|---|
+| *Bring to front* | ++ctrl+shift+bracket-right++ / ++shift+cmd+bracket-right++ | above everything beside them; several keep their order among themselves |
+| *Bring forward* | ++ctrl+bracket-right++ / ++cmd+bracket-right++ | above the next one each overlaps, and no further |
+| *Send backward* | ++ctrl+bracket-left++ / ++cmd+bracket-left++ | below the next one each overlaps |
+| *Send to back* | ++ctrl+shift+bracket-left++ / ++shift+cmd+bracket-left++ | below everything beside them |
+
+"Beside them" means in the same place: the diagram itself, or the inside of the same element or group.
+Whatever is inside something is always drawn in front of it, and lines are always drawn over shapes. What is
+inside a selected element moves with it, and something another collaborator is editing stays where it is.
+When nothing changes, la-gram says why: *Already in front.*, or *Nothing it overlaps is drawn above it.*
+
+The order is saved with the view, so it is the same after you open the model again, in a collaborator's
+window, and in any tool that reads it. Moving a shape keeps its place in the order: it does not come to the
+front. Something new — placed from the palette or the model tree, appended, pasted or duplicated — goes in
+front of what it lands on, and so does something you move into, or out of, an element or a group. Each change
+is one step to undo.
+
+1. Place a *Grouping* from the palette over "Customer" and "Place order": it is drawn in front of them.
+2. With the grouping selected, choose *Order* › *Send to back*: the two elements are drawn over it.
+3. Press ++ctrl+z++ (++cmd+z++): the grouping is in front again.
 
 ### Align to grid… {#align-to-grid}
 
@@ -684,13 +713,13 @@ Right-click on the canvas for what applies to what is under the pointer.
 
 | On | Entries |
 |---|---|
-| an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Zoom in: …* (for each view refining it), *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
+| an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Bring to front*, *Bring forward*, *Send backward*, *Send to back* ([Order](#order)), *Zoom in: …* (for each view refining it), *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Straight*, *Right angles*, *Horizontal first*, *Vertical first* ([Line shape](#line-shape)), *Zoom in: …* (for each view refining it), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a [line from a figure](#lines-from-figures) | *Straight*, *Right angles*, *Horizontal first*, *Vertical first* ([Line shape](#line-shape)), *Properties*, *Copy IRI*, *Delete from view* |
-| a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, *Properties*, *Copy IRI*, *Delete from view* |
-| a view reference | *Open view*, *Rename* (F2: the view's name), *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, *Properties*, *Show in model tree* and *Copy IRI* — the view's — *Delete from view*, *Delete view from model…* ([View references](#view-references)) |
+| a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, the four [Order](#order) entries, *Properties*, *Copy IRI*, *Delete from view* |
+| a view reference | *Open view*, *Rename* (F2: the view's name), *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, the four [Order](#order) entries, *Properties*, *Show in model tree* and *Copy IRI* — the view's — *Delete from view*, *Delete view from model…* ([View references](#view-references)) |
 | the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Arrange relationships…*, *Align to grid…*, *Sizes…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Copy view as PNG*, *Copy view as SVG*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
-| one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), *Move 2 relationships to folder…* when the model has folders, and the four line shapes, for every selected line; lines from figures: the four line shapes |
+| one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, *Move 2 elements to folder…* when the model has folders, and the four [Order](#order) entries, for every one selected; groups, notes and shapes: the same, but for the folder; relationships: the three pastes (once something is copied), *Move 2 relationships to folder…* when the model has folders, and the four line shapes, for every selected line; lines from figures: the four line shapes |
 
 What the entries do beyond the canvas:
 

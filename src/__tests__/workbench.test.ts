@@ -1632,7 +1632,8 @@ describe('the workbench', () => {
     const shape = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry').get(placed);
     const entries = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(shape) as Record<string, { group: string; action: () => void }>;
     expect(Object.keys(entries)).toEqual([
-      'rename', 'change-type', 'cut', 'copy', 'duplicate', 'append', 'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model',
+      'rename', 'change-type', 'cut', 'copy', 'duplicate', 'append', 'order-front', 'order-forward', 'order-backward', 'order-back',
+      'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model',
     ]);
     entries['graph']!.action();
     expect([ui.shell.bottomTab, ui.graphPanel.rootIri]).toEqual(['graph', placed]);
@@ -2310,6 +2311,52 @@ describe('the workbench', () => {
     }
   });
 
+  it('Drawing order: the keys and the menu bring the selected to the front or send it back, said only when nothing changes (DO-2, DO-3)', async () => {
+    const els = app.components.elementManager;
+    const model = app.session.modelIri!;
+    const view = app.session.activeViewIri!;
+    const views = app.components.viewManager;
+    const lower = els.createElement(`${AM4}BusinessActor`, model, { label: 'Lower desk' }).value;
+    const upper = els.createElement(`${AM4}BusinessActor`, model, { label: 'Upper desk' }).value;
+    views.addElementToView(view, lower, { x: 1200, y: 1200, width: 120, height: 55 });
+    views.addElementToView(view, upper, { x: 1240, y: 1220, width: 120, height: 55 });
+    views.setNodeZOrder(view, views.getNode(view, upper)!.nodeIri, 2);
+    views.setNodeZOrder(view, views.getNode(view, lower)!.nodeIri, 1);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const zOf = (iri: string) => views.getNode(view, iri)?.zOrder;
+    const press = (code: string, shiftKey = false) => {
+      const event = new KeyboardEvent('keydown', { key: code === 'BracketRight' ? ']' : '[', code, ctrlKey: true, shiftKey, bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    try {
+      // The canvas's keys, as after a click on it: no field holds the focus.
+      for (let active = document.activeElement; active && active !== document.body; active = (active as Element & { shadowRoot?: ShadowRoot }).shadowRoot?.activeElement ?? null) {
+        (active as HTMLElement).blur?.();
+      }
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      ui.diagramCanvas.selectIris([lower]);
+      // Ctrl+Shift+]: to the front, above Upper desk.
+      expect(press('BracketRight', true)).toBe(true);
+      expect(zOf(lower)! > zOf(upper)!).toBe(true);
+      // The menu's Bring to front again: already there, and said.
+      const registry = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry');
+      const menu = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(lower)) as Record<string, { action: () => void }>;
+      menu['order-front']!.action();
+      expect(vi.mocked(script.dialogs.toast).mock.calls.at(-1)).toEqual(['Already in front.', 'info']);
+      // Ctrl+[: one step back, below Upper desk again.
+      expect(press('BracketLeft')).toBe(true);
+      expect(zOf(lower)! < zOf(upper)!).toBe(true);
+    } finally {
+      ui.selectConcept(undefined);
+      for (const iri of [lower, upper]) {
+        views.removeElementFromView(view, iri);
+        els.deleteElement(iri);
+      }
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+    }
+  });
+
   it('saves only the model, as TriG, and marks it clean', async () => {
     ui.diagramCanvas.placeExisting; // canvas is ready
     const store = app.components.store;
@@ -2447,6 +2494,11 @@ describe('the workbench', () => {
       ['copy', 'Copy'],
       ['duplicate', 'Duplicate'],
       ['move-to-folder', 'Move 2 elements to folder…'],
+      // Drawing order, for both (DO-3).
+      ['order-front', 'Bring to front'],
+      ['order-forward', 'Bring forward'],
+      ['order-backward', 'Send backward'],
+      ['order-back', 'Send to back'],
     ]);
     script.answers.push('');
     menu()['move-to-folder']!.action();

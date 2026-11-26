@@ -62,6 +62,8 @@ export interface CanvasClipboardHost {
   pointer(): Point | undefined;
   /** Run a change of the store as one undoable step; the diagram is drawn again from the store. */
   record(apply: () => void): boolean;
+  /** Pasted placements in front of what they overlap (drawing order, DO-4): called inside {@link record}. */
+  placeInFront?(nodes: readonly string[]): void;
   /** Select these placements (nodes and links). */
   selectPlacements(iris: readonly string[]): void;
   /** Remove what is selected from the view, as *Delete from view* does. */
@@ -268,6 +270,8 @@ export class CanvasClipboard {
         { modelIri: target.modelIri, viewIri: target.viewIri },
         { mode, unknownTypes, ...position, ...(this.host.sizeOf ? { sizeOf: (type: string) => this.host.sizeOf!(type) } : {}) },
       );
+      // In front of what they land on, in the same step.
+      if (result) this.host.placeInFront?.(result.nodes);
     });
     if (!result) return undefined;
     this.host.selectPlacements([...result.nodes, ...result.links]);

@@ -234,6 +234,31 @@ describe('CanvasToolbar', () => {
     expect(root().querySelector('.menu')).toBeNull();
   });
 
+  it('Order: disabled until an element or a figure is selected, then a menu of the four (DO-3)', async () => {
+    await mount();
+    const button = root().querySelector<HTMLButtonElement>('button[data-action="order-menu"]')!;
+    expect(button.getAttribute('aria-label')).toBe('Order');
+    expect(button.disabled).toBe(true);
+    toolbar.arrangeSelected = 1;
+    await toolbar.updateComplete;
+    button.click();
+    await toolbar.updateComplete;
+    const items = Array.from(root().querySelectorAll<HTMLButtonElement>('.menu button[data-order]'));
+    expect(items.map((b) => b.textContent?.trim())).toEqual(['Bring to front', 'Bring forward', 'Send backward', 'Send to back']);
+    const asked: string[] = [];
+    document.body.addEventListener('drawing-order', (e) => asked.push((e as CustomEvent<{ change: string }>).detail.change));
+    items[3].click();
+    await toolbar.updateComplete;
+    expect(asked).toEqual(['back']);
+    expect(root().querySelector('.menu')).toBeNull();
+    // Nothing selected any more: closed.
+    button.click();
+    await toolbar.updateComplete;
+    toolbar.arrangeSelected = 0;
+    await toolbar.updateComplete;
+    expect(root().querySelector('.menu')).toBeNull();
+  });
+
   it('🔍 asks for the search of the diagram (Req 23.2)', async () => {
     await mount();
     const button = root().querySelector<HTMLButtonElement>('button[data-action="search"]')!;

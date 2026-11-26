@@ -230,3 +230,35 @@ describe('the details dialog (About, the keyboard shortcuts)', () => {
     ]);
   });
 });
+
+describe('the toast', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    document.querySelector('.la-toasts')?.remove();
+  });
+  const toasts = () => [...document.querySelectorAll<HTMLElement>('.la-toast')];
+
+  it('goes by itself after a few seconds; kept until its × closes it, `sticky` (Req 18.31)', () => {
+    vi.useFakeTimers();
+    domDialogs.toast('Saved shop.trig');
+    domDialogs.toast('Committed abc12345 to acme/arch · main · models/shop.ttl', 'info', { sticky: true });
+    expect(toasts().map((t) => t.classList.contains('sticky'))).toEqual([false, true]);
+    vi.advanceTimersByTime(60_000);
+    expect(toasts()).toHaveLength(1);
+    const close = toasts()[0].querySelector<HTMLButtonElement>('.la-toast-close')!;
+    expect(close.getAttribute('aria-label')).toBe('Close message');
+    close.click();
+    expect(toasts()).toHaveLength(0);
+  });
+
+  it('web addresses are links, opened on their own; trailing punctuation and markup stay text', () => {
+    domDialogs.toast('Committed abc12345 — https://github.com/acme/arch/commit/abc12345. See <b>it</b>, or ftp://x.', 'info', { sticky: true });
+    const [toast] = toasts();
+    const links = [...toast.querySelectorAll('a')];
+    expect(links.map((a) => [a.getAttribute('href'), a.target, a.rel])).toEqual([
+      ['https://github.com/acme/arch/commit/abc12345', '_blank', 'noopener noreferrer'],
+    ]);
+    expect(toast.querySelector('b')).toBeNull();
+    expect(toast.querySelector('.la-toast-text')!.textContent).toBe('Committed abc12345 — https://github.com/acme/arch/commit/abc12345. See <b>it</b>, or ftp://x.');
+  });
+});

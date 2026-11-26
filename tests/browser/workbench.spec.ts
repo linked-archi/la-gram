@@ -864,7 +864,8 @@ describe('appending from the context pad', () => {
   });
 
   it('draws the relationships around the selected element in the Graph tab, filters them, and exports query and Turtle', async () => {
-    const actor = page.locator(SHAPE).first();
+    // The actor, by its IRI: the shapes are in drawing order, by IRI, not in the order they were made.
+    const actor = page.locator(`${SHAPE}[data-element-id="${(await model(page)).actors[0]}"]`);
     const box = (await actor.boundingBox())!;
     await page.mouse.click(box.x + box.width + 200, box.y + box.height + 150);
     await actor.click();
@@ -1451,7 +1452,7 @@ describe('renaming on the canvas', () => {
             .map((q: any) => `${q.object.value}@${q.object.language}`) as string[],
         actor,
       );
-    const shape = page.locator(SHAPE).first();
+    const shape = page.locator(`${SHAPE}[data-element-id="${actor}"]`);
     const drawn = async () =>
       (await shape.locator('text tspan').evaluateAll((lines) => lines.map((t) => t.textContent ?? '')))
         .join(' ')
@@ -1723,7 +1724,7 @@ describe('changing an element’s type', () => {
           drawnType: app.components.viewManager ? (window as any).__LA_GRAM_UI__.diagramCanvas.getElement(iri)?.typeIri : undefined,
         };
       }, actor);
-    const shape = page.locator(SHAPE).first();
+    const shape = page.locator(`${SHAPE}[data-element-id="${actor}"]`); // by IRI: the shapes are in drawing order
     const menu = page.locator('.djs-popup');
     // Right-click: the context menu; "Change type…" opens the type menu.
     const openTypeMenu = async () => {
@@ -1746,6 +1747,10 @@ describe('changing an element’s type', () => {
       'Copy',
       'Duplicate',
       'Append…',
+      'Bring to front',
+      'Bring forward',
+      'Send backward',
+      'Send to back',
       'Properties',
       'Show in model tree',
       'Show relationship graph',
@@ -2082,7 +2087,7 @@ describe('model questions', () => {
 
     // Right-click → "Ask about this element…": the SPARQL tab, the questions about it.
     await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
-    await page.locator(SHAPE).first().click({ button: 'right' });
+    await page.locator(`${SHAPE}[data-element-id="${actor}"]`).click({ button: 'right' });
     const context = page.locator('.djs-popup.la-context-menu');
     await context.waitFor({ state: 'visible' });
     await context.locator('.entry', { hasText: 'Ask about this element…' }).click();
@@ -3282,6 +3287,10 @@ describe('copy and paste on the canvas', () => {
     await dropActor(page, 420, 150);
     await until(async () => (await model(page)).actors.length === 2, 'two actors');
     const shapes = page.locator(SHAPE);
+    // The last drop leaves its shape selected, and a click on a selected shape deselects it: start clean. (The shapes
+    // are in drawing order, by IRI, not in the order they were dropped.)
+    const host0 = (await page.locator('.la-diagram-host').boundingBox())!;
+    await page.mouse.click(host0.x + host0.width - 40, host0.y + host0.height - 40);
     await shapes.nth(0).click();
     await shapes.nth(1).click({ modifiers: ['Shift'] });
 
@@ -3437,6 +3446,56 @@ describe('arranging a view', () => {
     await page.keyboard.press('ControlOrMeta+z');
     await until(async () => JSON.stringify(await routes()) === JSON.stringify(before), 'undo');
     findings.push('line shape: one line given one bend from the toolbar, the other line staying, undone in one step: ok');
+  }, 120_000);
+});
+
+describe('drawing order', () => {
+  it('sends a shape behind another from the toolbar’s Order menu, and it stays behind once saved and opened again', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      for (const [label, x] of [['Lower', 200], ['Upper', 260]] as const) {
+        const iri = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x, y: 200, width: 160, height: 80 });
+      }
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+    });
+    /** The shapes' names in the order their graphics are painted: the last on top. */
+    const painted = () =>
+      page.evaluate(() => {
+        const registry = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('elementRegistry');
+        return [...document.querySelectorAll('.la-diagram-host .djs-element.djs-shape')]
+          .map((g) => registry.get(g.getAttribute('data-element-id'))?.businessObject?.label as string | undefined)
+          .filter((label) => label === 'Lower' || label === 'Upper');
+      });
+    const iriOf = (label: string) =>
+      page.evaluate((l) => {
+        const registry = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('elementRegistry');
+        return registry.getAll().find((e: any) => e.businessObject?.kind === 'element' && e.businessObject?.label === l)?.businessObject?.iri as string;
+      }, label);
+    // Whichever is on top now — the IRIs decide — is sent behind the other.
+    const [, top] = await painted();
+    const bottom = top === 'Upper' ? 'Lower' : 'Upper';
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), await iriOf(top!));
+    const button = page.locator('canvas-toolbar button[data-action="order-menu"]');
+    await until(async () => !(await button.isDisabled()), 'Order enabled by the selection');
+    await button.click();
+    await page.locator('canvas-toolbar .menu button[data-order="back"]').click({ timeout: 10_000 });
+    await until(async () => JSON.stringify(await painted()) === JSON.stringify([top, bottom]), 'sent behind');
+
+    // Saved and opened again: still behind.
+    const text = await page.evaluate(() => (window as any).__LA_GRAM_APP__.saveModel('turtle').text as string);
+    expect(text).toContain('arch-vis:zOrder');
+    const opening = page.evaluate((t) => (window as any).__LA_GRAM_UI__.openModelText(t, 'ordered.ttl'), text);
+    const dialog = page.locator('.la-dialog .la-button.primary');
+    if (await dialog.isVisible({ timeout: 2_000 }).catch(() => false)) await dialog.click();
+    await opening;
+    await until(async () => (await painted()).length === 2, 'the model opened again');
+    expect(await painted()).toEqual([top, bottom]);
+    findings.push('drawing order: sent behind from the toolbar, kept through a save and an open: ok');
   }, 120_000);
 });
 

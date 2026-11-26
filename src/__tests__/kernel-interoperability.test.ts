@@ -1,11 +1,33 @@
 /** L01 consumer contract: the actual modeller preserves the shared canonical RDF fixture. */
 import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
+import {readFile} from 'node:fs/promises';
 import {dirname,join} from 'node:path';
 import {expect,it} from 'vitest';
+import {conformanceFindings,runShopConformance} from '@linked-archi/kernel/conformance';
 import {createApp} from '../app.js';
+import {findingsOf} from '../cli/models.js';
 const kernel=dirname(createRequire(import.meta.url).resolve('@linked-archi/kernel/package.json'));
 const fixture=readFileSync(join(kernel,'fixtures/interoperability/archimate4-demo.trig'),'utf8');
+
+it('passes the installed kernel conformance fixture through the modeller', async () => {
+  const app = await createApp({ assetMode: 'offline', newModel: false, validation: 'inline', validationDelayMs: 1e9 });
+  try {
+    await runShopConformance(file => readFile(file, 'utf8'), async (text, name) => {
+      expect((await app.openModel(text, name)).missingMetamodels).toEqual([]);
+      return {
+        modelIri: app.session.modelIri,
+        metamodelIris: app.loadedMetamodels().map(model => model.metamodelIri),
+        trig: app.saveModel('trig').text,
+        findings: conformanceFindings({ results: findingsOf(app) }),
+      };
+    });
+  } finally {
+    app.validation.dispose();
+    app.components.store.dispose?.();
+  }
+}, 30_000);
+
 it('opens canonical interchange RDF unchanged and retains view identity on a modeller edit',async()=>{
   const app=await createApp({assetMode:'offline',newModel:false,validation:'inline',validationDelayMs:1e9,recordEdits:true});
   try{

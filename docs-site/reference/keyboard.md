@@ -54,6 +54,8 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
     | ++ctrl+shift+v++ | paste as copies |
     | ++ctrl+alt+v++ | paste as references: the same elements, placed again |
     | ++ctrl+d++ | duplicate the selection, as copies |
+    | ++ctrl+shift+bracket-right++ / ++ctrl+bracket-right++ | bring the selection to the front / one step forward |
+    | ++ctrl+bracket-left++ / ++ctrl+shift+bracket-left++ | send the selection one step backward / to the back |
     | ++f2++ | rename the one selected element, relationship or figure — on a view reference, its view |
     | ++ctrl+plus++ / ++ctrl+minus++ | zoom in / out one step |
     | ++ctrl+0++ | zoom to 100 % |
@@ -73,6 +75,8 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
     | ++shift+cmd+v++ | paste as copies |
     | ++alt+cmd+v++ | paste as references: the same elements, placed again |
     | ++cmd+d++ | duplicate the selection, as copies |
+    | ++shift+cmd+bracket-right++ / ++cmd+bracket-right++ | bring the selection to the front / one step forward |
+    | ++cmd+bracket-left++ / ++shift+cmd+bracket-left++ | send the selection one step backward / to the back |
     | ++f2++ | rename the one selected element, relationship or figure — on a view reference, its view |
     | ++cmd+plus++ / ++cmd+minus++ (or the Ctrl forms) | zoom in / out one step |
     | ++cmd+0++ (or ++ctrl+0++) | zoom to 100 % |
@@ -88,6 +92,9 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
   reference to it with it; the reference's own text is its *Text* in the Properties tab. Clicking elsewhere while renaming keeps the new name, as ++enter++ does.
 - **Delete** never deletes from the model: *Delete from model (all views)* on the context pad or the
   right-click menu does, after asking.
+- **Drawing order** — ++cmd+bracket-left++ and ++cmd+bracket-right++ are the browser's back and forward on a
+  Mac; while the canvas has the focus, they change what is drawn above what instead:
+  [Order](../guide/canvas.md#order).
 - **Copy and paste** — what each pastes, and where: [Copy and paste](../guide/canvas.md#copy-and-paste). The
   keys copy the diagram's selection unless a text field has the focus or text is selected on the page,
   which they copy as usual.

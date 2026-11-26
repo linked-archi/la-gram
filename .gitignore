@@ -69,6 +69,7 @@ data/
 # The specs and conventions under .agents/ are tracked (.kiro/ links to them, for Kiro).
 .venv-docs/
 .agents/tasks/*
+!.agents/tasks/drawing-order/
 !.agents/tasks/git-sync/
 !.agents/tasks/github-move/
 !.agents/tasks/kernel-migration/

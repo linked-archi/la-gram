@@ -197,6 +197,41 @@ describe('the Git module in the File menu', () => {
     app.collaborationRoom = undefined;
   });
 
+  it('what a Git action did stays on screen until closed; a step on the way goes by itself (Req 18.31)', async () => {
+    const toast = vi.mocked(ui.dialogs.toast);
+    toast.mockClear();
+    await ui.runCommand({ command: 'module', value: 'git:pull' });
+    const calls = toast.mock.calls.map(([message, , options]) => [String(message).split(' ')[0], options]);
+    expect(calls[0]).toEqual(['Pulling', { sticky: false }]);
+    expect(calls.at(-1)).toEqual([expect.any(String), { sticky: true }]);
+    ui.shell.showTab('properties');
+  });
+
+  it('the Git tab’s Save to Git commits as File › Save to Git does: the same file, the same way (Req 18.25)', async () => {
+    await ui.runCommand({ command: 'module', value: 'git:check' });
+    const panel = ui.shell.querySelector('git-sync-status')!;
+    await panel.updateComplete;
+    const button = panel.shadowRoot!.querySelector<HTMLButtonElement>('button[data-action="save"]')!;
+    expect([button.textContent?.trim(), button.disabled]).toEqual(['Save to Git', false]);
+    expect(button.title).toBe('Commit the model to acme/arch · main · models/shop-floor.ttl, as File › Save to Git does');
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(app.isDirty()).toBe(true);
+    const puts = host.calls.filter((c) => c.method === 'PUT').length;
+    const prompt = vi.mocked(ui.dialogs.prompt);
+    // The menu's commit message, asked the same way.
+    prompts.push('From the Git tab');
+    button.click();
+    await vi.waitFor(() => expect(host.calls.filter((c) => c.method === 'PUT')).toHaveLength(puts + 1));
+    expect(prompt.mock.calls.at(-1)!.slice(0, 2)).toEqual(['Save to Git', 'Commit message — acme/arch · main · models/shop-floor.ttl']);
+    const put = host.calls.filter((c) => c.method === 'PUT').at(-1)!;
+    expect(put.url).toBe(`${GH}/contents/models/shop-floor.ttl`);
+    expect((put.body as { message?: string }).message).toBe('From the Git tab');
+    // Said, and kept until closed.
+    await vi.waitFor(() => expect(vi.mocked(ui.dialogs.toast).mock.calls.at(-1)).toEqual([expect.stringMatching(/^Committed /), 'info', { sticky: true }]));
+    await vi.waitFor(() => expect(app.isDirty()).toBe(false));
+    ui.shell.showTab('properties');
+  });
+
   it('Check opens the Git status tab, leaves the model and binding intact, and does not read history', async () => {
     const binding = git.context.bindings.get(app.session.modelIri!);
     const before = git.context.serialize('turtle');
@@ -267,7 +302,7 @@ describe('the Git module in the File menu', () => {
       release();
     }
     await pull;
-    expect(ui.dialogs.toast).toHaveBeenCalledWith(expect.stringContaining('Pull discarded'), 'info');
+    expect(ui.dialogs.toast).toHaveBeenCalledWith(expect.stringContaining('Pull discarded'), 'info', { sticky: true });
     expect(app.isDirty()).toBe(false);
   });
 

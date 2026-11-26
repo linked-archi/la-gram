@@ -81,6 +81,8 @@ import { applyViewLayout } from '../layout/view-layout.js';
 import { layout as layOut } from '../layout/layout-service.js';
 import { withRouterRoutes, withViewRouterRoutes } from '../layout/reroute.js';
 import type { LineShape } from '../layout/line-shapes.js';
+import type { DrawingOrderChange } from '@linked-archi/kernel/model-manager';
+import { unchangedMessage } from './canvas/drawing-order-actions.js';
 import { withNeighbourBands } from '../layout/bands.js';
 import { workerEngine } from '../layout/elk-engine.js';
 import { DEFAULT_LAYOUT_OPTIONS, type LayoutDirection, type LayoutInput, type LayoutSpacing } from '../layout/layout-types.js';
@@ -101,7 +103,7 @@ import { copyPicture } from '../import-export/image-clipboard.js';
 import { aboutBlocks, BUILD, downloadBlocks, isMacPlatform, runtimeOf, shortcutBlocks, systemOf, versionText, type AboutContext } from './help.js';
 import { isElectronEnvironment } from '../platform/platform-factory.js';
 import type { ModelEventHandler } from './event-bus.js';
-import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues } from './dialogs.js';
+import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues, type ToastOptions } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
 import { CATALOGUE_KIND_LABELS } from '@linked-archi/kernel/metamodel-manager/catalogue.js';
 
@@ -263,8 +265,8 @@ export interface MountedUi {
   runCommand(detail: ToolbarCommandDetail): Promise<void>;
   /** The dialogs the UI asks with (scripted in tests): for modules. */
   dialogs: Dialogs;
-  /** Say something: a toast, and `notify` on the event bus. */
-  report(message: string, level?: 'info' | 'warning' | 'error'): void;
+  /** Say something: a toast — kept until closed, `sticky` — and `notify` on the event bus. */
+  report(message: string, level?: 'info' | 'warning' | 'error', options?: ToastOptions): void;
   /**
    * Ask before the model is replaced, as File › Open does: when it has unsaved
    * changes, or is shared in a room. `false` when the user says no.
@@ -1185,6 +1187,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'line-vertical-first':
         sayShaped(diagramCanvas.shapeLines(action.slice('line-'.length) as LineShape));
         return;
+      // Drawing order (DO-3), from an element's or a figure's right-click menu, or its keys.
+      case 'order-front':
+      case 'order-forward':
+      case 'order-backward':
+      case 'order-back': {
+        const change = action.slice('order-'.length) as DrawingOrderChange;
+        sayReordered(change, diagramCanvas.reorderSelection(change));
+        return;
+      }
       case 'move-to-folder': {
         // The one right-clicked and the others selected of its kind.
         const kind = kindOfConcept(iri);
@@ -1799,6 +1810,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (shape && diagramOpen()) sayShaped(diagramCanvas.shapeLines(shape));
   };
   canvasToolbar.addEventListener('line-shape', onLineShape);
+  // Drawing order (DO-2, DO-3): the selected elements and figures, from the toolbar's Order menu.
+  const onDrawingOrder = (event: Event): void => {
+    const change = (event as CustomEvent<{ change: DrawingOrderChange }>).detail?.change;
+    if (change && diagramOpen()) sayReordered(change, diagramCanvas.reorderSelection(change));
+  };
+  canvasToolbar.addEventListener('drawing-order', onDrawingOrder);
   const onFormatPainterChanged: ModelEventHandler = (event) => {
     canvasToolbar.formatPainter = (event.detail?.state as 'off' | 'pick' | 'paint' | undefined) ?? 'off';
   };
@@ -2492,6 +2509,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const sayRouted = (routed: number): void =>
     dialogs.toast(routed > 0 ? `Arranged ${plural(routed, 'relationship')}.` : 'The relationships are routed so already.', 'info');
+  /** Said only when nothing changed (DO-2): the change itself is in sight. */
+  const sayReordered = (change: DrawingOrderChange, { selected, changed }: { selected: number; changed: number }): void => {
+    if (changed === 0) dialogs.toast(unchangedMessage(change, selected), 'info');
+  };
   /** What *Line shape* did (LS-6): how many lines it shaped, or that they are shaped so, and what it left as it was. */
   const sayShaped = ({ shaped, unchanged, kept }: ShapedLines): void => {
     const left = kept > 0 ? `${kept} left as ${kept === 1 ? 'it is' : 'they are'}` : '';
@@ -3111,8 +3132,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     });
   };
 
-  const report = (message: string, level: 'info' | 'warning' | 'error' = 'info') => {
-    dialogs.toast(message, level);
+  const report = (message: string, level: 'info' | 'warning' | 'error' = 'info', options?: ToastOptions) => {
+    dialogs.toast(message, level, options);
     eventBus.emit('notify', { level, message });
   };
 
@@ -3780,6 +3801,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('arrange-dialog', onArrangeDialog);
     canvasToolbar.removeEventListener('arrange-quick', onArrangeQuick);
     canvasToolbar.removeEventListener('line-shape', onLineShape);
+    canvasToolbar.removeEventListener('drawing-order', onDrawingOrder);
     eventBus.off('selection-changed', onArrangeSelection);
     eventBus.off('view-opened', onArrangeSelection);
     eventBus.off('format-painter-changed', onFormatPainterChanged);

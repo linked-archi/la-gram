@@ -186,6 +186,30 @@ describe('duplicate (R11)', () => {
     expect(clipboard.canPaste()).toBe(false);
     expect(host.notices[0]).toEqual(['Pasted 2 new elements and 1 new relationship; 1 property left out.', 'info']);
   });
+
+  it('puts what it pasted in front of what it overlaps, in the same recorded step (drawing order, DO-4)', async () => {
+    const steps: string[] = [];
+    const placed: string[][] = [];
+    const ordering = new CanvasClipboard(
+      {
+        ...host,
+        record: (apply) => {
+          steps.push('record');
+          apply();
+          steps.push('recorded');
+          return true;
+        },
+        placeInFront: (nodes) => {
+          steps.push('in front');
+          placed.push([...nodes]);
+        },
+      },
+      { source: () => ({ metamodelIris: [] }), prefixes: () => ({}) },
+    );
+    const result = (await ordering.duplicate())!;
+    expect(steps).toEqual(['record', 'in front', 'recorded']);
+    expect(placed).toEqual([result.nodes]);
+  });
 });
 
 describe('into another model (R9)', () => {

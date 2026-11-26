@@ -765,8 +765,11 @@
       flex-direction: column;
       gap: 8px;
       z-index: 2100;
+      /* The gaps between messages pass clicks through: only a message covers what is under it. */
+      pointer-events: none;
     }
     .la-toast {
+      pointer-events: auto;
       background: #323232;
       color: #fff;
       padding: 10px 14px;
@@ -780,6 +783,41 @@
     }
     .la-toast.error {
       background: #c5221f;
+    }
+    /* Kept until closed (Req 18.31): its × on the right; its text can be selected and copied. */
+    .la-toast.sticky {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      user-select: text;
+    }
+    .la-toast .la-toast-text {
+      flex: 1 1 auto;
+      overflow-wrap: anywhere;
+    }
+    .la-toast a {
+      color: inherit;
+      text-decoration: underline;
+    }
+    .la-toast-close {
+      flex: none;
+      margin: -2px -4px 0 0;
+      padding: 0 4px;
+      font: inherit;
+      font-size: 16px;
+      line-height: 1.2;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      border-radius: 3px;
+      cursor: pointer;
+      opacity: 0.85;
+    }
+    .la-toast-close:hover,
+    .la-toast-close:focus-visible {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.2);
+      outline: none;
     }
 
     /* Bottom bar: validation results next to the SPARQL editor. */

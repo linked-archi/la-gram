@@ -1,5 +1,24 @@
 # la-gram on @linked-archi/kernel — tasks
 
+## K02b shared candidate — 2026-11-26
+
+- [x] Pin the same draft archive as the workspace, `0.1.5-k02b.0`, SHA-256
+  `7781026305766c8b8f0b3cd2e20bba6171b625fb3bdc472e255cc57a5b387b41`.
+- [x] Run the packed kernel's conformance fixture through `App` and the normal inline validation path.
+  The existing CI test suite runs the check. The previous editable-model regression still runs.
+- [x] The isolated build on `c0d399f` passed typecheck, web/Electron/CLI builds and strict docs.
+  The built and clean-installed la-gram-git checked the smoke fixture and the documentation examples
+  with their expected advisories. See the file-level [justification](workspace-integration-changes.md).
+- [x] All 2,069 unit and timing tests, 95 web browser checks and two Electron smoke checks passed. The
+  workspace harness passed 23 checks on the matching archive, including ArchiMate 3.2 and Studio handoffs.
+- [x] Pin `0.1.5-k02b.1` in place of `k02b.0` (2026-11-26), with the workspace: the same candidate with drawing
+  order (core-vis 0.10, `drawing-order.ts`), packed from kernel `a9f0b38` as `k02b.0` was — SHA-256
+  `f37701a717664d8f8ac82796c2755158ea462d6c71dca0d82144078a64783474`; it differs from `k02b.0` only in the two
+  core-vis files, the drawing-order modules and the version. la-gram's 2,069 unit tests passed on it before its
+  drawing-order change, and every check after (the change log). `vendor/linked-archi-kernel-0.1.5-k02b.0.tgz` is
+  no longer installed.
+- [ ] Adopt the reviewed registry version with the workspace after K02b publication.
+
 Recorded 2026-11-20. **Implementation verified 2026-11-24; documentation follow-up remains.** Criteria refer to [requirements.md](requirements.md); the stages and choices
 are in [design.md](design.md).
 

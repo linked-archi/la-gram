@@ -49,6 +49,7 @@ describe('the keyboard shortcuts', () => {
     expect(rows).toContainEqual(['Ctrl+Enter', 'Run the query']);
     expect(rows).toContainEqual(['Ctrl+Alt+V', 'Paste as references: the same elements, placed again']);
     expect(rows).toContainEqual(['Ctrl+D', 'Duplicate the selection, as copies']);
+    expect(rows).toContainEqual(['Ctrl+Shift+] / Ctrl+]', 'Bring the selection to the front, one step forward']);
     expect(blocks.every((b) => b.kind !== 'rows' || b.keys)).toBe(true);
     const mac = shortcutBlocks(true).flatMap((b) => (b.kind === 'rows' ? b.rows : []));
     expect(mac).toContainEqual(['⌘Y / ⇧⌘Z', 'Redo']);

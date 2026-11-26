@@ -187,6 +187,16 @@ async function answer(page: Page, fields: Record<string, string> = {}): Promise<
   await dialog.waitFor({ state: 'detached' });
 }
 
+/**
+ * Close the messages Git actions left (Req 18.31): they stay in the corner until closed, over whatever is under them —
+ * as a user closes them before choosing what they cover.
+ */
+async function closeMessages(page: Page): Promise<void> {
+  for (let close = page.locator('.la-toast-close').first(); (await close.count()) > 0; close = page.locator('.la-toast-close').first()) {
+    await close.click();
+  }
+}
+
 async function rename(page: Page, iri: string, name: string): Promise<void> {
   await page.evaluate(
     ([iri, name]) => {
@@ -294,6 +304,7 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     expect(await panel.locator('.conflict .name').first().innerText()).toBe('Billing (A)');
     expect(await panel.locator('.conflict .value').allInnerTexts()).toEqual(['“Billing (A2)” (en)', '“Billing (B2)” (en)']);
 
+    await closeMessages(a);
     await panel.locator('.conflict button[data-side="ours"]').click();
     expect(await nameOf(a, billing)).toEqual(['Billing (A2)']);
     expect(await panel.locator('.summary').innerText()).toBe('All chosen. Save to Git commits the merged model.');
@@ -403,6 +414,7 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     expect(await nameOf(c, portal)).toEqual(['Portal (B)']);
     expect(await panel.locator('.conflict .value').allInnerTexts()).toEqual(['“Portal (local pull)” (en)', '“Portal (remote pull)” (en)']);
     await sessions.at(-1)!.screenshot('git-pull-conflicts');
+    await closeMessages(c);
     await panel.locator('.conflict button[data-side="ours"]').click();
     expect(await nameOf(c, portal)).toEqual(['Portal (local pull)']);
     expect(github.head).toBe(head);

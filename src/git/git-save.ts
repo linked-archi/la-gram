@@ -46,7 +46,11 @@ export interface GitSaveContext {
   /** The model is saved: clears the unsaved-changes marker (`model-saved`). */
   saved(fileName: string): void;
   dialogs: Dialogs;
-  report(message: string, level?: 'info' | 'warning' | 'error'): void;
+  /**
+   * Say what a Git action did — kept on screen until closed (Req 18.31). `progress`: a step on the way, which goes by
+   * itself, as the result that follows stays.
+   */
+  report(message: string, level?: 'info' | 'warning' | 'error', options?: { progress?: boolean }): void;
   tokens: TokenStore;
   bindings: GitBindings;
   /** A provider for a repository, with a token. */

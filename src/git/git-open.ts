@@ -34,7 +34,8 @@ import type { GitHostProvider } from './providers/provider.js';
 /** What the Open flow needs from la-gram, injected so it is tested without the UI. */
 export interface GitOpenContext {
   dialogs: Dialogs;
-  report(message: string, level?: 'info' | 'warning' | 'error'): void;
+  /** Say what opening did — kept on screen until closed (Req 18.31); `progress` goes by itself. */
+  report(message: string, level?: 'info' | 'warning' | 'error', options?: { progress?: boolean }): void;
   tokens: TokenStore;
   bindings: GitBindings;
   provider(link: RepositoryLink, token: string | undefined): GitHostProvider;

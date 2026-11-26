@@ -1,5 +1,5 @@
 /**
- * Minimal modal dialogs: prompt, form, confirm, choose, info, and a transient toast.
+ * Minimal modal dialogs: prompt, form, confirm, choose, info, and a toast — transient, or kept until closed.
  *
  * Plain DOM in the light tree (styled from `index.html`), promise-based, and
  * behind an interface so `mount-ui` can be handed scripted answers in tests.
@@ -125,8 +125,35 @@ export interface Dialogs {
    * shows the same as text ({@link detailLines}).
    */
   details?(title: string, blocks: DetailBlock[], options?: DetailsOptions): Promise<void>;
-  /** A short, non-blocking message. */
-  toast(message: string, level?: 'info' | 'warning' | 'error'): void;
+  /**
+   * A short, non-blocking message: gone after a few seconds, or — `sticky` — kept until its × closes it, as what a Git
+   * action did is (Req 18.31). Web addresses in it are links.
+   */
+  toast(message: string, level?: 'info' | 'warning' | 'error', options?: ToastOptions): void;
+}
+
+/** How a toast stays. */
+export interface ToastOptions {
+  /** Kept until closed with its ×, not gone after a few seconds. */
+  sticky?: boolean;
+}
+
+/** The message as text, each web address in it a link opening on its own (in the desktop app, in the browser). */
+function linkedText(message: string): Node[] {
+  const nodes: Node[] = [];
+  let at = 0;
+  for (const match of message.matchAll(/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g)) {
+    if (match.index! > at) nodes.push(document.createTextNode(message.slice(at, match.index)));
+    const link = document.createElement('a');
+    link.href = match[0];
+    link.textContent = match[0];
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    nodes.push(link);
+    at = match.index! + match[0].length;
+  }
+  if (at < message.length) nodes.push(document.createTextNode(message.slice(at)));
+  return nodes;
 }
 
 /** Options from which {@link Dialogs.choose} puts a filter over its list. */
@@ -575,14 +602,22 @@ export const domDialogs: Dialogs = {
     );
   },
 
-  toast(message, level = 'info') {
+  toast(message, level = 'info', options = {}) {
     let host = document.querySelector('.la-toasts');
     if (!host) {
       host = el('div', { class: 'la-toasts', 'aria-live': 'polite' });
       document.body.append(host);
     }
-    const toast = el('div', { class: `la-toast ${level}`, text: message });
+    const text = el('span', { class: 'la-toast-text' });
+    text.append(...linkedText(message));
+    const toast = el('div', { class: `la-toast ${level}${options.sticky ? ' sticky' : ''}` }, text);
+    if (options.sticky) {
+      // Kept until closed: the × is the only way it goes.
+      const close = el('button', { class: 'la-toast-close', type: 'button', 'aria-label': 'Close message', title: 'Close', text: '×' });
+      close.addEventListener('click', () => toast.remove());
+      toast.append(close);
+    }
     host.append(toast);
-    setTimeout(() => toast.remove(), level === 'error' ? 8000 : 4000);
+    if (!options.sticky) setTimeout(() => toast.remove(), level === 'error' ? 8000 : 4000);
   },
 };

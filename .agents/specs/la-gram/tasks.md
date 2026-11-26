@@ -291,6 +291,9 @@ In parts, each reviewed before the next.
 - [x] SPARQL console: SELECT tables under their projected columns, CONSTRUCT triples as a table, prefixed names that reveal the concept, 500-row cap, results scrolled into sight — *sparql-editor.test, workbench.test, workbench.spec*
 - [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; drawn by walking the store; the query behind it as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported as `.rq`, the drawn triples as `.ttl`; ＋ New view laid out as drawn; tests hold walk and both query forms to the same result — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Relationship graph, live force layout (Req 17.2, 17.7–17.12) (2026-11-10): Force the default, d3-force stepped by la-gram's own loop (`graph-force.ts`); animated up to 100 elements, laid out at once up to 800, rings above with a note on the stats line; seeding beside the parent, turned clear of what is drawn; the middle element pinned; drags live, held or alone, released on drop; the camera moved only at rest; paused while hidden; a refresh that changes nothing moves nothing; the limits measured and checked by `npm run bench -- --graph` — *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
+- [x] Git messages kept until closed (Req 18.31; 2026-11-26): sticky toasts with a ×, links in every toast; a step on the way transient — *dialogs.test, git-module.test*
+- [x] The Git tab's *Save to Git* (Req 18.25; 2026-11-26): the File menu's action, its commit message asked the same way, enabled while bound and no Git operation runs — *git-sync.test, git-module.test*
+- [x] Drawing order (Req 22.11, 22.12, 13.1; key design decision 46; 2026-11-26): *Bring to front*, *Bring forward*, *Send backward*, *Send to back* — the right-click menu, the toolbar's *Order* menu, Ctrl/⌘+[ ] with Shift for the ends; stored as core-vis 0.10's `arch-vis:zOrder` through kernel `0.1.5-k02b.1`; shapes drawn and re-stacked in that order; a move keeps it; new, pasted and re-parented placements in front of what they overlap; the exchange import keeps the file's order — *drawing-order.test, rdf-ordering.test, canvas-clipboard.test, archimate-importer.test, canvas-toolbar.test, workbench.test, workbench.spec*
 - [x] Search (Req 23; key design decision 45; 2026-11-26): the diagram's — Ctrl/⌘+F or 🔍; names, figure texts and types' names; outlined, stepped, *Select all*, "N more in other views" opening the tree filtered; searched again on every change — and the RDF panel's — 🔍 or Ctrl/⌘+F in it; highlights; *Aa*; searched again on a new text; Ctrl/⌘+F by where the focus is, or the last click — *find-bar.test, text-search.test, canvas-search.test, rdf-panel.test, model-explorer.test, canvas-toolbar.test, workbench.test, workbench.spec*
 - [x] Relationship graph, the wheel's zoom (Req 17.14) (2026-11-26): by the distance scrolled, the same for a mouse, a trackpad and a pinch (`wheel-zoom.ts`) — *wheel-zoom.test, workbench.spec*
 - [x] Relationship graph, force controls (Req 17.13) (2026-11-10): *Forces* under *Layout* with Force, folded — *Link distance* 40–400 px (**180**), *Charge strength* 0–1 500 (**350**, d3's −350), *Collision radius* 0.5×–2× (**1.0×**), native sliders with their values and units, `aria-valuetext`, a focus ring; *Reset*; followed live while the run animates (at most one update a frame), laid out again on release otherwise; framed at rest; `la-gram:graph-forces`, brought into range on read; disabled where Force draws rings; the defaults give the layout unchanged — *graph-force.test, graph-force.property.test, graph-panel.test, workbench.test, workbench.spec*
@@ -471,6 +474,47 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-26 — What a Git action did stays on screen until closed
+
+- **Kept until closed** (Req 18.31). A Git result — *Committed abc12345 to … — https://…*, a pull's outcome, a merge's
+  conflicts, a refusal — went after four seconds (eight for an error), often before it was read, and with it the
+  commit's address. Now every message the Git module gives stays in the corner until its × closes it; several stack.
+  *Pulling … from …*, a step on the way, still goes by itself. *dialogs.test, git-module.test*
+- **Links in messages.** A web address in any message is a link, opened in a new tab (the desktop app opens it in the
+  browser). Only http(s); a full stop or a comma after it is left out; the rest stays text. *dialogs.test*
+- **Docs**: README; *Git storage* (*Messages*).
+
+### 2026-11-26 — Save to Git from the Git tab
+
+- **Save to Git in the Git tab** (Req 18.25). The tab offered *Check for remote changes*, *Pull from Git* and *Git
+  settings…*; committing meant going to *File › Git*. Its first button is now *Save to Git*: the menu's action itself,
+  asking for the commit message as the menu does, committing to the bound repository, branch and file. Enabled
+  whenever the model is bound and no Git operation is running — in a shared room and with conflicts too, as the menu
+  offers it. *git-sync.test, git-module.test*
+- **Docs**: README; *Git storage* (*Git status and regular checks*).
+
+### 2026-11-26 — Drawing order: to the front, to the back
+
+- **What is drawn above what is saved** (Req 22.11, 22.12; key design decision 46; `.agents/tasks/drawing-order/`). A
+  view's shapes were drawn in the order the store returned them, by IRI hash, and a moved shape went on top until the
+  next reload, so two overlapping shapes could swap after a save. Now a node's `arch-vis:zOrder` (core-vis 0.10,
+  linked-archi-meta's DD-45) orders it among the shapes in its place, the same in every window and tool; a move keeps
+  the order. *drawing-order.test, rdf-ordering.test*
+- **The four** — *Bring to front*, *Bring forward*, *Send backward*, *Send to back* — for the selected elements and
+  figures: the right-click menu (one of several selected keeps the selection, with or without folders), the canvas
+  toolbar's *Order* menu, and Ctrl/⌘+Shift+], Ctrl/⌘+], Ctrl/⌘+[, Ctrl/⌘+Shift+[. A step goes past the next shape it
+  overlaps. One undoable step; said only when nothing changes. *drawing-order.test, canvas-toolbar.test,
+  workbench.test, workbench.spec*
+- **New placements in front of what they overlap**: from the palette, the tree, *Append*, a paste or *Duplicate*, and
+  one taken into a container. Over nothing, nothing is written. *drawing-order.test, canvas-clipboard.test*
+- **The ArchiMate exchange import** keeps the file's order as zOrder where nodes in one place overlap (Req 13.1).
+  *archimate-importer.test*
+- **Kernel `0.1.5-k02b.1`**: the K02b candidate with drawing order, packed from kernel `a9f0b38` as `k02b.0` was, and
+  pinned in la-gram and the workspace. A figure's right-click menu on one of several selected no longer offers *Move
+  to folder…*: a figure is in no folder.
+- **Docs**: README; *Drawing on the canvas* (*Order*, the right-click menu, the toolbar), *Keyboard and mouse*,
+  *File formats*; the in-app *Keyboard shortcuts*.
 
 ### 2026-11-26 — Search on the canvas and in the RDF panel
 
