@@ -199,6 +199,41 @@ describe('CanvasToolbar', () => {
     expect(asked).toEqual(['distribute-vertical', 'align-bottom']);
   });
 
+  it('Line shape: disabled until a line is selected, then a menu of the four shapes, each picked once (Req 22.9)', async () => {
+    await mount();
+    const button = root().querySelector<HTMLButtonElement>('button[data-action="line-shape-menu"]')!;
+    expect(button.getAttribute('aria-label')).toBe('Line shape');
+    expect(button.disabled).toBe(true);
+    toolbar.linesSelected = 1;
+    await toolbar.updateComplete;
+    expect(button.disabled).toBe(false);
+
+    // Opening it closes the arrange menu.
+    root().querySelector<HTMLButtonElement>('button[data-action="arrange-menu"]')!.click();
+    await toolbar.updateComplete;
+    button.click();
+    await toolbar.updateComplete;
+    expect(root().querySelector('button[data-action="arrange-menu"]')!.getAttribute('aria-expanded')).toBe('false');
+    const items = Array.from(root().querySelectorAll<HTMLButtonElement>('.menu button[data-line-shape]'));
+    expect(items.map((b) => b.textContent?.trim())).toEqual(['Straight', 'Right angles', 'Horizontal first', 'Vertical first']);
+    expect(items.every((b) => b.querySelector('svg'))).toBe(true);
+
+    const picked: string[] = [];
+    document.body.addEventListener('line-shape', (e) => picked.push((e as CustomEvent<{ shape: string }>).detail.shape));
+    items[2].click();
+    await toolbar.updateComplete;
+    expect(picked).toEqual(['horizontal-first']);
+    expect(root().querySelector('.menu')).toBeNull();
+
+    // The selection gone, the menu closes.
+    button.click();
+    await toolbar.updateComplete;
+    toolbar.linesSelected = 0;
+    await toolbar.updateComplete;
+    await toolbar.updateComplete;
+    expect(root().querySelector('.menu')).toBeNull();
+  });
+
   it('says in the match and grid buttons what their dialogs last chose', async () => {
     await mount();
     const title = (action: string) => root().querySelector(`button[data-quick="${action}"]`)!.getAttribute('title');

@@ -1641,15 +1641,23 @@ describe('the workbench', () => {
 
     // On a relationship: its name and type, where to look at it and its ends, its IRI, deleting it.
     const other = els.createElement(`${AM4}BusinessActor`, model, { label: 'Teller' }).value;
-    app.components.viewManager.addElementToView(view, other, { x: 400, y: 100, width: 120, height: 55 });
+    // Below and to the right: a line between the two can bend once.
+    app.components.viewManager.addElementToView(view, other, { x: 400, y: 300, width: 120, height: 55 });
     const drawn = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Association`, sourceIri: placed, targetIri: other, modelIri: model }).iri;
     app.components.viewManager.addRelationshipToView(view, drawn);
     app.components.eventBus.emit('model-changed', { origin: 'test' });
     const registry = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry');
     const line = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(drawn)) as Record<string, { action: () => void }>;
     expect(Object.keys(line)).toEqual([
-      'rename', 'change-type', 'properties', 'reveal-tree', 'show-source', 'show-target', 'copy-iri', 'delete', 'delete-model',
+      'rename', 'change-type', 'line-straight', 'line-right-angles', 'line-horizontal-first', 'line-vertical-first',
+      'properties', 'reveal-tree', 'show-source', 'show-target', 'copy-iri', 'delete', 'delete-model',
     ]);
+    // Line shape (Req 22.9): the line, selected as right-clicking selects it, given one bend; then so already.
+    ui.diagramCanvas.selectIris([drawn]);
+    line['line-vertical-first']!.action();
+    expect(vi.mocked(script.dialogs.toast).mock.calls.at(-1)).toEqual(['Shaped 1 line.', 'info']);
+    line['line-vertical-first']!.action();
+    expect(vi.mocked(script.dialogs.toast).mock.calls.at(-1)).toEqual(['The line is shaped so already.', 'info']);
 
     // On the empty canvas: the open view's — what the model tree offers for a view — and the canvas's.
     const canvasRoot = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { getRootElement(): unknown } }).get('canvas').getRootElement();

@@ -856,7 +856,8 @@ as a drag's are written: a moved element's lines keep their bends and re-dock th
 what moves into its edge.
 
 What is acted on is what is selected less what is in a selected container (it moves with it), unlocked; with nothing
-selected, align to grid, arrange relationships and the default size act on the whole view.
+selected, align to grid, arrange relationships and the default size act on the whole view. *Arrange relationships*
+also takes the selected lines.
 
 The router routes each line, in order of IRI, on the orthogonal visibility graph of the placements near it: the grid
 of the edges, grown by a 16 px margin, of every placement but the line's ends and their containers, with the ports'
@@ -901,7 +902,25 @@ states is done again with crossings free; a grid above 60 000 vertices is not se
 
 The toolbar's quick actions use what the dialogs last chose, remembered per browser (`la-gram:arrange-grid`,
 `la-gram:arrange-sizes`, `arrange-settings.ts`), and say it in their tooltips; the toolbar is told how many
-placements are selected (`DiagramCanvas.arrangeAvailability`) on every selection change, to enable what that allows.
+placements and lines are selected (`DiagramCanvas.arrangeAvailability`) on every selection change, to enable what that allows.
+
+**Kept lines.** Routing some of a view's lines — *Arrange relationships* on a selection, *Right angles* — the router
+is given the others as kept lines (`routeOrthogonal`'s `kept`): never routed or moved, and counted as lines routed
+before. The search weighs crossing their horizontal and vertical segments (a diagonal one is not weighed); docking,
+a kept line's end holds its point — a straight one as a straight line does, a bent one in the order of the bent lines,
+as a line that cannot move — and a routed line on its point moves off it; in a gap, a kept segment holds its place and
+a routed one goes as near its own as it can, the spacing from it. With none, the router routes as it did, so
+*Arrange relationships* on the whole view and *Arrange view* are unchanged.
+
+**Line shape** (Req 22.9, 22.10; `.agents/tasks/line-shape/`). `CanvasArrange.shapeLines` takes the selected lines
+between two placements, computes each one's route and runs the changed ones as `la.arrange.apply`'s routes: one undo
+step, written as a bent line is. *Straight* asks the canvas's layouter for the line with no route — centre to centre,
+cropped by the docking service, each end keeping the centre as its reference, as a new line is drawn. *Right angles*
+is the router with the other lines kept. The elbows are `layout/line-shapes.ts`'s `elbowRoute`, pure: one bend at
+the corner of the two centres, ends at the middles of the sides on the bounding box, as the router's are; straight
+between facing sides where the corner would fall inside one. The toolbar's *Line shape* button opens its menu as the
+arrange menu opens; the right-click menu's group runs the same through the host's context actions
+(`line-straight`, …), which say what was done.
 
 ### Which relationships are permitted
 
@@ -3816,6 +3835,17 @@ dialog; the modules' section).
     platform's own runner, as before, rather than with QEMU: no emulation, and no action to pin beyond
     checkout, setup-node and the artifact pair. Rejected: GitHub Pages (it cannot send the headers
     app.linked.archi sends), and an SSH push with a restricted key (still a key).
+
+44. **A line's shape is set once, as its route, until core-vis says how a line is routed** (Req 22.9, 22.10;
+    2026-11-26; `.agents/tasks/line-shape/`). *Line shape* writes the line's `arch-vis:points`, as a bend dragged by
+    hand is: every tool that reads core-vis, and every earlier la-gram, draws the line as it was shaped, and nothing
+    new is stored. A shape kept as a property of the line — routed again whenever an element moves, or drawn as a
+    curve — needs a core-vis term on the line's style, which has none for routing; it waits for the next core-vis and
+    kernel, the term first in meta. Until then a right-angled line stays right-angled as elements move (Req 4.6),
+    and a line with no bends runs centre to centre. The elbows bend once and do not go around elements, as asked
+    of them; going around is *Right angles*, which routes with the router and keeps the view's other lines where
+    they are (kept lines) — the same as *Arrange relationships* on a selection, which before routed the lines of the
+    selected elements as if no other line were drawn, docking on top of them.
 
 ## Running
 

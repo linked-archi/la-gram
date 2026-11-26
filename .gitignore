@@ -72,6 +72,7 @@ data/
 !.agents/tasks/git-sync/
 !.agents/tasks/github-move/
 !.agents/tasks/kernel-migration/
+!.agents/tasks/line-shape/
 !.agents/tasks/pull-deploy/
 !.agents/tasks/view-references/
 !.agents/tasks/views-as-concepts/

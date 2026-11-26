@@ -223,7 +223,8 @@ import { CanvasClipboard, fromTextField, type CanvasClipboardHost, type CanvasCl
 import { isMacPlatform, keyCombo } from '../help.js';
 import { rdfOrderingModule, shapeIndex } from './rdf-ordering.js';
 import { joinLastStep, lastStepId } from './undo-steps.js';
-import { CanvasArrange, type ArrangeAvailability, type ArrangeShape } from './canvas-arrange.js';
+import { CanvasArrange, type ArrangeAvailability, type ArrangeShape, type ShapedLines } from './canvas-arrange.js';
+import { LINE_SHAPES, type LineShape } from '../../layout/line-shapes.js';
 import type { Alignment, DistributeAxis, GridAxis, SizeDimension, SizeReference } from '../../layout/arrange-geometry.js';
 import {
   appendableTargetTypes,
@@ -369,6 +370,10 @@ export type CanvasContextAction =
   | 'arrange-relationships'
   | 'align-to-grid'
   | 'sizes'
+  | 'line-straight'
+  | 'line-right-angles'
+  | 'line-horizontal-first'
+  | 'line-vertical-first'
   | 'delete-view'
   | 'export-svg'
   | 'export-png'
@@ -1056,6 +1061,8 @@ export class DiagramCanvas {
         const style = object?.typeIri ? this.notationStyles.styleFor(object.typeIri) : undefined;
         return { width: style?.defaultWidth ?? NOTATION_DEFAULTS.width, height: style?.defaultHeight ?? NOTATION_DEFAULTS.height };
       },
+      // No route given: the layouter draws it as a new line, centre to centre, cropped at the outlines (Req 4.6).
+      straightRoute: (line) => this.services()?.layouter.layoutConnection(line, { source: line.source, target: line.target, waypoints: [] }),
       execute: (command, context) => {
         const services = this.services();
         if (!services || !this.viewIri) return false;
@@ -1095,9 +1102,14 @@ export class DiagramCanvas {
     return this.arranger().defaultSize(wholeView);
   }
 
-  /** The lines of the selected placements, or the view's, routed again around the placements, which stay. */
+  /** The selected lines and the lines of the selected placements, or the view's, routed again around the placements, which stay. */
   arrangeRelationships(wholeView = false): number {
     return this.arranger().arrangeRelationships(wholeView);
+  }
+
+  /** *Line shape* (Req 22.9): the selected lines given the shape, as their routes, in one step. */
+  shapeLines(shape: LineShape): ShapedLines {
+    return this.arranger().shapeLines(shape);
   }
 
   /** Copy concepts chosen in the model tree (Ctrl/⌘+C there), into a copy event's data; false when nothing was. */
@@ -1856,15 +1868,17 @@ export class DiagramCanvas {
   }
 
   /**
-   * The shapes selected with `element` showing concepts of its kind — elements
-   * or relationships — when the model has folders to move them to; none when
-   * it is not selected.
+   * The shapes selected with `element` of its kind: elements or figures when
+   * the model has folders to move them to, lines always (to shape them); none
+   * when it is not selected.
    */
   private selectedAlike(element: DjsShape): DjsShape[] {
-    if (!this.onContextAction || !this.canMoveToFolder?.()) return [];
+    const kind = element.businessObject?.kind;
+    // Lines, for Line shape, whether or not the model has folders (Req 22.10).
+    const lines = kind === 'relationship' || kind === 'connector';
+    if (!this.onContextAction || (!lines && !this.canMoveToFolder?.())) return [];
     const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
     if (!selected.includes(element)) return [];
-    const kind = element.businessObject?.kind;
     return selected.filter((s) => s.businessObject?.iri && s.businessObject.kind === kind);
   }
 
@@ -3453,10 +3467,16 @@ export class DiagramCanvas {
     // One of several selected: moving them to a folder together.
     const alike = this.selectedAlike(element);
     if (alike.length > 1) {
+      const lines = shown.kind === 'relationship' || shown.kind === 'connector';
       const words = shown.kind === 'relationship' ? 'relationships' : 'elements';
       return [
-        ...this.clipboardMenuActions(shown.kind !== 'relationship'),
-        { id: 'move-to-folder', label: `Move ${alike.length} ${words} to folder…`, section: 'edit', run: () => this.onContextAction?.('move-to-folder', iri) },
+        ...this.clipboardMenuActions(!lines),
+        // A line from a note or a figure is in no folder.
+        ...(shown.kind !== 'connector' && this.canMoveToFolder?.()
+          ? [{ id: 'move-to-folder', label: `Move ${alike.length} ${words} to folder…`, section: 'edit' as const, run: () => this.onContextAction?.('move-to-folder', iri) }]
+          : []),
+        // Every selected line given the shape.
+        ...(lines ? this.lineShapeMenuActions(element, iri) : []),
       ];
     }
     const at = this.contextMenuAt ?? { x: 0, y: 0 };
@@ -3512,6 +3532,10 @@ export class DiagramCanvas {
       }
       // A line is copied with its ends: only pasting here.
       actions.push(...this.clipboardMenuActions(false));
+      actions.push(...this.lineShapeMenuActions(element, iri));
+    } else if (shown.kind === 'connector') {
+      // A line from a note or a figure: shaped as a relationship's line is.
+      actions.push(...this.lineShapeMenuActions(element, iri));
     } else if (shown.kind === 'figure') {
       // A reference to another view opens it, first, as its double-click does (Req 3.23) — and, its view's
       // placement, renames the view as an element's box renames the element (VC-DD-4).
@@ -3573,6 +3597,20 @@ export class DiagramCanvas {
       actions.push({ id: 'delete-model', label: 'Delete view from model…', section: 'delete', run: () => this.deleteReferencedView(element) });
     }
     return actions;
+  }
+
+  /**
+   * *Line shape* on a line's right-click menu (Req 22.9, LS-8): the four shapes, in a group of their own, for the
+   * selected lines — this one, or the several selected with it. None for a line no shape applies to (LS-1).
+   */
+  private lineShapeMenuActions(line: DjsShape, iri: string): ContextMenuAction[] {
+    if (!this.onContextAction || !this.arranger().shapeable(line as unknown as ArrangeShape)) return [];
+    return LINE_SHAPES.map(({ shape, label }) => ({
+      id: `line-${shape}`,
+      label,
+      section: 'route' as const,
+      run: () => this.onContextAction?.(`line-${shape}`, iri),
+    }));
   }
 
   /** The right-click menu on the empty canvas: the open view's actions, as the model tree offers them, and the canvas's. */

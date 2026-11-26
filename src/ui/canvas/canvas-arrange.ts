@@ -1,7 +1,8 @@
 /**
  * The arrange options on the canvas (Req 22; `.agents/tasks/arrange-options/`): align, distribute, align to a
- * grid, match sizes, default sizes, and arrange relationships only. The geometry is `layout/arrange-geometry.ts`
- * and the router `layout/orthogonal-router.ts`; this collects the shapes, asks them, and runs the answer as one
+ * grid, match sizes, default sizes, arrange relationships only, and the selected lines' shape
+ * (`.agents/tasks/line-shape/`). The geometry is `layout/arrange-geometry.ts`, the router
+ * `layout/orthogonal-router.ts` and the elbows `layout/line-shapes.ts`; this collects the shapes, asks them, and runs the answer as one
  * command, {@link ARRANGE_APPLY_COMMAND}, whose nested `shape.move` / `shape.resize` /
  * `connection.updateWaypoints` the canvas writes to the store as a drag's — so it is one undo step, and an
  * element's lines keep their bends and re-dock their ends as after a drag.
@@ -24,7 +25,8 @@ import {
   type SizeDimension,
   type SizeReference,
 } from '../../layout/arrange-geometry.js';
-import { routeOrthogonal, type RouterEdge, type RouterNode } from '../../layout/orthogonal-router.js';
+import { routeOrthogonal, ROUTER_DEFAULTS, type KeptLine, type RouterEdge, type RouterNode } from '../../layout/orthogonal-router.js';
+import { elbowRoute, type LineShape } from '../../layout/line-shapes.js';
 import { CONTAINER_PADDING } from './rdf-auto-resize.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 
@@ -95,6 +97,8 @@ export interface ArrangeHost {
   locked(shape: ArrangeShape): boolean;
   /** Its default size: its type's for an element, its kind's for a figure. */
   defaultSizeOf(shape: ArrangeShape): { width: number; height: number };
+  /** A line with no bends, as a new one is drawn: centre to centre, cropped at the outlines. */
+  straightRoute(line: ArrangeShape): Point[] | undefined;
   /** Run the command; false when there is no diagram to run it on. */
   execute(command: string, context: ArrangeApplyContext): boolean;
 }
@@ -106,6 +110,19 @@ export interface ArrangeAvailability {
   align: boolean;
   distribute: boolean;
   match: boolean;
+  /** Selected lines a shape may be given: between two placements, not held by a collaborator. */
+  lines: number;
+}
+
+/** What *Line shape* did with the selected lines (LS-6). */
+export interface ShapedLines {
+  /** Given the shape. */
+  shaped: number;
+  /** Shaped so already. */
+  unchanged: number;
+  /** Left as they are: a line ending on a line or on its own element, between placements that overlap or hold one
+   * another (all but *Straight*), or held by a collaborator. */
+  kept: number;
 }
 
 const isNode = (s: ArrangeShape) => {
@@ -144,7 +161,13 @@ export class CanvasArrange {
 
   availability(): ArrangeAvailability {
     const n = this.selectedBoxes().length;
-    return { selected: n, align: n >= 2, distribute: n >= 3, match: n >= 2 };
+    const lines = this.host.selected().filter((l) => this.shapeable(l)).length;
+    return { selected: n, align: n >= 2, distribute: n >= 3, match: n >= 2, lines };
+  }
+
+  /** A line a shape may be given (LS-1): between two placements, two different ones, not held by a collaborator. */
+  shapeable(line: ArrangeShape): boolean {
+    return isLine(line) && isNode(line.source!) && isNode(line.target!) && line.source !== line.target && !this.host.locked(line);
   }
 
   /** The moves as one step: how many placements moved. */
@@ -213,30 +236,80 @@ export class CanvasArrange {
   }
 
   /**
-   * The lines touching the selected placements, or every line of the view, routed again around the placements; the
-   * placements stay. A connector — a line from a figure — is routed as a relationship's line is.
+   * The selected lines and those touching the selected placements, or every line of the view, routed again around
+   * the placements; the placements stay. A connector — a line from a figure — is routed as a relationship's line is.
+   * Routing some of them, the view's other lines stay where they are, and are avoided (LS-9, LS-DD-4).
    */
   arrangeRelationships(wholeView = false): number {
     const all = this.host.all();
-    const nodes = all.filter(isNode);
-    const selected = new Set(wholeView ? [] : this.host.selected().filter(isNode).map((s) => s.id));
+    const selection = wholeView ? [] : this.host.selected();
+    const placements = new Set(selection.filter(isNode).map((s) => s.id));
+    const chosen = new Set(selection.filter(isLine).map((l) => l.id));
+    const everything = placements.size === 0 && chosen.size === 0;
     const lines = all
       .filter(isLine)
       .filter((l) => isNode(l.source!) && isNode(l.target!) && !this.host.locked(l))
-      .filter((l) => selected.size === 0 || selected.has(l.source!.id) || selected.has(l.target!.id));
+      .filter((l) => everything || chosen.has(l.id) || placements.has(l.source!.id) || placements.has(l.target!.id));
     if (lines.length === 0) return 0;
-    const routerNodes: RouterNode[] = nodes.map((s) => {
+    return this.applyRoutes(lines, this.atRightAngles(all, lines, !everything)).changed;
+  }
+
+  /**
+   * *Line shape* (Req 22.9): each selected line given the shape, as its route — one step. Which were shaped, which
+   * were so already, which were left as they are.
+   */
+  shapeLines(shape: LineShape): ShapedLines {
+    const all = this.host.all();
+    const selected = this.host.selected().filter(isLine);
+    const lines = selected.filter((l) => this.shapeable(l));
+    let routes: Map<string, Point[]>;
+    if (shape === 'straight') {
+      routes = new Map(lines.flatMap((l) => this.routed(l.id, this.host.straightRoute(l))));
+    } else if (shape === 'right-angles') {
+      routes = this.atRightAngles(all, lines, true);
+    } else {
+      const first = shape === 'horizontal-first' ? 'horizontal' : 'vertical';
+      routes = new Map(lines.flatMap((l) => this.routed(l.id, elbowRoute(this.box(l.source!), this.box(l.target!), first))));
+    }
+    const { changed, unchanged } = this.applyRoutes(lines, routes);
+    return { shaped: changed, unchanged, kept: selected.length - changed - unchanged };
+  }
+
+  private routed(id: string, route: Point[] | undefined): Array<[string, Point[]]> {
+    return route && route.length >= 2 ? [[id, route]] : [];
+  }
+
+  /** The lines' routes from la-gram's router; with `keepOthers`, the view's other lines kept where they are. */
+  private atRightAngles(all: ArrangeShape[], lines: ArrangeShape[], keepOthers: boolean): Map<string, Point[]> {
+    const routerNodes: RouterNode[] = all.filter(isNode).map((s) => {
       const b = this.box(s);
       return { id: b.id, x: b.x, y: b.y, width: b.width, height: b.height, ...(b.parentId ? { parentId: b.parentId } : {}) };
     });
     const edges: RouterEdge[] = lines.map((l) => ({ id: l.id, source: l.source!.id, target: l.target!.id }));
-    const routes = routeOrthogonal(routerNodes, edges);
+    const routing = new Set(edges.map((e) => e.id));
+    const kept: KeptLine[] = keepOthers
+      ? all
+          .filter((l) => isLine(l) && !routing.has(l.id) && (l.waypoints?.length ?? 0) >= 2)
+          .map((l) => ({
+            id: l.id,
+            points: l.waypoints!.map(({ x, y }) => ({ x, y })),
+            ...(isNode(l.source!) ? { source: l.source!.id } : {}),
+            ...(isNode(l.target!) ? { target: l.target!.id } : {}),
+          }))
+      : [];
+    return routeOrthogonal(routerNodes, edges, ROUTER_DEFAULTS, kept);
+  }
+
+  /** The routes that change a line, as one step: how many changed, and how many were routed so already. */
+  private applyRoutes(lines: ArrangeShape[], routes: Map<string, Point[]>): { changed: number; unchanged: number } {
     const byId = new Map(lines.map((l) => [l.id, l]));
-    const changed = [...routes]
+    const all = [...routes].filter(([id]) => byId.has(id));
+    const changed = all
       .filter(([id, points]) => !samePoints(byId.get(id)!.waypoints ?? [], points))
       .map(([id, waypoints]) => ({ connection: byId.get(id)!, waypoints }));
-    if (changed.length === 0) return 0;
-    return this.host.execute(ARRANGE_APPLY_COMMAND, { routes: changed }) ? changed.length : 0;
+    const unchanged = all.length - changed.length;
+    if (changed.length === 0) return { changed: 0, unchanged };
+    return this.host.execute(ARRANGE_APPLY_COMMAND, { routes: changed }) ? { changed: changed.length, unchanged } : { changed: 0, unchanged: 0 };
   }
 }
 

@@ -22,8 +22,8 @@ canvas is back to selecting.
 After them come the format painter (🖌, see [Appearance](appearance.md#format-painter)), *Arrange view…*
 (three boxes in two rows joined by right-angled lines; see [Arrange view](#arrange-view)) with ▾ beside
 it for the other ways to arrange, the quick actions that align, distribute, size and route what is
-selected (see [Tidy a diagram](#tidy-a-diagram)), and three switches: *Relationship names*, *Notation
-only* and *Shapes*.
+selected (see [Tidy a diagram](#tidy-a-diagram)), *Line shape* (a bent line with ▾; see
+[Line shape](#line-shape)), and three switches: *Relationship names*, *Notation only* and *Shapes*.
 
 1. Click ⬚ in the canvas toolbar.
 2. Drag a rectangle round "Customer" and "Place order": both are selected.
@@ -407,11 +407,12 @@ view*](sparql.md#render-as-new-view), are laid out the same way, with the choice
 
 ## Tidy a diagram {#tidy-a-diagram}
 
-To tidy a diagram without laying it out again, la-gram offers four more ways to arrange it, each one
+To tidy a diagram without laying it out again, la-gram offers five more ways to arrange it, each one
 step to undo:
 
 - **Arrange relationships:** the lines are routed again at right angles, around the elements in their
   way. The elements stay where they are.
+- **Line shape:** the selected lines are made straight, routed at right angles, or bent once.
 - **Align and distribute:** the selected elements are lined up, or spaced with equal gaps.
 - **Align to grid:** each element's top-left corner moves to the nearest grid line.
 - **Sizes:** the selected elements are made the same size, or each is reset to its default size.
@@ -428,7 +429,8 @@ selected, using what the dialogs last chose:
 | *Match width*, *Match height*, *Match size* | makes them as wide, as high, or both, as what *Sizes…* last chose (**the largest** at first) | 2 selected |
 | *Default size* | each its default size | — (the whole view when nothing is selected) |
 | *Align to grid* | to the grid *Align to grid…* last chose (**20 px**, across and down, at first) | — (the whole view when nothing is selected) |
-| *Arrange relationships* | routes the selected elements' lines again | — (every line of the view when nothing is selected) |
+| *Arrange relationships* | routes the selected lines and the selected elements' lines again | — (every line of the view when nothing is selected) |
+| *Line shape* | opens the menu of [line shapes](#line-shape) for the selected lines | 1 line selected |
 
 A button whose selection is too small is greyed out. Its tooltip says the size or grid it uses. What is
 inside a selected element moves with it, and an element another collaborator is editing stays where it
@@ -448,12 +450,48 @@ first, and no two lines leave from one point. Lines sharing a gap run side by si
 elements that overlap, or between an element and something inside it, keeps its route. la-gram says
 how many lines it routed: *Arranged 2 relationships.*
 
+When only some lines are routed, the view's other lines stay where they are, and the routed ones go
+around them as around lines already routed: crossing as few as they can, leaving an element beside
+them rather than on top of them, and running beside them where they share a gap.
+
 | Field | Does | Values |
 |---|---|---|
-| *Arrange* | which lines; shown when elements are selected | **The relationships of the selected element** (*of the 2 selected* for two), *Every relationship of the view* |
+| *Arrange* | which lines; shown when elements or lines are selected | **The relationships of the selected element** (*of the 2 selected* for two; *The selected line* when only a line is selected), *Every relationship of the view* |
 
 1. Select nothing, and choose ▾ › *Arrange relationships…* in the canvas toolbar.
 2. Choose *Arrange*: the lines run around the elements; the elements have not moved.
+
+### Line shape {#line-shape}
+
+*Line shape* gives the selected lines a shape, as one step to undo. Select a line, then choose the
+*Line shape* button after *Arrange relationships* in the canvas toolbar, or right-click the line. The
+menu shows each shape with a picture of it:
+
+| Shape | The line |
+|---|---|
+| *Straight* | has no bends: it runs from the centre of one element towards the centre of the other, ending on their outlines, as a new line does |
+| *Right angles* | is routed as [*Arrange relationships*](#arrange-relationships) routes it: at right angles, around the elements in its way. The view's other lines stay where they are, and the line goes around them |
+| *Horizontal first* | bends once: it leaves its source from the side facing the target, at the middle, and enters the target from above or below, at the middle |
+| *Vertical first* | bends once: it leaves its source from the top or the bottom, at the middle, and enters the target from the side, at the middle |
+
+*Horizontal first* and *Vertical first* bend at the corner of the two elements' centres, and do not go
+around other elements: *Right angles* does. Where that corner would be inside one of the two, because
+they are side by side or one above the other, the line runs straight between their facing sides.
+
+With several lines selected, each gets the shape; right-clicking one of them keeps the others
+selected. la-gram says what it did: *Shaped 2 lines.*, or *The line is shaped so already.* A line
+ending on another line or on its own element, and one another collaborator is editing, keeps its
+route; so does a line between elements that overlap, or between an element and something inside it,
+except with *Straight*. la-gram says how many it left: *Shaped 1 line; 1 left as it is.*
+
+The shape is the line's route, as if its bends had been dragged there: moving an element afterwards
+moves the line as described in [Move, resize and bend](#move-resize-bend). A line of right angles keeps
+them.
+
+1. Move "Gift wrapping" below and to the right of "Customer".
+2. Select its line to "Customer", and choose *Line shape* › *Vertical first* in the canvas toolbar: the
+   line leaves "Gift wrapping" upwards, and turns into the side of "Customer".
+3. Right-click the line and choose *Straight*: the bend is gone.
 
 ### Align to grid… {#align-to-grid}
 
@@ -615,11 +653,12 @@ Right-click on the canvas for what applies to what is under the pointer.
 | On | Entries |
 |---|---|
 | an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Zoom in: …* (for each view refining it), *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
-| a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Zoom in: …* (for each view refining it), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
+| a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Straight*, *Right angles*, *Horizontal first*, *Vertical first* ([Line shape](#line-shape)), *Zoom in: …* (for each view refining it), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
+| a [line from a figure](#lines-from-figures) | *Straight*, *Right angles*, *Horizontal first*, *Vertical first* ([Line shape](#line-shape)), *Properties*, *Copy IRI*, *Delete from view* |
 | a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, *Properties*, *Copy IRI*, *Delete from view* |
 | a view reference | *Open view*, *Rename* (F2: the view's name), *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, *Properties*, *Show in model tree* and *Copy IRI* — the view's — *Delete from view*, *Delete view from model…* ([View references](#view-references)) |
 | the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Arrange relationships…*, *Align to grid…*, *Sizes…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Copy view as PNG*, *Copy view as SVG*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
-| one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), and *Move 2 relationships to folder…* when the model has folders |
+| one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), *Move 2 relationships to folder…* when the model has folders, and the four line shapes, for every selected line; lines from figures: the four line shapes |
 
 What the entries do beyond the canvas:
 

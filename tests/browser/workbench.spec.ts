@@ -1897,7 +1897,8 @@ describe('changing an element’s type', () => {
     await page.mouse.click(mid.x, mid.y, { button: 'right' });
     await menu.waitFor({ state: 'visible' });
     expect(await entries()).toEqual([
-      'Rename', 'Change relationship type…', 'Properties', 'Show in model tree', 'Show source', 'Show target', 'Copy IRI',
+      'Rename', 'Change relationship type…', 'Straight', 'Right angles', 'Horizontal first', 'Vertical first',
+      'Properties', 'Show in model tree', 'Show source', 'Show target', 'Copy IRI',
       'Delete from view', 'Delete from model…',
     ]);
     await page.keyboard.press('Escape');
@@ -3386,5 +3387,52 @@ describe('arranging a view', () => {
     await page.keyboard.press('ControlOrMeta+z');
     await until(async () => JSON.stringify(await boxes()) === JSON.stringify(before), 'undo');
     findings.push('arrange view: laid out with no overlaps, undone in one step: ok');
+  }, 120_000);
+
+  it('gives one line a shape from the toolbar’s Line shape menu, the other line staying, and undoes it in one step', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const { view, lines } = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (label: string, x: number, y: number) => {
+        const iri = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x, y, width: 100, height: 50 });
+        return iri;
+      };
+      const general = make('General', 100, 100);
+      const detail = make('Detail', 400, 300);
+      const other = make('Other', 100, 500);
+      const relate = (s: string, t: string) => {
+        const r = app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: s, targetIri: t, modelIri: m }).iri;
+        app.components.viewManager.addRelationshipToView(v, r);
+        return r as string;
+      };
+      const drawn = [relate(detail, general), relate(detail, other)];
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return { view: v as string, lines: drawn };
+    });
+    const routes = () =>
+      page.evaluate(
+        ([v, ls]) => (ls as string[]).map((r) => (window as any).__LA_GRAM_APP__.components.viewManager.getLinks(v).find((l: any) => l.relationshipIri === r).waypoints),
+        [view, lines] as const,
+      ) as Promise<Array<Array<{ x: number; y: number }>>>;
+    const before = await routes();
+    const button = page.locator('canvas-toolbar button[data-action="line-shape-menu"]');
+    expect(await button.isDisabled()).toBe(true);
+
+    await page.evaluate((r) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([r]), lines[0]);
+    await until(async () => !(await button.isDisabled()), 'Line shape enabled by the selected line');
+    await button.click();
+    await page.locator('canvas-toolbar .menu button[data-line-shape="vertical-first"]').click({ timeout: 10_000 });
+    // Out of Detail's top, up to General's middle, into its right side.
+    const shaped = [{ x: 450, y: 300 }, { x: 450, y: 125 }, { x: 200, y: 125 }];
+    await until(async () => JSON.stringify((await routes())[0]) === JSON.stringify(shaped), 'the line shaped');
+    expect((await routes())[1]).toEqual(before[1]);
+
+    await page.keyboard.press('ControlOrMeta+z');
+    await until(async () => JSON.stringify(await routes()) === JSON.stringify(before), 'undo');
+    findings.push('line shape: one line given one bend from the toolbar, the other line staying, undone in one step: ok');
   }, 120_000);
 });

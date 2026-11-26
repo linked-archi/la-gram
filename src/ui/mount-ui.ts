@@ -80,6 +80,7 @@ import { gridNote, layoutView, loadedBands, type ArrangeDeps } from './arrange-v
 import { applyViewLayout } from '../layout/view-layout.js';
 import { layout as layOut } from '../layout/layout-service.js';
 import { withRouterRoutes, withViewRouterRoutes } from '../layout/reroute.js';
+import type { LineShape } from '../layout/line-shapes.js';
 import { withNeighbourBands } from '../layout/bands.js';
 import { workerEngine } from '../layout/elk-engine.js';
 import { DEFAULT_LAYOUT_OPTIONS, type LayoutDirection, type LayoutInput, type LayoutSpacing } from '../layout/layout-types.js';
@@ -175,6 +176,7 @@ import {
   type RetypeElementRequest,
 } from './canvas/diagram-canvas.js';
 import { buildClassClosure, type ClassClosure } from './canvas/relationship-resolution.js';
+import type { ShapedLines } from './canvas/canvas-arrange.js';
 
 const { namedNode } = DataFactory;
 
@@ -1171,6 +1173,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'sizes':
         void sizesDialog();
         return;
+      // Line shape (Req 22.9), from a line's right-click menu: the line, or the lines selected with it.
+      case 'line-straight':
+      case 'line-right-angles':
+      case 'line-horizontal-first':
+      case 'line-vertical-first':
+        sayShaped(diagramCanvas.shapeLines(action.slice('line-'.length) as LineShape));
+        return;
       case 'move-to-folder': {
         // The one right-clicked and the others selected of its kind.
         const kind = kindOfConcept(iri);
@@ -1747,7 +1756,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   canvasToolbar.sizeReference = sizeSettings().reference;
   canvasToolbar.grid = gridSettings();
   const onArrangeSelection = (): void => {
-    canvasToolbar.arrangeSelected = diagramCanvas.arrangeAvailability().selected;
+    const available = diagramCanvas.arrangeAvailability();
+    canvasToolbar.arrangeSelected = available.selected;
+    canvasToolbar.linesSelected = available.lines;
   };
   eventBus.on('selection-changed', onArrangeSelection);
   eventBus.on('view-opened', onArrangeSelection);
@@ -1777,6 +1788,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     }
   };
   canvasToolbar.addEventListener('arrange-quick', onArrangeQuick);
+  // Line shape (Req 22.9): the selected lines given the shape picked in the toolbar's menu.
+  const onLineShape = (event: Event): void => {
+    const shape = (event as CustomEvent<{ shape: LineShape }>).detail?.shape;
+    if (shape && diagramOpen()) sayShaped(diagramCanvas.shapeLines(shape));
+  };
+  canvasToolbar.addEventListener('line-shape', onLineShape);
   const onFormatPainterChanged: ModelEventHandler = (event) => {
     canvasToolbar.formatPainter = (event.detail?.state as 'off' | 'pick' | 'paint' | undefined) ?? 'off';
   };
@@ -2421,6 +2438,18 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const sayRouted = (routed: number): void =>
     dialogs.toast(routed > 0 ? `Arranged ${plural(routed, 'relationship')}.` : 'The relationships are routed so already.', 'info');
+  /** What *Line shape* did (LS-6): how many lines it shaped, or that they are shaped so, and what it left as it was. */
+  const sayShaped = ({ shaped, unchanged, kept }: ShapedLines): void => {
+    const left = kept > 0 ? `${kept} left as ${kept === 1 ? 'it is' : 'they are'}` : '';
+    if (shaped > 0) dialogs.toast(`Shaped ${plural(shaped, 'line')}${left ? `; ${left}` : ''}.`, 'info');
+    else if (unchanged > 0) dialogs.toast(`${unchanged === 1 ? 'The line is' : 'The lines are'} shaped so already${left ? `; ${left}` : ''}.`, 'info');
+    else if (kept > 0)
+      dialogs.toast(
+        `${kept === 1 ? 'The line is' : 'The lines are'} left as ${kept === 1 ? 'it is' : 'they are'}: a line ending on a line or on its own element, between elements that overlap or hold one another, or held by a collaborator keeps its route.`,
+        'warning',
+      );
+    else dialogs.toast('Select a line to give it a shape.', 'info');
+  };
   const sayAligned = (moved: number, grid: GridSettings): void =>
     dialogs.toast(moved > 0 ? `Aligned ${plural(moved, 'element')} to the ${grid.grid} px grid.` : `On the ${grid.grid} px grid already.`, 'info');
   const sayResized = (resized: number): void =>
@@ -2435,10 +2464,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   /** *Arrange relationships…* (Req 22.2): the lines routed again around the elements, which stay. */
   const arrangeRelationshipsDialog = async (): Promise<void> => {
     if (!diagramOpen()) return;
-    const selected = diagramCanvas.arrangeAvailability().selected;
+    // The selected lines count as the selection too (LS-9).
+    const { selected, lines } = diagramCanvas.arrangeAvailability();
+    const ofLines = lines === 1 ? 'the selected line' : `the ${lines} selected lines`;
+    const part =
+      selected === 0 ? ofLines.replace(/^t/, 'T') : `The relationships of ${selectedWords(selected)}${lines > 0 ? `, and ${ofLines}` : ''}`;
     const values = await dialogs.form(
       'Arrange relationships',
-      scopeField(selected, 'Every relationship of the view', `The relationships of ${selectedWords(selected)}`),
+      scopeField(selected + lines, 'Every relationship of the view', part),
       {
         message: 'The lines are routed again at right angles, around the elements in their way; the elements stay where they are.',
         confirmLabel: 'Arrange',
@@ -3654,6 +3687,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('arrange-view', onArrangeView);
     canvasToolbar.removeEventListener('arrange-dialog', onArrangeDialog);
     canvasToolbar.removeEventListener('arrange-quick', onArrangeQuick);
+    canvasToolbar.removeEventListener('line-shape', onLineShape);
     eventBus.off('selection-changed', onArrangeSelection);
     eventBus.off('view-opened', onArrangeSelection);
     eventBus.off('format-painter-changed', onFormatPainterChanged);

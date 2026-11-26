@@ -24,7 +24,7 @@ export interface ContextMenuAction {
   id: string;
   label: string;
   /** Section the action sits in; sections are shown in the order they first occur. */
-  section: 'edit' | 'clipboard' | 'relate' | 'view' | 'show' | 'copy' | 'export' | 'delete';
+  section: 'edit' | 'clipboard' | 'route' | 'relate' | 'view' | 'show' | 'copy' | 'export' | 'delete';
   /** A keyboard shortcut for the same action, shown in the tooltip. */
   shortcut?: string;
   run: () => void;
