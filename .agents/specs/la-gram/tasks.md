@@ -291,6 +291,7 @@ In parts, each reviewed before the next.
 - [x] SPARQL console: SELECT tables under their projected columns, CONSTRUCT triples as a table, prefixed names that reveal the concept, 500-row cap, results scrolled into sight — *sparql-editor.test, workbench.test, workbench.spec*
 - [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; drawn by walking the store; the query behind it as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported as `.rq`, the drawn triples as `.ttl`; ＋ New view laid out as drawn; tests hold walk and both query forms to the same result — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Relationship graph, live force layout (Req 17.2, 17.7–17.12) (2026-11-10): Force the default, d3-force stepped by la-gram's own loop (`graph-force.ts`); animated up to 100 elements, laid out at once up to 800, rings above with a note on the stats line; seeding beside the parent, turned clear of what is drawn; the middle element pinned; drags live, held or alone, released on drop; the camera moved only at rest; paused while hidden; a refresh that changes nothing moves nothing; the limits measured and checked by `npm run bench -- --graph` — *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
+- [x] Search (Req 23; key design decision 45; 2026-11-26): the diagram's — Ctrl/⌘+F or 🔍; names, figure texts and types' names; outlined, stepped, *Select all*, "N more in other views" opening the tree filtered; searched again on every change — and the RDF panel's — 🔍 or Ctrl/⌘+F in it; highlights; *Aa*; searched again on a new text; Ctrl/⌘+F by where the focus is, or the last click — *find-bar.test, text-search.test, canvas-search.test, rdf-panel.test, model-explorer.test, canvas-toolbar.test, workbench.test, workbench.spec*
 - [x] Relationship graph, the wheel's zoom (Req 17.14) (2026-11-26): by the distance scrolled, the same for a mouse, a trackpad and a pinch (`wheel-zoom.ts`) — *wheel-zoom.test, workbench.spec*
 - [x] Relationship graph, force controls (Req 17.13) (2026-11-10): *Forces* under *Layout* with Force, folded — *Link distance* 40–400 px (**180**), *Charge strength* 0–1 500 (**350**, d3's −350), *Collision radius* 0.5×–2× (**1.0×**), native sliders with their values and units, `aria-valuetext`, a focus ring; *Reset*; followed live while the run animates (at most one update a frame), laid out again on release otherwise; framed at rest; `la-gram:graph-forces`, brought into range on read; disabled where Force draws rings; the defaults give the layout unchanged — *graph-force.test, graph-force.property.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Performance: cold start ≈ 1.2 s; 500 elements — create 140 ms, draw 56 ms, validate 140 ms, save 20 ms (Chrome, bundled ArchiMate 4.0)
@@ -470,6 +471,25 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-26 — Search on the canvas and in the RDF panel
+
+- **The diagram's search** (Req 23.1–23.5; key design decision 45; `.agents/tasks/search/`). Ctrl/⌘+F, or 🔍 in the
+  canvas toolbar, opens a find bar over the diagram: it finds the open diagram's elements and relationships by name
+  and by type's name ("application component" finds every one), and notes, groups, shapes and view references by
+  their text. Every match is outlined, the current one selected and scrolled into view; Enter and Shift+Enter, or
+  ↑ ↓, step through them in reading order; *Select all* selects them all; "4 more in other views" opens the model
+  tree filtered by the same text. An edit, undo, a collaborator's change or another view searches again. The
+  desktop app had no find, and the browser's reads the page, not the diagram. *canvas-search.test, find-bar.test,
+  canvas-toolbar.test, workbench.test, workbench.spec*
+- **The RDF panel's search** (Req 23.6). 🔍 in its header, or Ctrl/⌘+F in the panel: every match in the text shown
+  highlighted, the current one scrolled to, case ignored unless *Aa*; searched again whenever the text changes. The
+  matches are painted with the browser's highlights, so the panel's text and its click-to-select are as they were.
+  *text-search.test, rdf-panel.test, workbench.spec*
+- **Ctrl/⌘+F** (Req 23.7): the RDF panel's search in it, the model tree's filter in the tree, the diagram's elsewhere
+  while a diagram is open — or, with nothing focused, where the pointer was last pressed. The browser's own stays
+  in the SPARQL editor, over a catalog or a matrix, and under a dialog. *model-explorer.test, workbench.test*
+- **Docs**: README; *Drawing on the canvas* (*Search*), *RDF panel* (*Search*), *Model tree*, *Keyboard and mouse*.
 
 ### 2026-11-26 — The Graph tab zooms as far for a mouse as for a trackpad
 

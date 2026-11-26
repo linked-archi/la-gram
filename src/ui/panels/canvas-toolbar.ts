@@ -144,7 +144,7 @@ function quickButtons(reference: SizeReference, grid: GridSettings): QuickButton
  * once with what its dialog last chose, disabled until the selection
  * (`arrangeSelected`) is big enough. Then *Line shape* (Req 22.9): a button whose menu gives the
  * selected lines a shape — straight, right angles, horizontal or vertical first — disabled until a line
- * is selected (`linesSelected`). Then one switch: *Relationship names*, which shows relationships'
+ * is selected (`linesSelected`). Then 🔍, which opens the search of the diagram (Req 23.2). Then one switch: *Relationship names*, which shows relationships'
  * names on their lines (off by default; the host remembers it). Pressed is on.
  *
  * Then *Shapes*, which opens a second row: figures drawn with no model element
@@ -382,6 +382,11 @@ export class CanvasToolbar extends LitElement {
     this.dispatchEvent(new CustomEvent<{ dialog: ArrangeDialog }>('arrange-dialog', { detail: { dialog }, bubbles: true, composed: true }));
   }
 
+  /** The search's button: `canvas-search` (Req 23.2). */
+  private _onSearch(): void {
+    this.dispatchEvent(new CustomEvent('canvas-search', { bubbles: true, composed: true }));
+  }
+
   /** A shape picked from the *Line shape* menu: `line-shape` with `{ shape }`. */
   private _onLineShape(shape: LineShape): void {
     this.lineShapeMenuOpen = false;
@@ -566,6 +571,15 @@ export class CanvasToolbar extends LitElement {
               </div>`
             : nothing}
         </span>
+        <button
+          type="button"
+          data-action="search"
+          title="Search the diagram — by name, text or type (Ctrl+F, ⌘F on a Mac)"
+          aria-label="Search the diagram"
+          @click=${() => this._onSearch()}
+        >
+          ${glyph(svg`<circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/>`)}
+        </button>
         <span class="separator" aria-hidden="true"></span>
         <button
           type="button"

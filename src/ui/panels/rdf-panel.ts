@@ -21,12 +21,31 @@
  * The selected concepts' statements are highlighted and the first's scrolled
  * into view; clicking a subject's statements selects that concept
  * (`rdf-select`). The selection scope shows every selected concept.
+ *
+ * 🔍 — or Ctrl/⌘+F in the panel, through the host — opens a find bar over the
+ * text (Req 23.6; `.agents/tasks/search/`): every match painted as a highlight
+ * (the CSS Custom Highlight API), not markup, so the text and its blocks stay
+ * as they are; searched again whenever the text is shown anew.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '@linked-archi/kernel/import-export/model-io.js';
 import { HIGHLIGHT_LIMIT, highlightRdf } from './rdf-highlight.js';
+import { findMatches, rangesOf, textIndexOf } from './text-search.js';
+import type { FindBar, FindQueryDetail, FindStepDetail } from './find-bar.js';
+import './find-bar.js';
+
+/** The highlights the search paints: every match, and the current one. */
+const MATCH_HIGHLIGHT = 'la-rdf-match';
+const CURRENT_HIGHLIGHT = 'la-rdf-current';
+
+/** The browser's highlight registry and its `Highlight`, where it has them (SR-DD-3). */
+function highlights(): { registry: Map<string, unknown>; Highlight: new (...ranges: Range[]) => unknown } | undefined {
+  const registry = (globalThis.CSS as { highlights?: Map<string, unknown> } | undefined)?.highlights;
+  const Highlight = (globalThis as { Highlight?: new (...ranges: Range[]) => unknown }).Highlight;
+  return registry && Highlight ? { registry, Highlight } : undefined;
+}
 
 /** Counts shown above the text. */
 export interface RdfPanelStats {
@@ -152,15 +171,21 @@ export class RdfPanel extends LitElement {
       background: #f1f3f4;
     }
     button.close,
-    button.maximize {
+    button.maximize,
+    button.search {
       border: 0;
       font-size: 16px;
       line-height: 1;
       padding: 2px 6px;
       color: #5f6368;
     }
-    button.maximize[aria-pressed='true'] {
+    button.search {
+      font-size: 13px;
+    }
+    button.maximize[aria-pressed='true'],
+    button.search[aria-pressed='true'] {
       color: #1a73e8;
+      background: #e8f0fe;
     }
     label.geometry {
       display: flex;
@@ -233,6 +258,15 @@ export class RdfPanel extends LitElement {
     .rdf-lang, .rdf-datatype { color: #e37400; }
     .rdf-number { color: #098591; }
     .rdf-punct { color: #5f6368; }
+    ::highlight(la-rdf-match) {
+      background-color: #fde293;
+    }
+    ::highlight(la-rdf-current) {
+      background-color: #f9ab00;
+    }
+    find-bar {
+      border-bottom: 1px solid #f0f0f0;
+    }
     .empty {
       padding: 16px 12px;
       color: #80868b;
@@ -284,6 +318,17 @@ export class RdfPanel extends LitElement {
   @state() private _copied = false;
 
   @query('.code') private _code?: HTMLElement;
+  @query('find-bar') private _findBar?: FindBar;
+
+  /** The search (Req 23.6): open or not, its text, *Aa*, how many match, which is current. */
+  @state() private _searchOpen = false;
+  @state() private _searchQuery = '';
+  @state() private _matchCase = false;
+  @state() private _matchCount = 0;
+  @state() private _matchIndex = -1;
+  /** The matches as ranges over the text shown, and where the current one starts in it. */
+  private _matches: Range[] = [];
+  private _matchStarts: number[] = [];
 
   private _timer: ReturnType<typeof setTimeout> | null = null;
   /** What the code element currently shows, to re-render only on change. */
@@ -366,6 +411,93 @@ export class RdfPanel extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this._timer) clearTimeout(this._timer);
+    this._paint(false, true);
+  }
+
+  /** Whether the search is open. */
+  get searchOpen(): boolean {
+    return this._searchOpen;
+  }
+
+  /** How many match, and which is current (−1 for none). */
+  get searchState(): { query: string; count: number; current: number } {
+    return { query: this._searchQuery, count: this._matchCount, current: this._matchIndex };
+  }
+
+  /** Open the search with its field focused, its text selected (Req 23.6, 23.7). */
+  async openSearch(): Promise<void> {
+    this._searchOpen = true;
+    await this.updateComplete;
+    this._search(false);
+    await this._findBar?.focusField();
+  }
+
+  /** Close the search: its highlights away. */
+  closeSearch(): void {
+    this._searchOpen = false;
+    this._matches = [];
+    this._matchStarts = [];
+    this._matchCount = 0;
+    this._matchIndex = -1;
+    this._paint(false, true);
+  }
+
+  /**
+   * Search the text shown. A new text to search for makes the first match current; `again` — the text shown anew —
+   * keeps the match nearest where the current one was.
+   */
+  private _search(again: boolean): void {
+    const was = this._matchStarts[this._matchIndex];
+    const code = this._code;
+    if (!this._searchOpen || !code || this._tooLarge || !this._searchQuery) {
+      this._matches = [];
+      this._matchStarts = [];
+    } else {
+      const index = textIndexOf(code);
+      const found = findMatches(index.text, this._searchQuery, this._matchCase);
+      this._matches = rangesOf(index, found);
+      this._matchStarts = found.map(([start]) => start);
+    }
+    this._matchCount = this._matches.length;
+    if (this._matchCount === 0) this._matchIndex = -1;
+    else if (again && was !== undefined) {
+      let nearest = 0;
+      this._matchStarts.forEach((start, i) => {
+        if (Math.abs(start - was) < Math.abs(this._matchStarts[nearest] - was)) nearest = i;
+      });
+      this._matchIndex = nearest;
+    } else this._matchIndex = 0;
+    this._paint(!again);
+  }
+
+  private _step(direction: 1 | -1): void {
+    const n = this._matches.length;
+    if (n === 0) return;
+    this._matchIndex = (((this._matchIndex + direction) % n) + n) % n;
+    this._paint(true);
+  }
+
+  /**
+   * Paint the matches and the current one; `scroll`, bring the current one into view. Without highlights, the
+   * current match is the page's text selection, and the others are not painted (SR-DD-3).
+   */
+  private _paint(scroll: boolean, clear = false): void {
+    const current = clear ? undefined : this._matches[this._matchIndex];
+    const api = highlights();
+    if (api) {
+      if (clear || this._matches.length === 0) api.registry.delete(MATCH_HIGHLIGHT);
+      else api.registry.set(MATCH_HIGHLIGHT, new api.Highlight(...this._matches));
+      if (current) api.registry.set(CURRENT_HIGHLIGHT, new api.Highlight(current));
+      else api.registry.delete(CURRENT_HIGHLIGHT);
+    } else if (current && scroll) {
+      const selection = globalThis.getSelection?.();
+      selection?.removeAllRanges();
+      selection?.addRange(current);
+    }
+    if (scroll && current) {
+      const at = current.startContainer.parentElement;
+      if (at && typeof at.scrollIntoView === 'function') at.scrollIntoView({ block: 'center', inline: 'nearest' });
+    }
   }
 
   override willUpdate(changed: Map<string, unknown>): void {
@@ -381,6 +513,7 @@ export class RdfPanel extends LitElement {
     if (this._tooLarge) {
       code.innerHTML = '';
       this._renderedText = null;
+      if (this._searchOpen && this._matches.length > 0) this._search(true);
       return;
     }
     // The highlighted text is assigned as one HTML string: an order of
@@ -392,6 +525,8 @@ export class RdfPanel extends LitElement {
       this._renderedText = this._text;
       this._renderedFormat = this._format;
       this._markSelected(changed.has('selectedIri') || changed.has('selectedIris'));
+      // The text shown anew: its matches are new ranges (Req 23.6).
+      if (this._searchOpen) this._search(true);
     } else if (changed.has('selectedIri') || changed.has('selectedIris')) {
       this._markSelected(true);
     }
@@ -483,6 +618,16 @@ export class RdfPanel extends LitElement {
           />
           provenance
         </label>
+        <button
+          class="search"
+          data-action="search"
+          title="Search the text (Ctrl+F, ⌘F on a Mac)"
+          aria-label="Search the text"
+          aria-pressed=${this._searchOpen ? 'true' : 'false'}
+          @click=${() => (this._searchOpen ? this.closeSearch() : void this.openSearch())}
+        >
+          🔍
+        </button>
         <button title="Copy to the clipboard" @click=${() => this._copy()}>${this._copied ? 'Copied' : 'Copy'}</button>
         <button
           title="Download this file"
@@ -519,6 +664,31 @@ export class RdfPanel extends LitElement {
             ${s && this._scope === 'model' ? html`<span><b>${s.views}</b> views</span>` : nothing}
             ${s ? html`<span><b>${s.triples}</b> triples</span>` : nothing}
           </div>
+      ${this._searchOpen
+        ? html`<find-bar
+            label="Search the RDF"
+            .query=${this._searchQuery}
+            .count=${this._matchCount}
+            .current=${this._matchIndex}
+            .caseOption=${true}
+            .matchCase=${this._matchCase}
+            .status=${this._tooLarge ? 'Too large to show, so not searched' : ''}
+            @find-query=${(e: CustomEvent<FindQueryDetail>) => {
+              e.stopPropagation();
+              this._searchQuery = e.detail.query;
+              this._matchCase = e.detail.matchCase;
+              this._search(false);
+            }}
+            @find-step=${(e: CustomEvent<FindStepDetail>) => {
+              e.stopPropagation();
+              this._step(e.detail.direction);
+            }}
+            @find-close=${(e: Event) => {
+              e.stopPropagation();
+              this.closeSearch();
+            }}
+          ></find-bar>`
+        : nothing}
       ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
       ${this._tooLarge
         ? html`<div class="notice">

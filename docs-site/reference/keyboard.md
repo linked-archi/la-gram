@@ -120,6 +120,35 @@ open. The toolbar's ← and → buttons do the same, and their tooltips name the
 2. Press ++alt+left++ (++option+left++): *How the shop serves its customers* is open again.
 3. Press ++alt+right++ (++option+right++): *Who is who*.
 
+## Search {#search}
+
+=== "Windows and Linux"
+
+    | Keys | Where | Does |
+    |---|---|---|
+    | ++ctrl+f++ | anywhere, with a diagram open | opens the diagram's [search](../guide/canvas.md#search) |
+    | ++ctrl+f++ | in the RDF panel | opens [its search](../guide/rdf-panel.md#search) |
+    | ++ctrl+f++ | in the model tree | puts the cursor in its [filter](../guide/model-tree.md#filter) |
+    | ++enter++ / ++shift+enter++ | in a find bar | the next match / the previous |
+    | ++esc++ | in a find bar | closes it |
+
+=== "macOS"
+
+    | Keys | Where | Does |
+    |---|---|---|
+    | ++cmd+f++ | anywhere, with a diagram open | opens the diagram's [search](../guide/canvas.md#search) |
+    | ++cmd+f++ | in the RDF panel | opens [its search](../guide/rdf-panel.md#search) |
+    | ++cmd+f++ | in the model tree | puts the cursor in its [filter](../guide/model-tree.md#filter) |
+    | ++enter++ / ++shift+enter++ | in a find bar | the next match / the previous |
+    | ++esc++ | in a find bar | closes it |
+
+It goes by where you are: where the keyboard is, or else where you last clicked — the RDF panel's text
+and the tree's rows take no keyboard focus. In the SPARQL editor, with a catalog or a matrix open, and
+while a dialog is open, the browser's own find works as usual.
+
+1. Click the empty canvas and press ++ctrl+f++ (++cmd+f++): the diagram's find bar opens.
+2. Click a block of statements in the RDF panel and press it again: the panel's own opens.
+
 ## SPARQL editor {#sparql-editor}
 
 === "Windows and Linux"

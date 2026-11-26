@@ -2243,6 +2243,73 @@ describe('the workbench', () => {
     }
   });
 
+  it('Ctrl+F: the canvas’s search, the RDF panel’s in it, the tree’s filter in the tree; what is in other views opens the tree (Req 23)', async () => {
+    const els = app.components.elementManager;
+    const model = app.session.modelIri!;
+    const view = app.session.activeViewIri!;
+    const placed = els.createElement(`${AM4}BusinessActor`, model, { label: 'Zephyr desk' }).value;
+    app.components.viewManager.addElementToView(view, placed, { x: 900, y: 900, width: 120, height: 55 });
+    const unplaced = els.createElement(`${AM4}BusinessActor`, model, { label: 'Zephyr office' }).value;
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const press = (target: EventTarget) => {
+      const event = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, composed: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const bar = ui.canvasHost.querySelector('find-bar')!;
+    expect(bar.hidden).toBe(true);
+    try {
+      // Anywhere else, with a diagram open: the canvas's, over the diagram.
+      expect(press(document.body)).toBe(true);
+      expect(bar.hidden).toBe(false);
+      await bar.updateComplete;
+      const input = bar.shadowRoot!.querySelector('input')!;
+      input.value = 'zephyr';
+      input.dispatchEvent(new Event('input'));
+      expect([bar.count, bar.current]).toEqual([1, 0]);
+      expect(ui.diagramCanvas.selectedIris()).toEqual([placed]);
+      expect(bar.elsewhere).toBe('1 more in other views');
+
+      // What is in other views: the model tree, shown, filtered by the same text.
+      ui.setExplorerOpen(false);
+      await bar.updateComplete;
+      bar.shadowRoot!.querySelector<HTMLElement>('[data-action="elsewhere"]')!.click();
+      await vi.waitFor(() => expect(ui.modelExplorer.filterQuery).toBe('zephyr'));
+      expect(ui.shell.explorerOpen).toBe(true);
+
+      // In the tree, its filter; in the RDF panel, its search.
+      expect(press(ui.modelExplorer)).toBe(true);
+      expect(press(ui.rdfPanel)).toBe(true);
+      await vi.waitFor(() => expect(ui.rdfPanel.searchOpen).toBe(true));
+      ui.rdfPanel.closeSearch();
+      // From the page, after a click in the RDF panel's text, which takes no focus: where the click was.
+      ui.rdfPanel.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+      expect(press(document.body)).toBe(true);
+      await vi.waitFor(() => expect(ui.rdfPanel.searchOpen).toBe(true));
+      ui.rdfPanel.closeSearch();
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+
+      // In the SPARQL editor, and under a dialog, the browser's own.
+      expect(press(ui.sparqlEditor)).toBe(false);
+      const dialog = document.createElement('div');
+      dialog.className = 'la-dialog';
+      document.body.append(dialog);
+      expect(press(document.body)).toBe(false);
+      dialog.remove();
+
+      // Esc closes it: the outlines away, the selection kept.
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(bar.hidden).toBe(true);
+      expect(ui.diagramCanvas.selectedIris()).toEqual([placed]);
+    } finally {
+      await ui.modelExplorer.focusFilter('');
+      ui.selectConcept(undefined);
+      app.components.viewManager.removeElementFromView(view, placed);
+      for (const iri of [placed, unplaced]) els.deleteElement(iri);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+    }
+  });
+
   it('saves only the model, as TriG, and marks it clean', async () => {
     ui.diagramCanvas.placeExisting; // canvas is ready
     const store = app.components.store;

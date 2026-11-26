@@ -268,4 +268,103 @@ describe('<rdf-panel>', () => {
     buttons.find((b) => b.classList.contains('close'))!.click();
     expect(events).toEqual(['download:turtle:view', 'close']);
   });
+
+  describe('search (Req 23.6)', () => {
+    /** The browser's highlight registry, which jsdom lacks: what the panel paints, by name. */
+    class FakeHighlight {
+      readonly ranges: Range[];
+      constructor(...ranges: Range[]) {
+        this.ranges = ranges;
+      }
+    }
+    let painted: Map<string, FakeHighlight>;
+    beforeEach(() => {
+      painted = new Map();
+      vi.stubGlobal('CSS', { highlights: painted, escape: (s: string) => s });
+      vi.stubGlobal('Highlight', FakeHighlight);
+    });
+
+    const bar = (panel: RdfPanel) => panel.shadowRoot!.querySelector('find-bar')!;
+    async function type(panel: RdfPanel, text: string) {
+      const input = bar(panel).shadowRoot!.querySelector('input')!;
+      input.value = text;
+      input.dispatchEvent(new Event('input'));
+      await panel.updateComplete;
+      await bar(panel).updateComplete;
+    }
+    const countText = (panel: RdfPanel) => bar(panel).shadowRoot!.querySelector('.count')!.textContent!.trim();
+
+    it('🔍 opens it; every match painted, the current one too; Enter steps; × closes and clears', async () => {
+      const { panel } = await mount(true);
+      panel.shadowRoot!.querySelector<HTMLButtonElement>('button[data-action="search"]')!.click();
+      await panel.updateComplete;
+      expect(panel.searchOpen).toBe(true);
+
+      await type(panel, 'pref');
+      // "@prefix" twice and "skos:prefLabel" once.
+      expect(panel.searchState).toEqual({ query: 'pref', count: 3, current: 0 });
+      expect(countText(panel)).toBe('1 of 3');
+      expect(painted.get('la-rdf-match')!.ranges.map((r) => r.toString())).toEqual(['pref', 'pref', 'pref']);
+      expect(painted.get('la-rdf-current')!.ranges[0]).toBe(painted.get('la-rdf-match')!.ranges[0]);
+
+      const input = bar(panel).shadowRoot!.querySelector('input')!;
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      expect(panel.searchState.current).toBe(2);
+      expect(painted.get('la-rdf-current')!.ranges[0].startContainer.parentElement!.textContent).toContain('prefLabel');
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true }));
+      expect(panel.searchState.current).toBe(1);
+
+      bar(panel).shadowRoot!.querySelector<HTMLButtonElement>('button[data-action="close"]')!.click();
+      await panel.updateComplete;
+      expect(panel.shadowRoot!.querySelector('find-bar')).toBeNull();
+      expect(painted.size).toBe(0);
+    });
+
+    it('case ignored unless Aa is pressed', async () => {
+      const { panel } = await mount(true);
+      await panel.openSearch();
+      await type(panel, 'WEB');
+      expect(panel.searchState.count).toBe(1);
+      bar(panel).shadowRoot!.querySelector<HTMLButtonElement>('button[data-action="match-case"]')!.click();
+      await panel.updateComplete;
+      expect(panel.searchState.count).toBe(0);
+      expect(countText(panel)).toBe('No matches');
+    });
+
+    it('the text shown anew is searched again, the current match kept near its place', async () => {
+      let extra = '';
+      const { panel } = await mount(true, () => TTL + extra);
+      await panel.openSearch();
+      await type(panel, 'prefLabel');
+      expect(panel.searchState.count).toBe(1);
+      extra = '<urn:m/element/2> <http://www.w3.org/2004/02/skos/core#prefLabel> "Second"@en.\n';
+      panel.refresh();
+      await panel.updateComplete;
+      expect(panel.searchState).toEqual({ query: 'prefLabel', count: 2, current: 0 });
+      expect(painted.get('la-rdf-match')!.ranges).toHaveLength(2);
+    });
+
+    it('a whole model too large to show is not searched, and the bar says so', async () => {
+      const { panel } = await mount(true, (r) => (r.scope === 'model' ? 'x'.repeat(HIGHLIGHT_LIMIT + 1) : TTL));
+      panel.scope = 'model';
+      await panel.updateComplete;
+      await panel.openSearch();
+      await type(panel, 'x');
+      expect(panel.searchState.count).toBe(0);
+      expect(countText(panel)).toBe('Too large to show, so not searched');
+    });
+
+    it('without highlights, the current match is the text selection', async () => {
+      vi.stubGlobal('Highlight', undefined);
+      // jsdom drops a range inside a shadow root from the selection, as the specification says; browsers keep it.
+      const selected: Range[] = [];
+      vi.stubGlobal('getSelection', () => ({ removeAllRanges: () => (selected.length = 0), addRange: (r: Range) => selected.push(r) }));
+      const { panel } = await mount(true);
+      await panel.openSearch();
+      await type(panel, 'ApplicationComponent');
+      expect(panel.searchState.count).toBe(1);
+      expect(selected.map((r) => r.toString())).toEqual(['ApplicationComponent']);
+    });
+  });
 });

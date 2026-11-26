@@ -39,7 +39,7 @@ describe('the keyboard shortcuts', () => {
   it('by where they work, each a key and what it does', () => {
     const blocks = shortcutBlocks(false);
     const headings = blocks.filter((b) => b.kind === 'heading').map((b) => (b as { text: string }).text);
-    expect(headings).toEqual(['Files', 'On the canvas', 'Views', 'Model tree', 'SPARQL', 'Dialogs and lists']);
+    expect(headings).toEqual(['Files', 'On the canvas', 'Search', 'Views', 'Model tree', 'SPARQL', 'Dialogs and lists']);
     const rows = blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []));
     expect(rows).toContainEqual(['Ctrl+O', 'Open a model file (File › Open…)']);
     expect(rows).toContainEqual(['Ctrl+S', 'Save the model as TriG (File › Save)']);
@@ -52,6 +52,7 @@ describe('the keyboard shortcuts', () => {
     expect(blocks.every((b) => b.kind !== 'rows' || b.keys)).toBe(true);
     const mac = shortcutBlocks(true).flatMap((b) => (b.kind === 'rows' ? b.rows : []));
     expect(mac).toContainEqual(['⌘Y / ⇧⌘Z', 'Redo']);
+    expect(mac).toContainEqual(['⌘F', 'Search the diagram; in the RDF panel, its text; in the model tree, its filter']);
   });
 
   it("end with the documentation's page of them, the published one: the release's, or the alpha's", () => {

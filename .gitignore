@@ -74,5 +74,6 @@ data/
 !.agents/tasks/kernel-migration/
 !.agents/tasks/line-shape/
 !.agents/tasks/pull-deploy/
+!.agents/tasks/search/
 !.agents/tasks/view-references/
 !.agents/tasks/views-as-concepts/

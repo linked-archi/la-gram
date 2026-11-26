@@ -953,6 +953,23 @@ export class ModelExplorer extends LitElement {
     this._subscribed = undefined;
   }
 
+  /**
+   * Focus the filter, its text selected — set to `query` first when one is given: Ctrl/⌘+F in the tree (Req 23.7),
+   * and what a search finds in other views (Req 23.4).
+   */
+  async focusFilter(query?: string): Promise<void> {
+    if (query !== undefined) this._filterQuery = query;
+    await this.updateComplete;
+    const input = this.renderRoot.querySelector<HTMLInputElement>('.filter-input');
+    input?.focus();
+    input?.select();
+  }
+
+  /** What the tree is filtered by. */
+  get filterQuery(): string {
+    return this._filterQuery;
+  }
+
   private _emit<T>(name: string, detail: T): void {
     this.dispatchEvent(new CustomEvent<T>(name, { detail, bubbles: true, composed: true }));
   }

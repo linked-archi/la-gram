@@ -225,6 +225,7 @@ import { rdfOrderingModule, shapeIndex } from './rdf-ordering.js';
 import { joinLastStep, lastStepId } from './undo-steps.js';
 import { CanvasArrange, type ArrangeAvailability, type ArrangeShape, type ShapedLines } from './canvas-arrange.js';
 import { LINE_SHAPES, type LineShape } from '../../layout/line-shapes.js';
+import { CanvasSearch, type CanvasSearchState, type SearchShape } from './canvas-search.js';
 import type { Alignment, DistributeAxis, GridAxis, SizeDimension, SizeReference } from '../../layout/arrange-geometry.js';
 import {
   appendableTargetTypes,
@@ -339,6 +340,8 @@ export interface DiagramCanvasOptions {
    * graph, ask the questions about it, copy its IRI.
    */
   onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  /** The search found anew after the diagram changed (Req 23.5): what the find bar shows. */
+  onSearchUpdated?: (state: CanvasSearchState) => void;
   /**
    * Whether the model has folders to file concepts in: the right-click menu
    * then offers *Move to folder…* — and, on one of several selected, moving
@@ -688,6 +691,7 @@ export class DiagramCanvas {
   private confirmDeleteFromModel?: (request: DeleteFromModelRequest) => boolean | Promise<boolean>;
   private confirmRetypeElement?: (request: RetypeElementRequest) => boolean | Promise<boolean>;
   private onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  private onSearchUpdated?: (state: CanvasSearchState) => void;
   private canMoveToFolder?: () => boolean;
   /** Where the right-click menu was opened, for the menus it opens in turn. */
   private contextMenuAt: { x: number; y: number } | undefined;
@@ -806,6 +810,7 @@ export class DiagramCanvas {
     this.confirmDeleteFromModel = options.confirmDeleteFromModel;
     this.confirmRetypeElement = options.confirmRetypeElement;
     this.onContextAction = options.onContextAction;
+    this.onSearchUpdated = options.onSearchUpdated;
     this.canMoveToFolder = options.canMoveToFolder;
     if (options.clipboard) this.clipboard = new CanvasClipboard(this.clipboardHost(), options.clipboard);
 
@@ -1112,6 +1117,65 @@ export class DiagramCanvas {
     return this.arranger().shapeLines(shape);
   }
 
+  /** Search on the canvas (Req 23.2–23.5, `canvas-search.ts`), made once the canvas has its services. */
+  private searching?: CanvasSearch;
+  private searcher(): CanvasSearch {
+    return (this.searching ??= new CanvasSearch({
+      shapes: () => {
+        const services = this.services();
+        if (!services || !this.viewIri) return [];
+        const root = services.canvas.getRootElement();
+        return services.elementRegistry.getAll().filter((e) => e !== root) as unknown as SearchShape[];
+      },
+      typeLabel: (typeIri) =>
+        this.notationStyles.labelFor(typeIri) ?? this.paletteDefinition.relationshipTypes.find((t) => t.iri === typeIri)?.label,
+      select: (shapes) => this.services()?.selection.select(shapes),
+      reveal: (shape) => {
+        try {
+          this.services()?.canvas.scrollToElement(shape, { top: 80, bottom: 80, left: 80, right: 80 });
+        } catch {
+          /* jsdom has no layout */
+        }
+      },
+      mark: (shape, marker, on) => {
+        const canvas = this.services()?.canvas;
+        if (!canvas || !this.services()?.elementRegistry.get(shape.id)) return;
+        if (on) canvas.addMarker(shape, marker);
+        else canvas.removeMarker(shape, marker);
+      },
+    }));
+  }
+
+  /**
+   * Search the open diagram for the text (Req 23.2): the first match selected and scrolled to — or, `again` (the
+   * diagram changed, Req 23.5), the current match kept and nothing moved.
+   */
+  search(query: string, again = false): CanvasSearchState {
+    return this.searcher().search(query, again);
+  }
+
+  /** To the next match (1) or the previous (−1). */
+  searchStep(direction: 1 | -1): CanvasSearchState {
+    return this.searcher().step(direction);
+  }
+
+  /** Every match selected. */
+  searchSelectAll(): void {
+    this.searcher().selectAll();
+  }
+
+  /** The search closed: its outlines away, the selection as it is. */
+  endSearch(): void {
+    this.searcher().clear();
+  }
+
+  /** The diagram changed — drawn anew, another view, an edit on it: an open search finds again (Req 23.5). */
+  private searchAgain(): void {
+    const query = this.searching?.state().query;
+    if (!query) return;
+    this.onSearchUpdated?.(this.searching!.search(query, true));
+  }
+
   /** Copy concepts chosen in the model tree (Ctrl/⌘+C there), into a copy event's data; false when nothing was. */
   copyConcepts(iris: readonly string[], data?: DataTransfer | null): boolean {
     return this.clipboard?.copyConcepts(iris, data) ?? false;
@@ -1320,6 +1384,8 @@ export class DiagramCanvas {
     queueMicrotask(() => {
       this.drawnThisTask = undefined;
     });
+    // No view: nothing to find any more.
+    if (!viewIri) this.searchAgain();
   }
 
   /**
@@ -1690,6 +1756,7 @@ export class DiagramCanvas {
     this.redrawContainers();
     this.applyViewpointMarkers();
     this.refreshLabelTexts();
+    this.searchAgain();
   }
 
   /**
@@ -5091,8 +5158,11 @@ export class DiagramCanvas {
       },
     );
     djs.on('commandStack.changed', (event: { trigger?: string }) => {
-      // A rename on the canvas, undone or redone: what a label expression shows of it.
-      queueMicrotask(() => this.refreshLabelTexts());
+      // A rename on the canvas, undone or redone: what a label expression shows of it, and what a search finds.
+      queueMicrotask(() => {
+        this.refreshLabelTexts();
+        this.searchAgain();
+      });
       const pending = nested;
       nested = undefined;
       if (pending && event.trigger === 'execute') queueMicrotask(() => this.offerNesting(pending.inner, pending.outer));

@@ -3439,3 +3439,72 @@ describe('arranging a view', () => {
     findings.push('line shape: one line given one bend from the toolbar, the other line staying, undone in one step: ok');
   }, 120_000);
 });
+
+describe('search', () => {
+  it('Ctrl+F searches the diagram — outlined, stepped, what is elsewhere — and, after a click in it, the RDF panel’s text, highlighted', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const placed = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (type: string, label: string, at?: { x: number; y: number }) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, m, { label }).value;
+        if (at) app.components.viewManager.addElementToView(v, iri, { ...at, width: 120, height: 55 });
+        return iri as string;
+      };
+      const drawn = [make('ApplicationService', 'Order service', { x: 100, y: 100 }), make('ApplicationComponent', 'Orders', { x: 400, y: 300 })];
+      make('ApplicationComponent', 'Order archive');
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return drawn;
+    });
+    const marked = (marker: string) => page.evaluate((m) => document.querySelectorAll(`.la-diagram-host .djs-element.${m}`).length, marker);
+    const selected = () => page.evaluate(() => ((window as any).__LA_GRAM_UI__.diagramCanvas.selectedIris() as string[]));
+
+    // A click on the empty diagram, then Ctrl+F.
+    const host = (await page.locator('.la-diagram-host').boundingBox())!;
+    await page.mouse.click(host.x + host.width - 40, host.y + host.height - 40);
+    await page.keyboard.press('ControlOrMeta+f');
+    const bar = page.locator('.la-diagram-host > find-bar');
+    await bar.waitFor({ state: 'visible', timeout: 10_000 });
+    await page.keyboard.type('order');
+    await until(async () => (await bar.locator('.count').innerText()) === '1 of 2', 'the matches counted');
+    expect(await bar.locator('[data-action="elsewhere"]').innerText()).toBe('1 more in other views');
+    expect([await marked('la-search-match'), await marked('la-search-current')]).toEqual([2, 1]);
+    expect(await selected()).toEqual([placed[0]]);
+    await page.keyboard.press('Enter');
+    await until(async () => (await bar.locator('.count').innerText()) === '2 of 2', 'the next match');
+    expect(await selected()).toEqual([placed[1]]);
+    await session.screenshot('search-canvas');
+    await page.keyboard.press('Escape');
+    await bar.waitFor({ state: 'hidden' });
+    expect(await marked('la-search-match')).toBe(0);
+
+    // The RDF panel: a click in its text, then Ctrl+F there.
+    await page.locator('app-toolbar button[data-command="toggle-rdf"]').click();
+    const panel = page.locator('rdf-panel');
+    await until(async () => (await panel.locator('.code').innerText()).includes('Order service'), 'the Turtle');
+    await panel.locator('.code').click({ position: { x: 20, y: 10 } });
+    await page.keyboard.press('ControlOrMeta+f');
+    const rdfBar = panel.locator('find-bar');
+    await rdfBar.waitFor({ state: 'visible', timeout: 10_000 });
+    await page.keyboard.type('Order');
+    await until(async () => /^1 of \d+$/.test(await rdfBar.locator('.count').innerText()), 'the text searched');
+    const painted = await page.evaluate(() => {
+      const highlights = (CSS as any).highlights as Map<string, { size: number }>;
+      return [highlights.get('la-rdf-match')?.size ?? 0, highlights.get('la-rdf-current')?.size ?? 0];
+    });
+    expect(painted[0]).toBeGreaterThanOrEqual(2);
+    expect(painted[1]).toBe(1);
+    await page.locator('rdf-panel find-bar button[data-action="match-case"]').click();
+    await page.locator('rdf-panel find-bar input').fill('order');
+    await until(async () => (await rdfBar.locator('.count').innerText()) === 'No matches', 'matched by case');
+    await page.locator('rdf-panel find-bar input').fill('Order');
+    await until(async () => /^1 of \d+$/.test(await rdfBar.locator('.count').innerText()), 'matched by case again');
+    await session.screenshot('search-rdf-panel');
+    await page.locator('rdf-panel find-bar input').press('Escape');
+    await rdfBar.waitFor({ state: 'hidden' });
+    expect(await page.evaluate(() => ((CSS as any).highlights as Map<string, unknown>).size)).toBe(0);
+    findings.push('search: the diagram by Ctrl+F — outlined, stepped, elsewhere counted — and the RDF panel’s text, highlighted, by case: ok');
+  }, 120_000);
+});

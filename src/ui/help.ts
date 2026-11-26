@@ -225,6 +225,11 @@ export function shortcutBlocks(mac: boolean, channel?: string): DetailBlock[] {
       [keys('Shift+Scroll'), 'Scroll sideways'],
       [keys('Esc'), 'Put the format painter down'],
     ]),
+    ...section('Search', [
+      [keys('Mod+F'), 'Search the diagram; in the RDF panel, its text; in the model tree, its filter'],
+      [keys('Enter', 'Shift+Enter'), 'The next match, the previous'],
+      [keys('Esc'), 'Close the search'],
+    ]),
     ...section('Views', [[keys('Alt+←', 'Alt+→'), 'The view before, the view after']]),
     ...section('Model tree', [[keys('Mod+Click', 'Shift+Click'), 'Select several']]),
     ...section('SPARQL', [[keys('Mod+Enter'), 'Run the query']]),

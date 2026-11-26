@@ -72,10 +72,33 @@ relationships, 199 triples* for the example's diagram); for the model, its views
 1. Choose **Selection** in *What to show*.
 2. Click "Gift wrapping" on the canvas: the panel writes what the model says of it, and its placement.
 
+## Search {#search}
+
+🔍, in the panel's header, or ++ctrl+f++ (++cmd+f++ on a Mac) in the panel, opens a find bar under the
+header. Type to search the text the panel shows: every match is highlighted in yellow, and the current
+one in orange, scrolled into view.
+
+| In the find bar | Does |
+|---|---|
+| *Aa* | matches case: off at first, so "order" finds "Order" too |
+| *1 of 12* | the current match, and how many there are; *No matches* when none |
+| ↓ or ++enter++ | the next match; after the last, the first |
+| ↑ or ++shift+enter++ | the previous match |
+| × or ++esc++ | closes the bar and its highlights |
+
+It searches the text as written, in the format chosen: `skos:prefLabel` finds the names in Turtle, not in
+RDF/XML, where they are written otherwise. When the text changes — the model, *What to show*, the format,
+*geometry* or *provenance* — it is searched again. A whole model [too large to show](#large-models) is not
+searched: the bar says *Too large to show, so not searched*.
+
+1. With *What to show* at **View**, press 🔍 and type `prefLabel`.
+2. Each element's name is highlighted; press ++enter++ to go from one to the next.
+
 ## Copy and download {#copy-and-download}
 
 | Button | Does |
 |---|---|
+| 🔍 | opens the [search](#search) of the panel's text, and closes it |
 | *Copy* | copies what the panel shows to the clipboard; it says *Copied* |
 | *Download* | saves it as a file: for *Model*, as *Save* does, in the panel's format, without geometry when *geometry* is off; for *View* and *Selection*, what the panel shows |
 | ⤢ / ⤡ | maximizes the panel over the workspace, and restores it (or ++esc++) |

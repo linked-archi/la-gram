@@ -383,6 +383,21 @@ describe('<model-explorer>', () => {
   const row = (el: ModelExplorer, iri: string) =>
     el.shadowRoot!.querySelector<HTMLElement>(`.row[data-iri="${iri}"]`)!;
 
+  it('focusFilter: the filter set from outside, focused with its text selected (Req 23.4, 23.7)', async () => {
+    const el = await mount();
+    await el.focusFilter('cust');
+    const input = el.shadowRoot!.querySelector<HTMLInputElement>('.filter-input')!;
+    expect(el.filterQuery).toBe('cust');
+    expect(input.value).toBe('cust');
+    expect(el.shadowRoot!.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 4]);
+    expect(row(el, `${M}/element/c`)).not.toBeNull();
+    expect(row(el, `${M}/element/a`)).toBeNull();
+    // Without a text, the filter keeps its own.
+    await el.focusFilter();
+    expect(el.filterQuery).toBe('cust');
+  });
+
   it('renders the tree and selects on click', async () => {
     const el = await mount();
     const seen: ExplorerSelectDetail[] = [];

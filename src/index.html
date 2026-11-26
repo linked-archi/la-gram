@@ -376,6 +376,27 @@
       cursor: not-allowed;
     }
 
+    /* Search on the canvas (Req 23.3): every match outlined, the current one more strongly — over the selection's
+       outline, which the current one also has. Exports leave every outline out. */
+    .la-diagram-host .djs-element.la-search-match .djs-outline {
+      visibility: visible;
+      stroke: #f9ab00;
+      stroke-width: 2px;
+      stroke-dasharray: none;
+    }
+    .la-diagram-host .djs-element.la-search-current .djs-outline {
+      stroke: #e37400;
+      stroke-width: 3px;
+    }
+    /* The canvas's find bar, over the diagram's top right. */
+    .la-diagram-host > find-bar {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 20;
+      max-width: calc(100% - 16px);
+    }
+
     app-toolbar {
       display: flex;
     }

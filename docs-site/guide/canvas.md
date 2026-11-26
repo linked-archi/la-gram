@@ -23,7 +23,8 @@ After them come the format painter (🖌, see [Appearance](appearance.md#format-
 (three boxes in two rows joined by right-angled lines; see [Arrange view](#arrange-view)) with ▾ beside
 it for the other ways to arrange, the quick actions that align, distribute, size and route what is
 selected (see [Tidy a diagram](#tidy-a-diagram)), *Line shape* (a bent line with ▾; see
-[Line shape](#line-shape)), and three switches: *Relationship names*, *Notation only* and *Shapes*.
+[Line shape](#line-shape)), 🔍 ([Search](#search)), and three switches: *Relationship names*, *Notation
+only* and *Shapes*.
 
 1. Click ⬚ in the canvas toolbar.
 2. Drag a rectangle round "Customer" and "Place order": both are selected.
@@ -530,6 +531,37 @@ The choices of *Align to grid…* and *Sizes…* are remembered in this browser
     *Arrange relationships* works out the routes before it draws them, and the canvas pauses meanwhile:
     on an Apple M4 Pro, under a tenth of a second for 200 lines, up to 2 seconds for 1 000, and about 4
     seconds for 4 000.
+
+## Search {#search}
+
+++ctrl+f++ (++cmd+f++ on a Mac), or 🔍 in the canvas toolbar, opens a find bar over the diagram's top
+right. Type to search the open diagram: elements and relationships by their names and by their types'
+names, and notes, groups, shapes and view references by their text. Case does not matter, and the text
+may be anywhere in a name: "pay" finds "Payments" and "Card payment", and "application component" finds
+every application component.
+
+Every match is outlined in orange. The current one has the stronger outline: it is selected, so the
+Properties tab shows it, and scrolled into view. The matches go from top to bottom, and left to right
+across a row.
+
+| In the find bar | Does |
+|---|---|
+| *3 of 7* | the current match, and how many there are; *No matches* when none |
+| ↓ or ++enter++ | the next match; after the last, the first |
+| ↑ or ++shift+enter++ | the previous match |
+| *Select all* | selects every match, to move, align or style them together; the bar stays open |
+| *4 more in other views* | shown when the model has elements or relationships that match but are not in this view: opens the [model tree](model-tree.md#filter), filtered by the same text |
+| × or ++esc++ | closes the bar; the outlines go, the selection stays |
+
+The search follows the diagram: after an edit, an undo, a collaborator's change or another view, it
+searches again and keeps the current match while it still matches. Opened again, the bar holds its last
+text. ++ctrl+f++ in the model tree focuses its filter instead, and in the RDF panel opens
+[its own search](rdf-panel.md#search); with a catalog or a matrix open, the browser's find works as usual.
+
+1. Click the empty canvas, and press ++ctrl+f++ (++cmd+f++).
+2. Type "pay": "Card payment" is selected, *1 of 2*.
+3. Press ++enter++: "Payments", below it, is selected, *2 of 2*.
+4. Choose *Select all*, then press ++esc++: both stay selected.
 
 ## Placed twice {#placed-twice}
 

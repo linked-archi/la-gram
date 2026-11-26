@@ -110,6 +110,9 @@ import './app-shell.js';
 import './panels/app-toolbar.js';
 import './panels/palette-panel.js';
 import './panels/canvas-toolbar.js';
+import './panels/find-bar.js';
+import type { FindQueryDetail, FindStepDetail } from './panels/find-bar.js';
+import { textsMatch, type CanvasSearchState } from './canvas/canvas-search.js';
 import './panels/property-panel.js';
 import { fieldName } from './panels/property-panel.js';
 import { hasFolders } from './panels/model-explorer.js';
@@ -582,6 +585,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const diagramCanvas = new DiagramCanvas({
     container: canvasHost,
     eventBus,
+    // The diagram changed under an open search: the find bar's count anew (Req 23.5).
+    onSearchUpdated: (state) => showCanvasSearch(state),
     elementManager,
     relationshipManager,
     paletteDefinition: currentPalette,
@@ -2066,6 +2071,55 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       : undefined;
   canvasResize?.observe(canvasHost);
 
+  // ── Search on the canvas (Req 23.1–23.5; `.agents/tasks/search/`) ──────
+  // Its find bar over the diagram's top right, inside the host: hidden with it while a catalog or a matrix is open.
+  const canvasFind = document.createElement('find-bar');
+  canvasFind.floating = true;
+  canvasFind.label = 'Search the diagram';
+  canvasFind.selectAllOption = true;
+  canvasFind.hidden = true;
+  canvasHost.append(canvasFind);
+  /** How many of the model's elements and relationships match by name or type, and are not in the open view (Req 23.4). */
+  const elsewhereCount = (query: string): number => {
+    const viewIri = session.activeViewIri;
+    if (!query.trim() || !viewIri) return 0;
+    const inView = new Set([
+      ...viewManager.getNodes(viewIri).map((n) => n.elementIri),
+      ...viewManager.getLinks(viewIri).map((l) => l.relationshipIri),
+    ]);
+    const contents = modelContents();
+    return [...contents.elements, ...contents.relationships.filter((r) => !r.derivation)].filter(
+      (c) => !inView.has(c.iri) && textsMatch([c.label, c.typeLabel], query),
+    ).length;
+  };
+  /** What the find bar shows of the search. */
+  function showCanvasSearch(state: CanvasSearchState): void {
+    canvasFind.count = state.count;
+    canvasFind.current = state.current;
+    const more = elsewhereCount(state.query);
+    canvasFind.elsewhere = more > 0 ? `${more} more in other views` : '';
+  }
+  /** Open the canvas's search — its field focused, its text selected; opened again, it searches its text again. */
+  const openCanvasSearch = (): void => {
+    const wasHidden = canvasFind.hidden;
+    canvasFind.hidden = false;
+    void canvasFind.focusField();
+    if (wasHidden && canvasFind.query) showCanvasSearch(diagramCanvas.search(canvasFind.query));
+  };
+  canvasFind.addEventListener('find-query', (e) => showCanvasSearch(diagramCanvas.search((e as CustomEvent<FindQueryDetail>).detail.query)));
+  canvasFind.addEventListener('find-step', (e) => showCanvasSearch(diagramCanvas.searchStep((e as CustomEvent<FindStepDetail>).detail.direction)));
+  canvasFind.addEventListener('find-select-all', () => diagramCanvas.searchSelectAll());
+  canvasFind.addEventListener('find-close', () => {
+    canvasFind.hidden = true;
+    diagramCanvas.endSearch();
+  });
+  // What matches elsewhere: the model tree, shown, filtered by the same text.
+  canvasFind.addEventListener('find-elsewhere', () => {
+    setExplorerOpen(true);
+    void modelExplorer.focusFilter(canvasFind.query);
+  });
+  canvasToolbar.addEventListener('canvas-search', openCanvasSearch);
+
   // ── Model tree and palette: shown by default, hideable and resizable ──
   const setExplorerOpen = (open: boolean): void => {
     shell.explorerOpen = open;
@@ -3459,6 +3513,41 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   globalThis.addEventListener?.('keydown', onFileKey);
 
+  // Ctrl+F (⌘F on a Mac): the search of where the focus is (Req 23.7) — the RDF panel's in it, the tree's filter in
+  // the tree, the canvas's anywhere else while a diagram is open — in place of the browser's own. In the SPARQL
+  // editor, with a catalog or a matrix open, or under a dialog, the browser's own.
+  // Where the pointer was last pressed: the RDF text and the tree's rows take no focus, so a key pressed after a click
+  // on them comes from the page — it goes where the click was.
+  let lastPressed: EventTarget[] = [];
+  const onPressed = (e: Event): void => {
+    lastPressed = e.composedPath?.() ?? [];
+  };
+  globalThis.addEventListener?.('pointerdown', onPressed, true);
+  const onFindKey = (e: KeyboardEvent): void => {
+    const mod = isMacPlatform() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+    if (!mod || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'f') return;
+    if (document.querySelector('.la-dialog')) return;
+    const own = e.composedPath?.() ?? [];
+    const fromPage = own[0] === document.body || own[0] === document.documentElement || own[0] === document;
+    const path = fromPage ? lastPressed : own;
+    if (path.includes(sparqlEditor)) return;
+    if (path.includes(rdfPanel)) {
+      e.preventDefault();
+      void rdfPanel.openSearch();
+      return;
+    }
+    if (path.includes(modelExplorer)) {
+      e.preventDefault();
+      setExplorerOpen(true);
+      void modelExplorer.focusFilter();
+      return;
+    }
+    if (activeKind !== 'diagram' || !session.activeViewIri) return;
+    e.preventDefault();
+    openCanvasSearch();
+  };
+  globalThis.addEventListener?.('keydown', onFindKey);
+
   const onModelLoaded: ModelEventHandler = () => {
     viewHistory.clear();
     shownViewIri = undefined;
@@ -3661,6 +3750,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     shell.removeEventListener('rdf-panel-changed', onRdfPanelChanged);
     globalThis.removeEventListener?.('keydown', onHistoryKey);
     globalThis.removeEventListener?.('keydown', onFileKey);
+    globalThis.removeEventListener?.('keydown', onFindKey);
+    globalThis.removeEventListener?.('pointerdown', onPressed, true);
+    canvasToolbar.removeEventListener('canvas-search', openCanvasSearch);
     propertyPanel.removeEventListener('property-retype', onPropertyRetype);
     sparqlEditor.removeEventListener('results-view-request', onResultsViewRequest);
     sparqlEditor.removeEventListener('sparql-select', onSparqlSelect);

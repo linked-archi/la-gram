@@ -1593,6 +1593,38 @@ and passes its viewpoint (`viewpointOfAnswer`): the one it fits, or the one it
 was asked about (`?viewpoint`, `viewpoint-scope`) — `createViewWith(…, {
 viewpointIri })`.
 
+### Search
+
+Search on the canvas and in the RDF panel (Req 23; `.agents/tasks/search/`). Both use one find bar, `find-bar`, a
+Lit component that searches nothing itself: it says what is typed and pressed (`find-query`, `find-step`,
+`find-close`, `find-select-all`, `find-elsewhere`) and shows the count its host gives it; Esc in it goes no further,
+so the maximized RDF panel is not also restored.
+
+**The diagram's.** `canvas-search.ts`: a shape's texts (`searchTextsOf`: its label — a name, a figure's text, a view
+reference's view — its own text, and an element's or a relationship's type's name, as the palette names it), matched
+case-insensitively with runs of white space as one; the matches sorted into reading order (rows of 20 px by their
+top, left to right; a line by its route's top left). Each wears the diagram-js marker `la-search-match`, the current
+one `la-search-current` too, painted on `.djs-outline` in orange in `index.html` — over the selection's outline,
+which the current one also has; exports drop `.djs-outline`. The current match is selected and scrolled to
+(`canvas.scrollToElement`). `DiagramCanvas.search(query, again)`: a new text makes the first match current; `again`
+keeps the current one while it matches and selects nothing — called after `syncFromStore`, another view, and every
+`commandStack.changed`, and said to the host (`onSearchUpdated`), which updates the bar. The bar is inside the diagram
+host, so it hides with it under a catalog or a matrix. "N more in other views" counts the model's elements and stated
+relationships (`ModelContentsIndex`, as the tree lists them) matching by name or type's name and not placed in the
+view; its link shows the tree and sets its filter (`ModelExplorer.focusFilter`).
+
+**The RDF panel's.** `text-search.ts`: `findMatches` (plain text, case ignored unless asked; a text whose lower case
+has another length — İ — is searched as it is, so the offsets stay its own) and `rangesOf` (offsets as DOM ranges
+over the code element's text nodes, found by binary search). They are painted with the CSS Custom Highlight API —
+`CSS.highlights`, `la-rdf-match` and `la-rdf-current`, styled by `::highlight(…)` in the panel's styles — so the HTML
+the tokenizer assigned is never touched, and a match may run across tokens. A new text (`updated`, after the HTML is
+assigned) is searched again, keeping the match nearest the current one's offset. Without the API the current match
+is the page's text selection.
+
+**Ctrl/⌘+F.** One window listener, as Ctrl/⌘+S's: the key's composed path says where it came from — the RDF panel,
+the model tree, the SPARQL editor. The RDF text and the tree's rows take no focus, so a key from the page itself goes
+by the path of the last `pointerdown` (captured on the window).
+
 ### RDF panel
 
 `rdf-panel` shows the model as Save writes it — its text comes from `ModelIO`,
@@ -3855,6 +3887,16 @@ dialog; the modules' section).
     of them; going around is *Right angles*, which routes with the router and keeps the view's other lines where
     they are (kept lines) — the same as *Arrange relationships* on a selection, which before routed the lines of the
     selected elements as if no other line were drawn, docking on top of them.
+
+45. **One find bar for the diagram and the RDF panel; the RDF panel's matches painted, not marked up** (Req 23;
+    2026-11-26; `.agents/tasks/search/`). The desktop app has no find at all, and the browser's reads the page — not the
+    diagram's viewport, and not by name and type. diagram-js's search pad (a field with a list of results) was not
+    used: one bar for both places steps through matches as a text editor's does, and has room for *Select all* and
+    what is in other views. The canvas's matches are diagram-js markers, so an export, which drops outlines, never
+    shows them. The RDF panel's text is one HTML string assigned once per change; wrapping matches in elements would
+    rewrite it on every keystroke and split its tokens, so the matches are highlights (`CSS.highlights`), which paint
+    ranges and leave the DOM as it is. Ctrl/⌘+F takes the browser's find only where la-gram has a better one: not in
+    the SPARQL editor, and not over a catalog or a matrix, which are tables the browser's find reads well.
 
 ## Running
 

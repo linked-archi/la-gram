@@ -234,6 +234,17 @@ describe('CanvasToolbar', () => {
     expect(root().querySelector('.menu')).toBeNull();
   });
 
+  it('🔍 asks for the search of the diagram (Req 23.2)', async () => {
+    await mount();
+    const button = root().querySelector<HTMLButtonElement>('button[data-action="search"]')!;
+    expect(button.getAttribute('aria-label')).toBe('Search the diagram');
+    expect(button.title).toContain('Ctrl+F');
+    let asked = 0;
+    document.body.addEventListener('canvas-search', () => asked++);
+    button.click();
+    expect(asked).toBe(1);
+  });
+
   it('says in the match and grid buttons what their dialogs last chose', async () => {
     await mount();
     const title = (action: string) => root().querySelector(`button[data-quick="${action}"]`)!.getAttribute('title');
