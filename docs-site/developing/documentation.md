@@ -7,7 +7,7 @@ description: How these pages are written and built, from docs-site/ with MkDocs 
 These pages are Markdown in `docs-site/`, built by [MkDocs](https://www.mkdocs.org/) with
 [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) into `dist/web/docs/`, inside the web
 app's folder. The release puts the two in place together, so https://app.linked.archi/la-gram/docs/
-always describes the app deployed beside it ([Releasing](releasing.md#installed-by-the-server)).
+always describes the app deployed beside it ([Releasing](https://github.com/linked-archi/la-gram/blob/main/RELEASING.md#installed-by-the-server)).
 
 | Path | Holds |
 |---|---|
@@ -224,7 +224,7 @@ $ node packages/la-gram-git/dist/la-gram-git.js check docs-site/examples
 ```
 
 **It is tied to la-gram-git's releases.** The pipeline's `package` job checks the example on merge
-requests and on `la-gram-git-v*` tags too ([Releasing](releasing.md#jobs)). A la-gram-git change that
+requests and on `la-gram-git-v*` tags too ([Releasing](https://github.com/linked-archi/la-gram/blob/main/RELEASING.md#jobs)). A la-gram-git change that
 writes files differently, or finds more, fails there until the example is brought up to date: run
 `la-gram-git fix docs-site/examples`, then `npm run docs:screenshots`, and commit both.
 

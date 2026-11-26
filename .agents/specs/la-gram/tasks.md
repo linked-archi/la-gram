@@ -482,6 +482,14 @@ Agreed order; relationship visuals come first.
 
 ## Change log
 
+### 2026-11-26 — How to release: `RELEASING.md`, not the documentation site
+
+- *Developing › Releasing* is `RELEASING.md` at the repository's top: it is for maintainers, so it is kept
+  with the code and no longer published with the app. The same text — the workflow job by job, the
+  server's install, the one-time setup, each release — its examples on to 0.5.0. README's *Releasing
+  la-gram* and *Releasing la-gram-git*, a shorter copy of it, are one paragraph pointing there. The
+  documentation's pages link to it on GitHub.
+
 ### 2026-11-26 — Two views at once: the split view
 
 - **The split view** (Req 24; key design decision 48; `.agents/tasks/split-view/`; `split-view.ts`). A modeller looked

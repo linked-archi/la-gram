@@ -105,7 +105,7 @@ Each la-gram-git release publishes the image to GitHub's container registry, as
 
 The version, major and `latest` tags each cover `linux/amd64` and `linux/arm64`, so x86 and Arm runners
 take the image for their platform. Each platform's image is built and tried on its own platform before
-the tags are made ([Releasing](../developing/releasing.md#container-image)). The CI templates' variations
+the tags are made ([Releasing](https://github.com/linked-archi/la-gram/blob/main/RELEASING.md#container-image)). The CI templates' variations
 use `:0` ([la-gram-git in CI](ci.md#variations)). Until the first la-gram-git release, the registry has
 no tag, and a pull fails: build the image yourself, below.
 

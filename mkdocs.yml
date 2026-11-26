@@ -172,7 +172,6 @@ nav:
     - Building: developing/building.md
     - Testing and benchmarks: developing/testing.md
     - Bundled metamodels and icons: developing/assets.md
-    - Releasing: developing/releasing.md
     - Writing the documentation: developing/documentation.md
     - Specifications: developing/specifications.md
   - Troubleshooting and FAQ: troubleshooting.md

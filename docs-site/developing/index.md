@@ -14,7 +14,6 @@ validation and the model questions all come from the metamodel documents it load
 | [Building](building.md) | the npm scripts, build switches and outputs |
 | [Testing and benchmarks](testing.md) | the type check, unit tests, browser suite and benchmarks |
 | [Bundled metamodels and icons](assets.md) | updating the kernel’s pinned semantic assets, and rendering the icons |
-| [Releasing](releasing.md) | the workflow, job by job, how the server installs a release, and how to make one |
 | [Writing the documentation](documentation.md) | these pages: their toolchain, rules and example model |
 | [Specifications](specifications.md) | the requirements, design and conventions, and how current each is |
 

@@ -5,7 +5,7 @@ description: How to serve la-gram's web app and its documentation from any stati
 # Hosting the web app
 
 la-gram's web app is a folder of static files: `npm run build:web` writes it to `dist/web/`, and each
-release's workflow builds the same ([Releasing](../developing/releasing.md)). It needs no server
+release's workflow builds the same ([Releasing](https://github.com/linked-archi/la-gram/blob/main/RELEASING.md)). It needs no server
 program, no database and no account system: any web server that serves files can host it. This page
 says what that server has to do, and shows the rules app.linked.archi's server follows, as nginx
 configuration with placeholders.
@@ -53,7 +53,7 @@ python3 -m http.server 41238 --directory dist/web
 
 The server at app.linked.archi is nginx. The server installs each release itself, into a folder of its own,
 and `la-gram/` is a link to it, swapped in one rename
-([Installed by the server](../developing/releasing.md#installed-by-the-server)). Its rules:
+([Installed by the server](https://github.com/linked-archi/la-gram/blob/main/RELEASING.md#installed-by-the-server)). Its rules:
 
 - `/` sends visitors to `/la-gram/` with a **302**, a temporary redirect, and `/la-gram`, as people
   type it, to `/la-gram/` with a **301**, written relative so that it holds behind a proxy;
@@ -68,7 +68,7 @@ and `la-gram/` is a link to it, swapped in one rename
   sends visitors to the documentation's [Download](../getting-started/desktop.md#download) section with a
   **302**, which links each platform's app;
 - `/la-gram-alpha/` is the alpha — the next release as it is being made, published from each push to
-  `main` ([The alpha](../developing/releasing.md#alpha)) — from the folder beside `la-gram/`,
+  `main` ([The alpha](https://github.com/linked-archi/la-gram/blob/main/RELEASING.md#the-alpha)) — from the folder beside `la-gram/`,
   `la-gram-alpha/`, with the same rules as `/la-gram/`;
 - anything else on the host is a 404.
 

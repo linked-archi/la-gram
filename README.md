@@ -192,27 +192,43 @@ npx @linked-archi/la-gram-git init github                  # or gitlab: the CI f
 
 `npm run build:cli` builds the tool into `packages/la-gram-git/`; `node packages/la-gram-git/dist/la-gram-git.js --help` runs it from there.
 
-### Releasing la-gram-git
+## Releasing
 
-`.github/workflows/la-gram.yml` runs for pull requests and pushes to `main`: la-gram's tests (the benchmarks left out), then la-gram-git's package — built, packed, installed from the packed file and run on `packages/la-gram-git/smoke/`. Nothing is published, and a newer push to the same pull request cancels what is still running.
+One workflow, `.github/workflows/la-gram.yml`, tests every pull request and releases each product from its
+own tag: `la-gram-v<version>` publishes la-gram's GitHub Release — the desktop apps, and the web app with
+its documentation, which app.linked.archi installs by itself ([`ops/pull-deploy/`](ops/pull-deploy/README.md));
+`la-gram-git-v<version>` publishes la-gram-git's npm package and container image. Each push to `main`
+publishes the alpha, the next release as it is being made, at https://app.linked.archi/la-gram-alpha/.
 
-On a tag `la-gram-git-v<version>` it runs the same, then, once approved in the environment `la-gram-git`, publishes from that one packed file: the npm package, with provenance, and the image `ghcr.io/linked-archi/la-gram-git` for `linux/amd64` and `linux/arm64` — each built and tried on its own platform (the arm64 one on GitHub's arm64 runner, free for public repositories), then combined under the version, its major version and `latest`. A pre-release version (`0.2.0-rc.1`) goes to npm under the dist-tag `next` and gets no `latest` or major image tag. Nothing of la-gram's is built on this tag.
+The workflow job by job, the one-time setup on GitHub and npm, the steps of each release explained, and
+what to do when something goes wrong: [`RELEASING.md`](RELEASING.md). In short, to copy:
 
-Once, before the first release:
+**la-gram 0.5.0**, the version in `package.json`:
 
-1. Create the npm organisation `linked-archi` on npmjs.com.
-2. On GitHub, *Settings › Environments*, the environment `la-gram-git`: *Required reviewers*, a maintainer; *Deployment branches and tags*, the tag pattern `la-gram-git-v*` only. The ruleset `release tags` lets only maintainers create `la-gram-git-v*` tags.
-3. Add `NPM_TOKEN` to that environment's secrets: an npm granular access token that can publish `@linked-archi` packages, with an expiry. Only the `npm` job gets it, on a `la-gram-git-v*` tag, once approved.
+```bash
+git switch main && git pull && git switch -c release-0.5.0
+npm version 0.5.0 --no-git-tag-version
+npm run typecheck && npm test
+git commit -am "la-gram 0.5.0"
+git push -u origin release-0.5.0
+gh pr create --base main --title "la-gram 0.5.0" --body "la-gram 0.5.0"
 
-After the first release, publish without a token: on npmjs.com, the package's *Settings › Trusted publishing*, GitHub Actions, with the organisation `linked-archi`, the repository `la-gram`, the workflow `la-gram.yml` and the environment `la-gram-git`. npm then takes the run's OIDC token. A new trusted publisher must be used within two days, so set it up just before the next release. Then delete `NPM_TOKEN` from the environment and revoke the token. And the image: in the organisation's *Packages*, `la-gram-git`'s *Package settings*, check that its visibility is *Public*, so anyone can pull it.
+# Merge the pull request when its checks pass, then:
+git switch main && git pull
+node -p 'require("./package.json").version'   # 0.5.0
+git tag -a la-gram-v0.5.0 -m "la-gram 0.5.0"
+git push origin la-gram-v0.5.0
+# Then approve the release job in Actions (Review deployments); app.linked.archi installs it within five minutes.
 
-Each release:
+# Then the next release's alpha, by a pull request:
+git switch main && git pull && git switch -c next-alpha-0.6.0
+npm version 0.6.0-alpha --no-git-tag-version
+git commit -am "la-gram 0.6.0-alpha"
+git push -u origin next-alpha-0.6.0
+gh pr create --base main --title "la-gram 0.6.0-alpha" --body "la-gram 0.6.0-alpha"
+```
 
-1. Set the version in `packages/la-gram-git/package.json`, and merge it by a pull request.
-2. Tag that commit `la-gram-git-v<the version>` and push the tag. The `version` job fails when the two differ.
-3. In *Actions*, approve the run's `npm` job (*Review deployments*): its approval releases the image too.
-
-In short — la-gram-git 0.2.0, whose version is its own, in `packages/la-gram-git/package.json`:
+**la-gram-git 0.2.0**, whose version is its own, in `packages/la-gram-git/package.json`:
 
 ```bash
 git switch main && git pull && git switch -c release-la-gram-git-0.2.0
@@ -220,136 +236,14 @@ git switch main && git pull && git switch -c release-la-gram-git-0.2.0
 npm run typecheck && npm test
 git commit -am "la-gram-git 0.2.0"
 git push -u origin release-la-gram-git-0.2.0
+gh pr create --base main --title "la-gram-git 0.2.0" --body "la-gram-git 0.2.0"
 
 # Merge the pull request when its checks pass, then:
 git switch main && git pull
 git tag -a la-gram-git-v0.2.0 -m "la-gram-git 0.2.0"
 git push origin la-gram-git-v0.2.0
-# Then approve the npm job in Actions.
+# Then approve the npm job in Actions: its approval releases the image too.
 ```
-
-### Releasing la-gram
-
-On a pull request and on `main`, the workflow also builds the web app (`web`) and its documentation
-(`docs`). *Actions › la-gram › Run workflow*, with *desktop* ticked, packages the five desktop apps too,
-kept for three days as the run's artifacts, to try. A pull request to `main` merges once `test`, `web`
-and `docs` pass (the ruleset `main`).
-
-On a tag `la-gram-v<version>` — the version in `package.json` — after the tests, and once approved in the
-environment `production`, it publishes the GitHub Release *la-gram &lt;version&gt;*:
-
-- **the desktop apps**, packaged on GitHub's Linux runners for macOS (Apple silicon and Intel), Windows x64
-  and Linux x64 and arm64, zipped (Linux as `.tar.gz`): `la-gram-<version>-<platform>-<arch>.zip`;
-- **the web app with this documentation**, as one file: `la-gram-web-<version>.tar.gz`;
-- their `SHA256SUMS.txt`, and the build record of each, which `gh attestation verify <file> --repo
-  linked-archi/la-gram` checks.
-
-**Publishing is deploying.** app.linked.archi installs the newest release by itself, within five minutes
-(`ops/pull-deploy/`): the web app at https://app.linked.archi/la-gram/, with this documentation in its
-`docs/`, and the desktop apps in its `downloads/`, named without the version (`la-gram-darwin-arm64.zip`…),
-with `SHA256SUMS.txt`: the links in la-gram's menu and its documentation stay. It installs a file only when
-its build record says this workflow built it, from a `la-gram-v` tag, and no key to the server is kept
-anywhere. Installing the server's side, trying it, rolling back:
-[`ops/pull-deploy/README.md`](ops/pull-deploy/README.md).
-
-A pre-release — `la-gram-v0.4.0-rc.1` — is published as a GitHub pre-release, with its desktop apps, for
-trying. The server never installs one.
-
-**The alpha.** Between releases, `package.json` says the next release's alpha (`0.4.0-alpha`: `alpha`
-sorts before `beta`, `rc` and the release), and each push to `main` publishes it as the pre-release
-`la-gram-alpha`, made again each time (the `alpha` job, environment `alpha`). The server installs it at
-https://app.linked.archi/la-gram-alpha/, and its version's page beside the released versions'
-(`/la-gram/v0.4.0-alpha/`), naming the commit it was built from. It is built for its channel
-(`LA_GRAM_CHANNEL=alpha`), which keeps its browser storage — settings, Git tokens, checkpoints — apart from
-the release's on the same site.
-
-The apps are not signed by a developer (see *Desktop app*).
-
-#### Once, before the first release
-
-On GitHub, in this repository's *Settings*:
-
-1. **Actions › General:** *Workflow permissions*, *Read repository contents and packages permissions*;
-   *Allow GitHub Actions to create and approve pull requests* cleared.
-2. **Environments:** `production`, with *Required reviewers*, a maintainer (*Prevent self-review* cleared
-   while there is one), and *Deployment branches and tags*, the tag pattern `la-gram-v*` only; `alpha`,
-   the branch `main` only.
-3. **Rules › Rulesets:** `main`, pull requests with the status checks `test`, `web` and `docs`, and no
-   force-push or deletion; `release tags`, the tags `la-gram-v*` and `la-gram-git-v*` created, moved or
-   deleted only by maintainers. Leave `la-gram-alpha` out: the `alpha` job deletes and makes it.
-4. **Advanced Security:** secret scanning and push protection.
-
-On the server, la-gram-pull: [`ops/pull-deploy/README.md`](ops/pull-deploy/README.md), *Install*. The web
-server's site for app.linked.archi is kept with the host's own configuration; what la-gram needs of it is
-in [Hosting the web app](docs-site/operating/web-app.md).
-
-#### Each release
-
-In short — la-gram 0.4.0:
-
-```bash
-git switch main && git pull && git switch -c release-0.4.0
-npm version 0.4.0 --no-git-tag-version
-npm run typecheck && npm test
-git commit -am "la-gram 0.4.0"
-git push -u origin release-0.4.0
-
-# Merge the pull request when its checks pass, then:
-git switch main && git pull
-git tag -a la-gram-v0.4.0 -m "la-gram 0.4.0"
-git push origin la-gram-v0.4.0
-# Then approve the release job in Actions.
-
-# Then the next release's alpha, by a pull request:
-npm version 0.5.0-alpha --no-git-tag-version
-```
-
-Step by step:
-
-1. **The version, by a pull request.** On a branch from an up-to-date `main`, set it — `npm version`
-   writes `package.json` and `package-lock.json` (without `--no-git-tag-version` it would also commit
-   and tag, with its own tag name) — and push:
-
-   ```bash
-   git switch main
-   git pull
-   git switch -c release-0.4.0
-   npm version 0.4.0 --no-git-tag-version
-   git commit -am "la-gram 0.4.0"
-   git push -u origin release-0.4.0
-   ```
-
-   Open the pull request. Its checks run the tests and build the web app and its documentation; to try a
-   desktop app first, run the workflow on the branch with *desktop* ticked and download the run's
-   artifact. Merge.
-
-2. **The tag, on the merged commit,** annotated, and pushed by a maintainer — pushing the tag starts the
-   release:
-
-   ```bash
-   git switch main
-   git pull
-   node -p 'require("./package.json").version'   # 0.4.0
-   git tag -a la-gram-v0.4.0 -m "la-gram 0.4.0"
-   git push origin la-gram-v0.4.0
-   ```
-
-3. **Approve it, and follow it** in *Actions*: the tests; then `web`, `docs` and the five `desktop` jobs;
-   then `release`, which waits for the environment `production`'s reviewer: *Review deployments ›
-   Approve and deploy*. When it is done, *Releases* lists *la-gram 0.4.0* with the five apps, the web app
-   and the sums. Within five minutes, https://app.linked.archi/la-gram/, reloaded, says *Version 0.4.0* in
-   *About la-gram* (the menu under the name at the top left); *Download the desktop app…*, in the same
-   menu, downloads 0.4.0's apps.
-
-When something goes wrong:
-
-- **A job fails on something passing** — a download, the network: *Re-run failed jobs*. Do not tag again.
-- **The tag's version is not `package.json`'s:** the `version` job stops the run before anything is built.
-  Delete the tag, on GitHub and on your machine (`git push origin :refs/tags/la-gram-v0.4.0`, then
-  `git tag -d la-gram-v0.4.0`); set the version, merge, tag again.
-- **Something is wrong in what was released:** do not move the tag. Fix it by a pull request and release
-  the next version (`0.4.1`). To serve the release before it meanwhile: `ops/pull-deploy/README.md`,
-  *Roll back*.
 
 ## Test
 
@@ -397,6 +291,7 @@ and `DATA_DIR`.
 ## Documentation
 
 - [la-gram's documentation](https://app.linked.archi/la-gram/docs/) — how to use, configure, run and build la-gram, published with the web app; its source is `docs-site/` (MkDocs, Material for MkDocs)
+- [`RELEASING.md`](RELEASING.md) — how la-gram and la-gram-git are released, for maintainers
 - `.agents/specs/la-gram/` — requirements, design, tasks (what is done, what is next, and a change log)
 - `.agents/conventions.md` — principles and code conventions
 - `.agents/tasks/` — one folder per piece of work: its plan, requirements, design and report

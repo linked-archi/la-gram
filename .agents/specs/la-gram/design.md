@@ -3031,7 +3031,7 @@ job's `image:` and a GitHub Actions job's `container:`),
 `packages/la-gram-git/docs/gitaly.md` (the driver on a self-managed GitLab's
 Gitaly: install on every node, absolute paths, the `gitlab.rb` / `gitaly.toml` /
 Helm keys, `.gitattributes`, a test that conflicts as text and merges with the
-driver), and README's *Releasing la-gram-git*.
+driver), and `RELEASING.md`.
 
 **Tests.** *cli.test* (real Git repositories in a temporary folder, model files
 la-gram writes: a good change passes; a file not as la-gram writes it, a

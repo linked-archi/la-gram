@@ -427,7 +427,7 @@ jobs:
   # needs no secret, and publishes provenance with the package. The first release, before the package
   # exists on npm to set that up on, takes NPM_TOKEN, a secret of the environment la-gram-git only,
   # written to .npmrc as a reference npm resolves, never as its value; it is deleted after
-  # (docs-site/developing/releasing.md). The environment admits la-gram-git-v* tags only, and its
+  # (RELEASING.md). The environment admits la-gram-git-v* tags only, and its
   # required reviewer approves the release: what npm has published cannot be taken back. A pre-release
   # (0.2.0-rc.1) goes under the dist-tag next.
   npm:

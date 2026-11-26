@@ -39,7 +39,7 @@ request in [la-gram-git in CI](operating/ci.md).
   and the la-gram-git commands, each option on its own.
 - [Operating](operating/index.md): hosting the web app, running the collaboration server, la-gram-git in
   CI.
-- [Developing](developing/index.md): building, testing and releasing la-gram, and writing these pages.
+- [Developing](developing/index.md): building and testing la-gram, and writing these pages.
 - [Troubleshooting and FAQ](troubleshooting.md): when something does not do what you expect.
 
 la-gram is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). The

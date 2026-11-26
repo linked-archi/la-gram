@@ -190,7 +190,7 @@ What the packager is told, every time:
 | icon | `src/icons/app-icon.icns` (macOS), `.ico` (Windows); the window's icon on Linux |
 | macOS bundle id and category | `archi.linked.la-gram`, `public.app-category.developer-tools` |
 | Windows metadata | company *Linked.Archi*, product *la-gram*, description *la-gram — Semantic Modeller for Enterprise and IT Architecture* |
-| signing | none: the macOS app keeps Electron's ad-hoc signature; the release re-signs it ad hoc ([Releasing](releasing.md#desktop-apps)) |
+| signing | none: the macOS app keeps Electron's ad-hoc signature; the release re-signs it ad hoc ([Releasing](https://github.com/linked-archi/la-gram/blob/main/RELEASING.md#desktop-apps)) |
 
 The Electron runtime for the target comes from the cache `npm ci` filled, or is downloaded once. Another
 platform's app is built the same way, off that platform.
