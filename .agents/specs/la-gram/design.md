@@ -1507,6 +1507,15 @@ itself only at rest: the run frames the graph before `data-layout` turns `settle
 while the view is *following* — a press, scroll or pinch in the drawing ends it; the
 first drawing, a change the user asked for, a switch of layout, a change of forces
 and *Fit* start it.
+The wheel is la-gram's (Req 17.14; `wheel-zoom.ts`): a listener added to the drawing's
+element before Cytoscape.js is made runs before its own wheel zoom there and stops it.
+Cytoscape.js takes a wheel whose first events are all one size for a mouse, each event a
+fixed small step, and any other for a trackpad, every pixel counted: a mouse's notch zoomed
+0.8% (with the `wheelSensitivity` 0.3 the panel had), 1 000 px of a trackpad's scrolling 16×.
+Each event is now measured in pixels — a line 40, a page the panel's height — and zooms
+2^(−Δ/500), clamped to ±½ a doubling an event; a pinch, which browsers send as a wheel with
+Ctrl, 2^(−Δ/69), as the scale it stands for, e^(−Δ/100). The zoom stays within the view's 0.05–3×,
+and still says `scrollzoom`, which ends following.
 The panel says whether a drawing was asked for (`show(…, { follow })`) by comparing
 what is asked — source, root, depth, filters — with what it drew, so a refresh after
 a model change and a return to the tab keep the camera. Hiding the tab or folding

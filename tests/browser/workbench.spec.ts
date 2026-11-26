@@ -1147,6 +1147,9 @@ describe('appending from the context pad', () => {
     await until(async () => Math.abs(zoomOf(await graphTab(page), middle!, component) / zoomOf(g, middle!, component) - 1) > 0.01, 'the zoom');
     const zoomed = await graphTab(page);
     const zoomIn = zoomOf(zoomed, middle!, component);
+    // One notch of a mouse's wheel zooms in by about 18% (Req 17.14), the first notch as much as any other.
+    expect(zoomIn / zoomOf(g, middle!, component)).toBeGreaterThan(1.15);
+    expect(zoomIn / zoomOf(g, middle!, component)).toBeLessThan(1.2);
     await page.locator('app-shell .tab[data-tab="properties"]').click();
     await page.locator('app-shell .tab[data-tab="graph"]').click();
     await until(async () => (await graphTab(page)).width > 0, 'the drawing shown again');

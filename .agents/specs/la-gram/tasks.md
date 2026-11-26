@@ -291,6 +291,7 @@ In parts, each reviewed before the next.
 - [x] SPARQL console: SELECT tables under their projected columns, CONSTRUCT triples as a table, prefixed names that reveal the concept, 500-row cap, results scrolled into sight — *sparql-editor.test, workbench.test, workbench.spec*
 - [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; drawn by walking the store; the query behind it as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported as `.rq`, the drawn triples as `.ttl`; ＋ New view laid out as drawn; tests hold walk and both query forms to the same result — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Relationship graph, live force layout (Req 17.2, 17.7–17.12) (2026-11-10): Force the default, d3-force stepped by la-gram's own loop (`graph-force.ts`); animated up to 100 elements, laid out at once up to 800, rings above with a note on the stats line; seeding beside the parent, turned clear of what is drawn; the middle element pinned; drags live, held or alone, released on drop; the camera moved only at rest; paused while hidden; a refresh that changes nothing moves nothing; the limits measured and checked by `npm run bench -- --graph` — *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
+- [x] Relationship graph, the wheel's zoom (Req 17.14) (2026-11-26): by the distance scrolled, the same for a mouse, a trackpad and a pinch (`wheel-zoom.ts`) — *wheel-zoom.test, workbench.spec*
 - [x] Relationship graph, force controls (Req 17.13) (2026-11-10): *Forces* under *Layout* with Force, folded — *Link distance* 40–400 px (**180**), *Charge strength* 0–1 500 (**350**, d3's −350), *Collision radius* 0.5×–2× (**1.0×**), native sliders with their values and units, `aria-valuetext`, a focus ring; *Reset*; followed live while the run animates (at most one update a frame), laid out again on release otherwise; framed at rest; `la-gram:graph-forces`, brought into range on read; disabled where Force draws rings; the defaults give the layout unchanged — *graph-force.test, graph-force.property.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Performance: cold start ≈ 1.2 s; 500 elements — create 140 ms, draw 56 ms, validate 140 ms, save 20 ms (Chrome, bundled ArchiMate 4.0)
 - [x] Automatic layout (Req 21; key design decision 21) (2026-11-15): ELK's layered layout in a worker (`src/layout/`), right-angled routes, nesting, bands from the manifest's `arch:diagramGroupOrder`, deterministic; *Arrange view…* on the canvas toolbar and the empty canvas's right-click menu — scope, *Direction*, *Spacing*, *Group by band*, remembered, one undoable step; a model opened with no geometry and *Render as new view* laid out the same; the grid above 2 000 elements, on failure or after 10 s, said; ELK's effort by the diagram's size; `npm run bench -- --layout` — *layout.test, bands.test, canvas-toolbar.test, connection-docking.test, workbench.test, workbench.spec*
@@ -469,6 +470,16 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-26 — The Graph tab zooms as far for a mouse as for a trackpad
+
+- **The wheel's zoom** (Req 17.14; design, *Relationship graph*). On Linux with a mouse the Graph tab zoomed 0.8% a
+  notch — about 90 notches to zoom in twice as far — and on a Mac's trackpad sixteen times over in 1 000 px of
+  scrolling: the drawing library takes a wheel whose events are all one size for notches, each a fixed small step,
+  and any other wheel pixel by pixel, and the panel slowed both by 0.3. la-gram now zooms each event by its length in
+  pixels: a notch 15–18%, 1 000 px of a trackpad four times, a pinch as far as the fingers spread, no event more
+  than 1.41×. *wheel-zoom.test, workbench.spec*
+- **Docs**: *Relationship graph* (*Navigate*).
 
 ### 2026-11-26 — Line shape: one line, or a few, routed as chosen
 

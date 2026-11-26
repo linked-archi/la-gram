@@ -31,6 +31,7 @@ import {
   type ForceRunStats,
   type Topology,
 } from './graph-force.js';
+import { wheelZoomFactor } from './wheel-zoom.js';
 
 /** A node to draw. */
 export interface GraphViewNode {
@@ -241,10 +242,23 @@ function edgeData(e: GraphViewEdge) {
 
 /** The Cytoscape.js implementation. */
 export const createCytoscapeView: GraphViewFactory = (container, handlers) => {
+  // The wheel zooms by the distance scrolled, whatever sends it (Req 17.14, `wheel-zoom.ts`). Added before the
+  // drawing is made, so that it runs before the drawing's own wheel zoom on the same element and stops it.
+  const onWheel = (event: WheelEvent): void => {
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    // A drag holds the camera, as the drawing's own zoom does.
+    if (cy.nodes(':grabbed').length > 0) return;
+    const box = container.getBoundingClientRect();
+    const level = Math.min(cy.maxZoom(), Math.max(cy.minZoom(), cy.zoom() * wheelZoomFactor(event, box.height)));
+    if (level === cy.zoom()) return;
+    cy.zoom({ level, renderedPosition: { x: event.clientX - box.left, y: event.clientY - box.top } });
+    cy.emit('scrollzoom');
+  };
+  container.addEventListener('wheel', onWheel, { capture: true, passive: false });
   const cy: Core = cytoscape({
     container,
     style: STYLE,
-    wheelSensitivity: 0.3,
     // A fit frames about a thousand elements in a short, wide panel; 0.2 stopped it at about a hundred.
     minZoom: 0.05,
     maxZoom: 3,
@@ -468,6 +482,7 @@ export const createCytoscapeView: GraphViewFactory = (container, handlers) => {
       limits,
     }),
     destroy() {
+      container.removeEventListener('wheel', onWheel, { capture: true });
       force.destroy();
       cy.destroy();
     },
