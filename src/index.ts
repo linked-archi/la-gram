@@ -62,7 +62,10 @@ async function bootstrap(): Promise<void> {
     try {
       const response = await fetch(modelUrl, { headers: { Accept: 'text/turtle' } });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      await app.openModel(await response.text(), modelUrl.split(/[/?#]/).filter(Boolean).pop() ?? 'model.ttl');
+      const name = modelUrl.split(/[/?#]/).filter(Boolean).pop() ?? 'model.ttl';
+      const text = await response.text();
+      // Under the loader, as File › Open (Req 11.13).
+      await ui.busy(`Opening ${name}…`, () => app.openModel(text, name));
     } catch (err: unknown) {
       console.error(`[la-gram] Could not open ${modelUrl}`, err);
     }

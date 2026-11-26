@@ -103,6 +103,7 @@ import { copyPicture } from '../import-export/image-clipboard.js';
 import { aboutBlocks, BUILD, downloadBlocks, isMacPlatform, runtimeOf, shortcutBlocks, systemOf, versionText, type AboutContext } from './help.js';
 import { isElectronEnvironment } from '../platform/platform-factory.js';
 import type { ModelEventHandler } from './event-bus.js';
+import { BusyIndicator } from './busy.js';
 import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues, type ToastOptions } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
 import { CATALOGUE_KIND_LABELS } from '@linked-archi/kernel/metamodel-manager/catalogue.js';
@@ -274,6 +275,8 @@ export interface MountedUi {
   confirmReplace(what: string): Promise<boolean>;
   /** Open a model file's text as File › Open does — the model replaced — and say what it did. */
   openModelText(text: string, fileName: string): Promise<void>;
+  /** Run work under the loader, saying what is opening (Req 11.13): shown and painted first, gone after. */
+  busy<T>(message: string, work: () => T | Promise<T>): Promise<T>;
   /**
    * A module's entries in the File menu. `items` is asked each time the menu
    * opens, so an entry can name the model's state; `run` runs one, its failure
@@ -1035,6 +1038,30 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   catalogView.addEventListener('catalog-select', onCatalogSelect);
   validationPanel.addEventListener('validation-navigate', onValidationNavigate);
 
+  // ── The loader while something large opens (Req 11.13, busy.ts) ─────────
+  const busy = new BusyIndicator();
+  /**
+   * Shapes and lines from which opening a diagram shows the loader first: a view of 3 000 takes about half a second to
+   * draw. Below, a view opens at once, as before — no frame waited for.
+   */
+  const LOADER_FROM_SHAPES = 500;
+  /**
+   * Open a view as the tree, the toolbar and the panels do: a large diagram under the loader, painted before the view
+   * is drawn, which holds the page until it is. Await it before acting on the view opened.
+   */
+  const openView = async (viewIri: string): Promise<void> => {
+    const info = viewManager.getView?.(viewIri);
+    const shapes =
+      info?.type === 'Diagram' && viewIri !== session.activeViewIri
+        ? viewManager.getNodes(viewIri).length + viewManager.getLinks(viewIri).length
+        : 0;
+    if (shapes < LOADER_FROM_SHAPES) {
+      session.openView(viewIri);
+      return;
+    }
+    await busy.while(`Opening ${info?.label || 'the view'} (${shapes.toLocaleString('en')} shapes)…`, () => session.openView(viewIri));
+  };
+
   /**
    * Show a concept: select it on the canvas when the open view has it,
    * otherwise open a view that does, otherwise just select it in the tree.
@@ -1047,7 +1074,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const views = typeof viewManager.viewsContaining === 'function' ? viewManager.viewsContaining(iri) : [];
     const diagram = views.find((v) => viewManager.getView?.(v)?.type === 'Diagram');
     if (diagram) {
-      session.openView(diagram);
+      await openView(diagram);
       diagramCanvas.reveal(iri);
     }
     selectConcept(iri, { fromCanvas: true });
@@ -1275,22 +1302,22 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onPanelNavigate = (e: Event): void => {
     void revealAnywhere((e as CustomEvent<{ iri: string }>).detail.iri);
   };
-  const onPanelOpenView = (e: Event): void => {
+  const onPanelOpenView = async (e: Event): Promise<void> => {
     const { viewIri, iri } = (e as CustomEvent<{ viewIri: string; iri?: string }>).detail;
-    session.openView(viewIri);
+    await openView(viewIri);
     if (iri) diagramCanvas.reveal(iri);
   };
 
   /** Open the view a reference opens — or, not in the model, say so (Req 3.23): the canvas's double-click, pad and menu, and the panel's *Open*. */
   const openReferencedView = (viewIri: string | undefined): void => {
-    if (viewIri && viewManager.getView?.(viewIri)) session.openView(viewIri);
+    if (viewIri && viewManager.getView?.(viewIri)) void openView(viewIri);
     else dialogs.toast('The view this reference opens is not in the model.', 'warning');
   };
   const onOpenReferencedView: ModelEventHandler = (event) => openReferencedView(event.detail?.viewIri as string | undefined);
   /** Zoomed into from an element or a relationship it refines (VC-6): the view opens, and Back comes back. */
   const onOpenView: ModelEventHandler = (event) => {
     const viewIri = event.detail?.viewIri as string | undefined;
-    if (viewIri && viewManager.getView?.(viewIri)) session.openView(viewIri);
+    if (viewIri && viewManager.getView?.(viewIri)) void openView(viewIri);
   };
   eventBus.on('open-view', onOpenView);
   const onReferenceOpen = (e: Event): void => openReferencedView((e as CustomEvent<{ viewIri?: string }>).detail.viewIri);
@@ -1368,7 +1395,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   const onExplorerActivate = (e: Event): void => {
     const { iri, kind } = (e as CustomEvent<ExplorerSelectDetail>).detail;
-    if (kind === 'view') session.openView(iri);
+    if (kind === 'view') void openView(iri);
     else if (kind === 'model') void runCommand({ command: 'model-settings' });
     else void revealAnywhere(iri);
   };
@@ -1415,7 +1442,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'new-element':
         return newElement(detail.iri || undefined, detail.typeIri);
       case 'open-view':
-        session.openView(iri);
+        await openView(iri);
         return;
       case 'reference-in-view':
         // A reference to it at the centre of the open diagram, selected (VR-2); offered only when one can be made.
@@ -1429,7 +1456,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         return;
       }
       case 'duplicate-view':
-        session.openView(session.duplicateView(iri));
+        await openView(session.duplicateView(iri));
         return;
       case 'delete-view': {
         const view = viewManager.getView?.(iri);
@@ -3137,10 +3164,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     eventBus.emit('notify', { level, message });
   };
 
-  /** Open a model file's text as File › Open does, and say what it did. */
+  /** Open a model file's text as File › Open does, and say what it did — under the loader (Req 11.13). */
   const openModelText = async (text: string, fileName: string): Promise<void> => {
-    const opened = await app.openModel(text, fileName);
-    const gridOnly = opened.autoPlaced ? await layoutLoaded(session.activeViewIri) : '';
+    let gridOnly = '';
+    const opened = await busy.while(`Opening ${fileName}…`, async () => {
+      const result = await app.openModel(text, fileName);
+      gridOnly = result.autoPlaced ? await layoutLoaded(session.activeViewIri) : '';
+      return result;
+    });
     report(
       `Opened ${fileName}: ${opened.quadCount} triples` +
         (opened.autoPlaced ? `, ${opened.autoPlaced} elements laid out${gridOnly ? ` (${gridOnly})` : ''}` : '') +
@@ -3267,8 +3298,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           if (!(await guardUnsaved('Import'))) return;
           const file = await pickFile('.xml');
           if (!file) return;
-          const result = await app.importArchiMate(file.text, file.name);
-          if (result.autoPlaced) await layoutLoaded(result.viewIri);
+          const result = await busy.while(`Importing ${file.name}…`, async () => {
+            const imported = await app.importArchiMate(file.text, file.name);
+            if (imported.autoPlaced) await layoutLoaded(imported.viewIri);
+            return imported;
+          });
           report(
             `Imported ${result.elementCount} elements, ${result.relationshipCount} relationships, ${result.viewCount} views.`,
           );
@@ -3326,7 +3360,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           return;
         }
         case 'open-view':
-          if (value) session.openView(value);
+          if (value) await openView(value);
           return;
         case 'new-view':
           return newView((value as ViewKind) ?? 'Diagram');
@@ -3508,7 +3542,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const visit = direction === 'back' ? viewHistory.back() : viewHistory.forward();
     if (!visit) return;
     travelling = visit;
-    session.openView(visit.viewIri);
+    void openView(visit.viewIri);
   };
   // Alt+← and Alt+→ — not in a text field, where they move by word, nor under a dialog.
   const onHistoryKey = (e: KeyboardEvent): void => {
@@ -3869,6 +3903,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     report,
     confirmReplace: guardUnsaved,
     openModelText,
+    busy: (message, work) => busy.while(message, work),
     addFileMenu,
     setModuleSwitches,
     addSettingsSection,

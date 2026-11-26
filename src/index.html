@@ -757,6 +757,55 @@
       font-size: 12px;
       color: #80868b;
     }
+    /* The loader while something large opens (Req 11.13, busy.ts): under the dialogs and the messages. It fades in
+       after a quarter of a second and its spinner turns by transform: both run off the main thread, so they go on
+       while opening holds it. */
+    .la-busy {
+      position: fixed;
+      inset: 0;
+      z-index: 1990;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.55);
+      cursor: progress;
+      animation: la-busy-in 0.2s ease-out 0.25s both;
+      will-change: opacity;
+    }
+    .la-busy-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: 440px;
+      padding: 14px 18px;
+      font: 13px system-ui, -apple-system, 'Segoe UI', sans-serif;
+      color: #202124;
+      background: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    }
+    .la-busy-spinner {
+      flex: none;
+      width: 22px;
+      height: 22px;
+      box-sizing: border-box;
+      border: 3px solid #d2e3fc;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: la-busy-spin 0.8s linear infinite;
+      will-change: transform;
+    }
+    @keyframes la-busy-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes la-busy-spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .la-busy-spinner { animation-duration: 2.4s; }
+    }
     .la-toasts {
       position: fixed;
       right: 16px;

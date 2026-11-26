@@ -2414,11 +2414,61 @@ describe('the workbench', () => {
     expect(app.session.namespace()?.namespace).toMatch(/^https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/$/);
 
     files.push({ name: 'shop.trig', text: trig });
+    // Under the loader (Req 11.13): on the page while it opens, gone after.
+    const loaders: string[] = [];
+    const watch = new MutationObserver(() => {
+      const text = document.querySelector('.la-busy .la-busy-text')?.textContent;
+      if (text && !loaders.includes(text)) loaders.push(text);
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
     await ui.runCommand({ command: 'open-model' });
+    watch.disconnect();
+    expect(loaders).toEqual(['Opening shop.trig…']);
+    expect(document.querySelector('.la-busy')).toBeNull();
 
     expect(modelQuads(app.components.store).length).toBe(before);
     expect(contents().elements.map((e) => e.label)).toContain('Web Shop');
     expect(ui.appToolbar.views.map((v) => v.label).sort()).toEqual(['Application landscape', 'Default View']);
+  });
+
+  it('opens a large diagram under the loader, a small one at once (Req 11.13)', async () => {
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const views = app.components.viewManager;
+    const els = app.components.elementManager;
+    const large = app.session.createView('Diagram', { label: 'Large landscape', open: false });
+    const small = app.session.createView('Diagram', { label: 'Small landscape', open: false });
+    const made: string[] = [];
+    for (let i = 0; i < 500; i++) {
+      const iri = els.createElement(`${AM4}ApplicationComponent`, model, { label: `Component ${i}` }).value;
+      made.push(iri);
+      views.addElementToView(large, iri, { x: (i % 25) * 140, y: Math.floor(i / 25) * 80, width: 120, height: 55 });
+    }
+    views.addElementToView(small, made[0], { x: 0, y: 0, width: 120, height: 55 });
+    app.session.openView(view);
+    const loaders: string[] = [];
+    const watch = new MutationObserver(() => {
+      const text = document.querySelector('.la-busy .la-busy-text')?.textContent;
+      if (text && !loaders.includes(text)) loaders.push(text);
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    try {
+      await ui.runCommand({ command: 'open-view', value: large });
+      expect(app.session.activeViewIri).toBe(large);
+      expect(loaders).toEqual(['Opening Large landscape (500 shapes)…']);
+      expect(document.querySelector('.la-busy')).toBeNull();
+      // Small: at once, as before — opened before the call returns.
+      const opening = ui.runCommand({ command: 'open-view', value: small });
+      expect(app.session.activeViewIri).toBe(small);
+      await opening;
+      expect(loaders).toHaveLength(1);
+    } finally {
+      watch.disconnect();
+      app.session.openView(view);
+      for (const v of [large, small]) app.session.deleteView(v);
+      for (const iri of made) els.deleteElement(iri);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+    }
   });
 
   it('deletes an element from the model through the tree, after confirming', async () => {

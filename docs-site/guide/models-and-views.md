@@ -80,6 +80,9 @@ double-click, or *Open* in its menu), from *Appears in views* and *Referenced fr
 from a [view reference](canvas.md#view-references) on a diagram (a double-click, or *Open view*), and from
 an element or a relationship the view refines ([Zoom in](canvas.md#zoom-in)).
 
+A diagram of 500 shapes and lines or more takes a moment to draw: a spinner and its name — *Opening
+Landscape (2,941 shapes)…* — show until it is drawn.
+
 1. Open the example model.
 2. In the toolbar's *View*, choose "Who is who (catalog)". The catalog takes the canvas's place.
 

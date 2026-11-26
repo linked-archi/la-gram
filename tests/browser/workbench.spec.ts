@@ -3449,6 +3449,39 @@ describe('arranging a view', () => {
   }, 120_000);
 });
 
+describe('the loader', () => {
+  it('shows a loader while a large diagram opens from the toolbar’s View list, gone once it is drawn (Req 11.13)', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const large = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const m = app.session.modelIri;
+      const v = app.session.createView('Diagram', { label: 'Large landscape', open: false });
+      for (let i = 0; i < 600; i++) {
+        const iri = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', m, { label: `C ${i}` }).value;
+        app.components.viewManager.addElementToView(v, iri, { x: (i % 30) * 140, y: Math.floor(i / 30) * 80, width: 120, height: 55 });
+      }
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return v as string;
+    });
+    // What was on the page while it opened: the page is held, so watched from inside it.
+    await page.evaluate(() => {
+      const w = window as any;
+      w.__loader = [];
+      new MutationObserver(() => {
+        const text = document.querySelector('.la-busy .la-busy-text')?.textContent;
+        if (text && !w.__loader.includes(text)) w.__loader.push(text);
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    await page.locator('app-toolbar select[aria-label="Open view"]').selectOption(large);
+    await until(async () => (await page.locator('.djs-container .djs-shape').count()) === 600, 'the large view drawn');
+    await until(async () => (await page.locator('.la-busy').count()) === 0, 'the loader gone');
+    expect(await page.evaluate(() => (window as any).__loader)).toEqual(['Opening Large landscape (600 shapes)…']);
+    findings.push('loader: shown while a 600-shape view opened from the toolbar, gone once drawn: ok');
+  }, 120_000);
+});
+
 describe('drawing order', () => {
   it('sends a shape behind another from the toolbar’s Order menu, and it stays behind once saved and opened again', async () => {
     const { page } = await openPage();

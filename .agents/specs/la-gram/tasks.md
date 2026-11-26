@@ -291,6 +291,7 @@ In parts, each reviewed before the next.
 - [x] SPARQL console: SELECT tables under their projected columns, CONSTRUCT triples as a table, prefixed names that reveal the concept, 500-row cap, results scrolled into sight — *sparql-editor.test, workbench.test, workbench.spec*
 - [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; drawn by walking the store; the query behind it as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported as `.rq`, the drawn triples as `.ttl`; ＋ New view laid out as drawn; tests hold walk and both query forms to the same result — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Relationship graph, live force layout (Req 17.2, 17.7–17.12) (2026-11-10): Force the default, d3-force stepped by la-gram's own loop (`graph-force.ts`); animated up to 100 elements, laid out at once up to 800, rings above with a note on the stats line; seeding beside the parent, turned clear of what is drawn; the middle element pinned; drags live, held or alone, released on drop; the camera moved only at rest; paused while hidden; a refresh that changes nothing moves nothing; the limits measured and checked by `npm run bench -- --graph` — *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
+- [x] A loader while something large opens (Req 11.13; key design decision 47; 2026-11-26): models opened and imported, diagrams of 500 shapes and lines or more; painted before the work, turned by the compositor — *busy.test, workbench.test, workbench.spec*
 - [x] Git messages kept until closed (Req 18.31; 2026-11-26): sticky toasts with a ×, links in every toast; a step on the way transient — *dialogs.test, git-module.test*
 - [x] The Git tab's *Save to Git* (Req 18.25; 2026-11-26): the File menu's action, its commit message asked the same way, enabled while bound and no Git operation runs — *git-sync.test, git-module.test*
 - [x] Drawing order (Req 22.11, 22.12, 13.1; key design decision 46; 2026-11-26): *Bring to front*, *Bring forward*, *Send backward*, *Send to back* — the right-click menu, the toolbar's *Order* menu, Ctrl/⌘+[ ] with Shift for the ends; stored as core-vis 0.10's `arch-vis:zOrder` through kernel `0.1.5-k02b.1`; shapes drawn and re-stacked in that order; a move keeps it; new, pasted and re-parented placements in front of what they overlap; the exchange import keeps the file's order — *drawing-order.test, rdf-ordering.test, canvas-clipboard.test, archimate-importer.test, canvas-toolbar.test, workbench.test, workbench.spec*
@@ -474,6 +475,17 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-26 — A loader while something large opens
+
+- **The loader** (Req 11.13; key design decision 47; `busy.ts`). Opening a large model or diagram held the page for
+  seconds with nothing to show it was working. Now a spinner and what is opening — *Opening shop.trig…*, *Opening
+  Landscape (2,941 shapes)…* — are over the workspace until it is open: for opening a model (*File › Open…*, from Git,
+  from a link), importing an ArchiMate exchange file, and opening a diagram of 500 shapes and lines or more from any
+  of the ways in. The loader is painted before the work starts, and turns while it runs (Chrome's screencast, frame by
+  frame, during a 2.5 s draw); it fades in after a quarter of a second, so a quick open does not flash it. A smaller
+  diagram opens at once, as before. *busy.test, workbench.test, workbench.spec*
+- **Docs**: README; *Files* (*Open*), *Models and views* (*Open a view*).
 
 ### 2026-11-26 — What a Git action did stays on screen until closed
 

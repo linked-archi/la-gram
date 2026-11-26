@@ -1615,6 +1615,19 @@ a nested `rdf.store.change`; a paste does the same inside its recorded change (`
 host); `writeLayout` does it when a move changes a node's container. The ArchiMate exchange import writes each
 place's file order as zOrder where any of its nodes overlap.
 
+### The loader
+
+Opening a model, or drawing a large diagram, holds the page's main thread for up to seconds (Task 22: a view of 2 941
+shapes in 0.56 s, one of 10 000 in 2.2 s, a model with such a view 3.3 s), and the browser paints nothing meanwhile
+(Req 11.13). `busy.ts`'s `BusyIndicator.while(message, work)` puts the loader on the page, waits until it is painted
+(`nextPaint`: the next animation frame, then a task after it), and only then runs the work; several share one
+overlay. Its spinner turns by a CSS `transform` animation and it fades in by an `opacity` animation after 0.25 s —
+both run by the compositor, off the main thread, so they go on while the work holds it, and a quick open never shows
+it. mount-ui's `openView` is how the toolbar, the tree, the panels, references, history and reveals open a view: a
+diagram of `LOADER_FROM_SHAPES` (500) nodes and links or more goes under the loader, and its callers await it before
+acting on the view; a smaller one opens at once, synchronously, as before. `openModelText`, the import and the
+`?model=` start-up run under it. The overlay is under the dialogs and the messages (z-index 1990).
+
 ### Search
 
 Search on the canvas and in the RDF panel (Req 23; `.agents/tasks/search/`). Both use one find bar, `find-bar`, a
@@ -3936,6 +3949,13 @@ dialog; the modules' section).
     over another, and nowhere else — fewer triples, smaller diffs, fewer conflicts. A step goes past the next shape
     a shape overlaps, because order shows only between shapes that overlap, and changes no other two that do. A move
     keeps the order, so that what is drawn is what is saved.
+
+47. **The loader is painted before the work, and turned by the compositor** (Req 11.13; 2026-11-26). The work that
+    makes a modeller wait — parsing a model, drawing thousands of shapes — is synchronous, so a loader shown in the
+    same task would never be painted. Yielding one frame first gets it on screen; animations of `transform` and
+    `opacity`, which the browser runs off the main thread, keep it alive while the work runs (checked frame by frame
+    with Chrome's screencast during a 2.5 s draw). Only diagrams of 500 shapes and lines or more wait a frame: a small
+    view still opens synchronously, so every caller that acts on the view it opened behaves as before.
 
 ## Running
 
