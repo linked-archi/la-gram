@@ -3482,6 +3482,76 @@ describe('the loader', () => {
   }, 120_000);
 });
 
+describe('the split view', () => {
+  it('shows two views side by side: keys in the pane in use only, the selection outlined in the other, the divider dragged (Req 24)', async () => {
+    const { session, page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const iris = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, main] = [app.session.modelIri, app.session.activeViewIri];
+      app.session.renameView(main, 'Main');
+      const detail = app.session.createView('Diagram', { label: 'Detail', open: false });
+      const made = ['Web Shop', 'Payments'].map((label, i) => {
+        const iri = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', m, { label }).value;
+        for (const v of [main, detail]) app.components.viewManager.addElementToView(v, iri, { x: 80 + i * 220, y: 120, width: 150, height: 70 });
+        return iri;
+      });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return { main, detail, webShop: made[0], payments: made[1] };
+    });
+    const first = page.locator('.la-pane').nth(0);
+    const second = page.locator('.la-pane').nth(1);
+    const shape = (pane: typeof first, iri: string) => pane.locator(`.djs-shape[data-element-id]`).filter({ has: page.locator(`text=${iri === iris.webShop ? 'Web Shop' : 'Payments'}`) });
+
+    await page.locator('app-toolbar button[data-menu="split"]').click();
+    await page.locator('app-toolbar .dropdown.split [data-value="side-by-side"]').click();
+    await until(async () => (await page.locator('.la-pane').count()) === 2, 'two panes');
+    const [a, b] = [await first.boundingBox(), await second.boundingBox()];
+    expect(a!.x + a!.width).toBeLessThan(b!.x);
+    expect(Math.abs(a!.y - b!.y)).toBeLessThan(2);
+    expect(Math.abs(a!.width - b!.width)).toBeLessThan(10);
+    await until(async () => (await second.locator(SHAPE).count()) === 2 && (await first.locator(SHAPE).count()) === 2, 'both panes drawn');
+    expect(await second.getAttribute('class')).toContain('la-pane-in-use');
+
+    // Detail in the second pane, Web Shop selected there; then Web Shop selected in the first, which is put in use.
+    await page.locator('app-toolbar select[aria-label="Open view"]').selectOption(iris.detail);
+    await until(async () => (await page.locator('.la-pane-title').nth(1).textContent()) === 'Detail', 'Detail in the second pane');
+    await shape(second, iris.webShop).click();
+    await shape(first, iris.webShop).click();
+    expect(await first.getAttribute('class')).toContain('la-pane-in-use');
+    expect(await page.evaluate(() => (window as any).__LA_GRAM_APP__.session.activeViewIri)).toBe(iris.main);
+    // Sync selection: outlined in the other pane, which keeps its own selection.
+    await until(async () => (await second.locator('.djs-element.la-selected-elsewhere').count()) === 1, 'the selection outlined in the other pane');
+    // One context pad on the page: the pane in use's.
+    expect(await page.locator('.djs-context-pad.open').count()).toBe(1);
+    expect(await first.locator('.djs-context-pad.open').count()).toBe(1);
+    await session.screenshot('split-view');
+
+    // Delete takes it out of the view in use only: Main loses it, Detail keeps both.
+    await page.keyboard.press('Delete');
+    await until(async () => (await first.locator(SHAPE).count()) === 1, 'Web Shop out of Main');
+    const nodes = await page.evaluate((v) => (window as any).__LA_GRAM_APP__.components.viewManager.getNodes(v.detail).length, iris);
+    expect(nodes).toBe(2);
+    expect(await second.locator(SHAPE).count()).toBe(2);
+
+    // The divider dragged 200 px to the left.
+    const divider = await page.locator('.la-pane-divider').boundingBox();
+    await page.mouse.move(divider!.x + divider!.width / 2, divider!.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(divider!.x + divider!.width / 2 - 200, divider!.y + 100, { steps: 5 });
+    await page.mouse.up();
+    const narrower = await first.boundingBox();
+    expect(Math.abs(a!.width - 200 - narrower!.width)).toBeLessThan(6);
+
+    // Closed by its ×: one pane, Main, as before.
+    await second.locator('.la-pane-close').click();
+    await until(async () => (await page.locator('.la-pane').count()) === 1, 'one pane');
+    expect(await page.evaluate(() => (window as any).__LA_GRAM_APP__.session.activeViewIri)).toBe(iris.main);
+    findings.push('split view: two panes side by side, Delete in the pane in use only, the selection outlined in the other, the divider dragged, closed: ok');
+  }, 120_000);
+});
+
 describe('drawing order', () => {
   it('sends a shape behind another from the toolbar’s Order menu, and it stays behind once saved and opened again', async () => {
     const { page } = await openPage();

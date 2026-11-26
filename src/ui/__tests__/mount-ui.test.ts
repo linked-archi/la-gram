@@ -707,10 +707,14 @@ describe('mountUi', () => {
       ).toThrow();
 
       expect(ui.canvasToolbar).toBeDefined();
-      // Mounted ahead of the diagram host, inside the canvas slot.
-      const area = ui.canvasHost.parentElement!;
+      // Mounted ahead of the panes, inside the canvas slot; the diagram host in the first pane, after its header
+      // (shown only while split, Req 24).
+      const area = ui.canvasHost.closest('.la-canvas-area')!;
       expect(Array.from(area.children).indexOf(ui.canvasToolbar)).toBe(0);
-      expect(Array.from(area.children).indexOf(ui.canvasHost)).toBe(1);
+      expect(area.children[1]!.className).toBe('la-panes');
+      const pane = ui.canvasHost.parentElement!;
+      expect(pane.className).toBe('la-pane');
+      expect(Array.from(pane.children).indexOf(ui.canvasHost)).toBe(1);
     });
   });
 

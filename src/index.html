@@ -101,12 +101,105 @@
         #fff;
     }
 
-    .la-canvas-area > catalog-view,
-    .la-canvas-area > matrix-view {
+    .la-pane > catalog-view,
+    .la-pane > matrix-view {
       border: none;
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
+    }
+
+    /* The panes (Req 24): one, or two side by side or one above the other, a divider between them. A pane is a
+       column: its header while split, then its diagram, catalog or matrix. */
+    .la-panes {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: row;
+    }
+    .la-panes[data-split='stacked'] {
+      flex-direction: column;
+    }
+    .la-pane {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    .la-pane-header {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      flex: none;
+      height: 24px;
+      padding: 0 4px 0 10px;
+      font-size: 12px;
+      color: #5f6368;
+      background: #f8f9fa;
+      border-bottom: 1px solid #dadce0;
+    }
+    .la-panes:not([data-split='none']) .la-pane-header {
+      display: flex;
+    }
+    .la-pane-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .la-pane-close {
+      flex: none;
+      border: 0;
+      background: none;
+      font: inherit;
+      font-size: 15px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: inherit;
+      cursor: pointer;
+    }
+    .la-pane-close:hover {
+      background: #e8eaed;
+    }
+    /* The pane in use: its header and an outline in the accent colour, over the pane, never taking a click. */
+    .la-pane.la-pane-in-use .la-pane-header {
+      color: #1a73e8;
+      background: #e8f0fe;
+      font-weight: 600;
+    }
+    .la-pane.la-pane-in-use::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px solid #1a73e8;
+      pointer-events: none;
+      z-index: 30;
+    }
+    .la-pane-divider {
+      flex: none;
+      background: #dadce0;
+      touch-action: none;
+      position: relative;
+    }
+    .la-panes[data-split='side-by-side'] > .la-pane-divider {
+      width: 6px;
+    }
+    .la-panes[data-split='stacked'] > .la-pane-divider {
+      height: 6px;
+    }
+    .la-pane-divider:hover,
+    .la-pane-divider:focus-visible,
+    .la-panes-resizing > .la-pane-divider {
+      background: #1a73e8;
+      outline: none;
+    }
+    /* While the divider is dragged, nothing under the pointer takes it. */
+    .la-panes-resizing > .la-pane {
+      pointer-events: none;
+      user-select: none;
     }
 
     /* ── diagram-js inside .la-diagram-host ────────────────────────────
@@ -374,6 +467,14 @@
     }
     .la-diagram-host .djs-element.la-locked {
       cursor: not-allowed;
+    }
+
+    /* Selected in the other pane (Req 24, Sync selection): outlined here, dashed, without selecting it. */
+    .la-diagram-host .djs-element.la-selected-elsewhere .djs-outline {
+      visibility: visible;
+      stroke: #1a73e8;
+      stroke-width: 2px;
+      stroke-dasharray: 5 3;
     }
 
     /* Search on the canvas (Req 23.3): every match outlined, the current one more strongly — over the selection's

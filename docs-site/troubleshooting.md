@@ -162,6 +162,8 @@ These are not available in la-gram today. Some are planned; none is promised for
 - **A collaboration room bound to a Git branch.**
 - **Automatic Git commits.** Regular checks and optional automatic pull are available; use
   *Save to Git* to commit local changes.
+- **More than two panes**, dragging an element from one pane into the other, and the split kept over a
+  reload ([Two views at once](guide/models-and-views.md#split-view)).
 
 ### Pasting does nothing {#copy-and-paste}
 

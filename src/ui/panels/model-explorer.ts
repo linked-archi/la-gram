@@ -145,6 +145,8 @@ export type ExplorerAction =
   | 'new-matrix'
   | 'new-element'
   | 'open-view'
+  /** The view in the canvas's other pane, split first if need be (Req 24). */
+  | 'open-view-beside'
   | 'reference-in-view'
   | 'rename-view'
   | 'duplicate-view'
@@ -537,6 +539,7 @@ export function actionsFor(
     case 'view':
       return [
         { action: 'open-view', label: 'Open' },
+        { action: 'open-view-beside', label: 'Open beside' },
         // Referenced in the open diagram: its references selected there, as an element's boxes are.
         ...(node.placed ? [{ action: 'reveal' as const, label: 'Select on canvas' }] : []),
         ...(options.openDiagram && node.iri !== options.openDiagram

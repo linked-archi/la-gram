@@ -629,6 +629,7 @@ interface DjsServices {
   /** Binds key handling to a DOM node; see `DiagramCanvasOptions.keyboardBindTo`. */
   keyboard: {
     bind(node: EventTarget): void;
+    unbind(): void;
     getBinding(): EventTarget | null;
     /**
      * `Keyboard.addListener(priority, listener, type)`.
@@ -804,6 +805,12 @@ export class DiagramCanvas {
   private clipboardListeners: Array<[EventTarget, string, EventListener]> = [];
   /** Stops redrawing the references to a view renamed in the store ({@link renameReferencesTo}). */
   private stopFollowingViewNames: (() => void) | undefined;
+  /** Whether this is the pane in use ({@link setInUse}). */
+  private inUse = true;
+  /** What it listens to on the app's event bus, taken away with the canvas: a pane closed leaves nothing behind. */
+  private appListeners: Array<[Parameters<EventBus['on']>[0], Parameters<EventBus['on']>[1]]> = [];
+  /** Where the keys are bound while this canvas is in use. */
+  private keyboardNode: EventTarget | null = null;
 
   constructor(options: DiagramCanvasOptions) {
     this.container = options.container;
@@ -1007,6 +1014,7 @@ export class DiagramCanvas {
       if (named) this.renameReferencesTo(named);
     });
     this.registerProviders();
+    this.keyboardNode = keyboardBindTo;
     this.bindKeyboard(keyboardBindTo);
     this.guardKeyboardAgainstShadowInputs();
     this.bindClipboard();
@@ -1247,9 +1255,10 @@ export class DiagramCanvas {
       target.addEventListener(type, listener);
       this.clipboardListeners.push([target, type, listener]);
     };
-    on(doc, 'copy', (event) => (clipboard.copyingConcepts() || this.clipboardOwns(event)) && clipboard.onCopyEvent(event as ClipboardEvent));
-    on(doc, 'cut', (event) => this.clipboardOwns(event) && clipboard.onCopyEvent(event as ClipboardEvent, true));
-    on(doc, 'paste', (event) => this.clipboardOwns(event) && clipboard.onPasteEvent(event as ClipboardEvent));
+    // Only the pane in use takes the clipboard (Req 24): the other pane's canvas listens to the same document.
+    on(doc, 'copy', (event) => this.inUse && (clipboard.copyingConcepts() || this.clipboardOwns(event)) && clipboard.onCopyEvent(event as ClipboardEvent));
+    on(doc, 'cut', (event) => this.inUse && this.clipboardOwns(event) && clipboard.onCopyEvent(event as ClipboardEvent, true));
+    on(doc, 'paste', (event) => this.inUse && this.clipboardOwns(event) && clipboard.onPasteEvent(event as ClipboardEvent));
     on(this.container, 'pointermove', (event) => {
       const e = event as PointerEvent;
       this.pointerClient = { x: e.clientX, y: e.clientY };
@@ -2775,13 +2784,13 @@ export class DiagramCanvas {
   /**
    * Ask the app to open the view a reference opens (`open-referenced-view`): its
    * double-click, its pad's and its menu's *Open view*. The app opens it, or
-   * says it is not in the model (Req 3.23).
+   * says it is not in the model (Req 3.23). `beside`: in the other pane (Req 24).
    */
-  private openReferencedView(element: DjsShape): void {
+  private openReferencedView(element: DjsShape, beside = false): void {
     const figure = element.businessObject?.kind === 'figure' ? element.businessObject.figure : undefined;
     const nodeIri = this.nodeKeyOf(element);
     if (figure?.kind !== 'reference' || !nodeIri) return;
-    this.eventBus.emit('open-referenced-view', { nodeIri, ...(figure.view ? { viewIri: figure.view } : {}) });
+    this.eventBus.emit('open-referenced-view', { nodeIri, ...(figure.view ? { viewIri: figure.view } : {}), ...(beside ? { beside } : {}) });
   }
 
   /**
@@ -2827,6 +2836,37 @@ export class DiagramCanvas {
     }
     this.zoomMenuProvider.pending = { views };
     services.popupMenu.open(element, ZOOM_MENU_ID, at, { title: 'Zoom in', width: 280 });
+  }
+
+  /**
+   * Whether this canvas is the pane in use, of two (Req 24; split view's SV-DD-2). Only that one takes the keys
+   * diagram-js binds to the document, copy and paste, and the events the app sends about the open view — which name
+   * no view, so another canvas following them would draw in, or take out of, the wrong view; nor does it say what is
+   * selected. The other is brought up to date from the store ({@link syncFromStore}).
+   */
+  setInUse(inUse: boolean): void {
+    if (inUse === this.inUse) return;
+    this.inUse = inUse;
+    const services = this.services();
+    if (!services) return;
+    // Its selection stays; its context pad shows only while it is in use — one pad on the page.
+    const pad = this.service<{ open(target: unknown): void; close(): void }>('contextPad');
+    if (inUse) {
+      this.bindKeyboard(this.keyboardNode);
+      // As diagram-js opens it on a selection: on the one selected, or on all of them.
+      const selected = services.selection.get();
+      if (selected.length > 0) pad?.open(selected.length === 1 ? selected[0] : selected);
+    } else {
+      services.keyboard.unbind();
+      this.stopFormatPainter();
+      services.popupMenu.close();
+      pad?.close();
+    }
+  }
+
+  /** Whether this canvas is the pane in use ({@link setInUse}). */
+  isInUse(): boolean {
+    return this.inUse;
   }
 
   /** Ask the app to open a view (`open-view`): zooming in (VC-6). */
@@ -3447,6 +3487,8 @@ export class DiagramCanvas {
 
   /** Tear the diagram down and leave the host container empty. */
   destroy(): void {
+    for (const [type, handler] of this.appListeners) this.eventBus.off(type, handler);
+    this.appListeners = [];
     this.unbindClipboard();
     this.stopFollowingViewNames?.();
     this.stopFollowingViewNames = undefined;
@@ -3711,6 +3753,8 @@ export class DiagramCanvas {
       // placement, renames the view as an element's box renames the element (VC-DD-4).
       if (isViewReference(element)) {
         actions.push({ id: 'open-view', label: 'Open view', section: 'view', run: () => this.openReferencedView(element) });
+        // In the canvas's other pane, split first if need be (Req 24).
+        actions.push({ id: 'open-view-beside', label: 'Open beside', section: 'view', run: () => this.openReferencedView(element, true) });
         actions.push({
           id: 'rename',
           label: 'Rename',
@@ -5380,6 +5424,8 @@ export class DiagramCanvas {
     // way in.
 
     djs.on('selection.changed', (event: { newSelection?: DjsShape[] }) => {
+      // The other pane's selection is its own, not what the panels show (Req 24).
+      if (!this.inUse) return;
       const selected = event.newSelection ?? [];
       const iri = selected[0]?.businessObject?.iri;
       this.eventBus.emit('selection-changed', {
@@ -5394,7 +5440,7 @@ export class DiagramCanvas {
     // handler (1000), which clears a selection and says so itself.
     djs.on('element.click', 1500, (event: { element?: DjsShape }) => {
       const services = this.services();
-      if (!services || event.element !== services.canvas.getRootElement()) return;
+      if (!services || !this.inUse || event.element !== services.canvas.getRootElement()) return;
       if (services.selection.get().length === 0) this.eventBus.emit('selection-changed', { iri: undefined, iris: [] });
     });
 
@@ -5801,13 +5847,22 @@ export class DiagramCanvas {
     if (quads.length > 0) store.removeQuads(quads as never[]);
   }
 
-  /** Set up EventBus listeners to sync canvas state with the RDF store. */
+  /** Listen on the app's event bus, until {@link destroy}. */
+  private listen(type: Parameters<EventBus['on']>[0], handler: Parameters<EventBus['on']>[1]): void {
+    this.eventBus.on(type, handler);
+    this.appListeners.push([type, handler]);
+  }
+
+  /**
+   * Set up EventBus listeners to sync canvas state with the RDF store. They are about the open view, and name none:
+   * the canvas of a pane not in use ignores them, and is drawn from the store instead (Req 24).
+   */
   private setupEventListeners(): void {
-    this.eventBus.on('element-created', (event) => {
+    this.listen('element-created', (event) => {
       // Suppressed while the canvas is announcing a creation it performed itself:
       // the shape is already drawn, and re-entering the modeling layer from a
       // command hook is illegal anyway. See `emitWithoutSelfSync`.
-      if (this.suppressSync) return;
+      if (this.suppressSync || !this.inUse) return;
       const detail = event.detail;
       if (detail?.iri && detail?.typeIri && detail?.bounds) {
         this.addElement(
@@ -5820,15 +5875,16 @@ export class DiagramCanvas {
       }
     });
 
-    this.eventBus.on('element-deleted', (event) => {
-      if (this.suppressSync) return;
+    this.listen('element-deleted', (event) => {
+      if (this.suppressSync || !this.inUse) return;
       const detail = event.detail;
       if (detail?.iri) {
         this.removeElement(detail.iri as string);
       }
     });
 
-    this.eventBus.on('element-updated', (event) => {
+    this.listen('element-updated', (event) => {
+      if (!this.inUse) return;
       const detail = event.detail;
       if (detail?.iri) {
         this.updateElement(detail.iri as string, {
@@ -5839,8 +5895,8 @@ export class DiagramCanvas {
       }
     });
 
-    this.eventBus.on('relationship-created', (event) => {
-      if (this.suppressSync) return;
+    this.listen('relationship-created', (event) => {
+      if (this.suppressSync || !this.inUse) return;
       const detail = event.detail;
       if (detail?.sourceIri && detail?.targetIri && detail?.typeIri) {
         this.addRelationship(
@@ -5852,8 +5908,8 @@ export class DiagramCanvas {
       }
     });
 
-    this.eventBus.on('relationship-deleted', (event) => {
-      if (this.suppressSync) return;
+    this.listen('relationship-deleted', (event) => {
+      if (this.suppressSync || !this.inUse) return;
       const detail = event.detail;
       const relationshipIri = detail?.relationshipIri as string | undefined;
       const key =

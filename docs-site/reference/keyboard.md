@@ -121,7 +121,9 @@ With the example model:
     | ++option+left++ / ++option+right++ | open the view before / after, in the order you opened them |
 
 They work anywhere but in a text field, where they move the cursor by a word, and not while a dialog is
-open. The toolbar's ← and → buttons do the same, and their tooltips name the view they go to.
+open. The toolbar's ← and → buttons do the same, and their tooltips name the view they go to. With the
+canvas split, they go back and forward in the pane in use; with the divider between the panes focused,
+the arrow keys move it by 5 % ([Two views at once](../guide/models-and-views.md#split-view)).
 
 1. In the model tree, double-click *Who is who*: the catalog view opens.
 2. Press ++alt+left++ (++option+left++): *How the shop serves its customers* is open again.

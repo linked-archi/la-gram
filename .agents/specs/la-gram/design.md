@@ -1628,6 +1628,33 @@ diagram of `LOADER_FROM_SHAPES` (500) nodes and links or more goes under the loa
 acting on the view; a smaller one opens at once, synchronously, as before. `openModelText`, the import and the
 `?model=` start-up run under it. The overlay is under the dialogs and the messages (z-index 1990).
 
+### Split view
+
+Two views at once (Req 24; `.agents/tasks/split-view/`). The canvas area holds the canvas toolbar and, under it,
+`split-view.ts`'s `SplitLayout`: one pane, or two with a divider — a flex row or column, the first pane's share as its
+`flex-basis` (less the divider), the second taking the rest; dragged with pointer capture, moved with the arrow keys,
+reset by a double-click; the orientation, the share and *Sync selection* remembered in `localStorage`. mount-ui's
+*pane* is a column — a header (the view's name, ×), a diagram host with its own `DiagramCanvas`, a catalog and a
+matrix — with the view it shows, its kind and its own `ViewHistory`. The second pane is made by `split` and destroyed
+by `closePane` (its canvas's diagram-js, listeners and observers with it).
+
+The pane in use is mount-ui's `pane`; `diagramCanvas`, `canvasHost`, `catalogView`, `matrixView` and `viewHistory`
+are its parts, so the code that acts on "the canvas" acts on the pane in use. A capture-phase `pointerdown` or a
+`focusin` on a pane calls `usePane` before diagram-js sees the event: the canvas left gives up the
+keys (`setInUse(false)`: diagram-js's `Keyboard.unbind`, the clipboard ignored, its context pad closed), the find bar
+moves to the pane and searches it, and `session.openView(pane.viewIri)` runs with `switchingPane` set, so that
+`onViewOpened` only follows the view (`followActiveView`: the viewpoint, the tree, the toolbar, the headers) and shows
+the pane's own selection, without drawing, visiting the history or starting undo afresh. What is said to every
+canvas — the palette, the relationship-names and notation-only switches, labels, violations, what collaborators hold
+(`setCanvasMarkers`, `setLockedIris`, remembered for a pane made later) — goes to both (`eachCanvas`).
+
+The pane not in use is brought up to date from the store: every model event (`onAnyModelChange`) asks for
+`syncOtherPanes`, which runs once in a microtask after the burst — `syncFromStore` for a diagram, `refresh` for a
+catalog or a matrix — and closes the pane whose view is gone. *Sync selection* is `la-selected-elsewhere`, set on the
+other canvas by `setMarkers` with what the pane in use has selected (its canvas's selection, or the concept a catalog
+selected), and a catalog's `selectedIri`. On `model-loaded`, a model moved (`previousModelIri`) keeps the other pane
+on its view under the new namespace (`namespaceShown`, the namespace before); another model closes it.
+
 ### Search
 
 Search on the canvas and in the RDF panel (Req 23; `.agents/tasks/search/`). Both use one find bar, `find-bar`, a
@@ -3956,6 +3983,15 @@ dialog; the modules' section).
     `opacity`, which the browser runs off the main thread, keep it alive while the work runs (checked frame by frame
     with Chrome's screencast during a 2.5 s draw). Only diagrams of 500 shapes and lines or more wait a frame: a small
     view still opens synchronously, so every caller that acts on the view it opened behaves as before.
+
+48. **The pane in use is the session's open view; the other is drawn from the store** (Req 24; 2026-11-26). The
+    session has one open view, and every panel, the toolbar, validation's scope, export and the collaborators'
+    presence read it; putting a pane in use opens its view in the session, with its drawing kept, so all of them follow
+    without knowing there are two — and the kernel is unchanged. Each pane has its own `DiagramCanvas`: one diagram-js
+    showing two views is not possible, and its undo steps are a view's. The app's events about the open view
+    (`element-created` with bounds, `element-deleted` from a view, `element-updated`) name no view, so the canvas not
+    in use ignores them and is synced from the store after each change; and diagram-js binds its keys to the
+    document, so only the canvas in use has them bound — otherwise Delete or Ctrl+Z would act in both panes.
 
 ## Running
 

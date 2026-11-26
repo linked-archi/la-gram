@@ -292,6 +292,7 @@ In parts, each reviewed before the next.
 - [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; drawn by walking the store; the query behind it as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported as `.rq`, the drawn triples as `.ttl`; ＋ New view laid out as drawn; tests hold walk and both query forms to the same result — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Relationship graph, live force layout (Req 17.2, 17.7–17.12) (2026-11-10): Force the default, d3-force stepped by la-gram's own loop (`graph-force.ts`); animated up to 100 elements, laid out at once up to 800, rings above with a note on the stats line; seeding beside the parent, turned clear of what is drawn; the middle element pinned; drags live, held or alone, released on drop; the camera moved only at rest; paused while hidden; a refresh that changes nothing moves nothing; the limits measured and checked by `npm run bench -- --graph` — *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
 - [x] A loader while something large opens (Req 11.13; key design decision 47; 2026-11-26): models opened and imported, diagrams of 500 shapes and lines or more; painted before the work, turned by the compositor — *busy.test, workbench.test, workbench.spec*
+- [x] Two views at once (Req 24; key design decision 48; `.agents/tasks/split-view/`; 2026-11-26): *Split* side by side or one above the other, a divider dragged or moved with the keys, the pane in use and what follows it, *Open beside* from the tree and from a view reference, any view in either pane, kept up to date from the store, *Sync selection*, closed with another model — *split-view.test (both), view-canvas.test, model-explorer.test, mount-ui.test, workbench.spec*
 - [x] Git messages kept until closed (Req 18.31; 2026-11-26): sticky toasts with a ×, links in every toast; a step on the way transient — *dialogs.test, git-module.test*
 - [x] The Git tab's *Save to Git* (Req 18.25; 2026-11-26): the File menu's action, its commit message asked the same way, enabled while bound and no Git operation runs — *git-sync.test, git-module.test*
 - [x] Drawing order (Req 22.11, 22.12, 13.1; key design decision 46; 2026-11-26): *Bring to front*, *Bring forward*, *Send backward*, *Send to back* — the right-click menu, the toolbar's *Order* menu, Ctrl/⌘+[ ] with Shift for the ends; stored as core-vis 0.10's `arch-vis:zOrder` through kernel `0.1.5-k02b.1`; shapes drawn and re-stacked in that order; a move keeps it; new, pasted and re-parented placements in front of what they overlap; the exchange import keeps the file's order — *drawing-order.test, rdf-ordering.test, canvas-clipboard.test, archimate-importer.test, canvas-toolbar.test, workbench.test, workbench.spec*
@@ -471,10 +472,33 @@ Agreed order; relationship visuals come first.
 12. **Automatic layout** (Req 21). The layout runs in a worker, but its result is written and the diagram redrawn on the main thread: arranging 500 elements pauses the canvas 0.5 s, 2 000 elements 2.1 s (Apple M4 Pro, Chrome; four times that with the CPU throttled 4×). Above 2 000 elements, or after 10 s, the grid is used. A model opened with no geometry is laid out on its first diagram only, where every element is placed. Above 150 elements a layer no longer keeps the elements in their type and name order, and above 500 ELK spends less effort on crossings (Req 21.13), so a diagram of 151 elements is arranged differently from one of 150 with the same relationships. The bands are the manifest's: a language whose manifest names no `arch:diagramGroupOrder` (Basic) has none.
 13. **What is proposed first** (Req 4.2): an order cannot lift a relationship the tables permit only by derivation above one they permit directly. So between two ArchiMate 4.0 events Composition comes first — 4.0 gives Triggering there only as derived — and between a path or a network and the elements it connects a derived Serving comes before the Association the figures draw. Where the closure sizes of two orders' classes decide and neither's classes are subclasses of the other's, the result is la-gram's, not core's rule.
 14. **Arranging relationships** (Req 22.2) runs on the main thread, and above 500 elements *Arrange view* keeps ELK's routes (Req 21.1) — *Arrange relationships* routes them afterwards: 1 000 lines among 500 elements pause the canvas up to 1.8 s, 4 000 among 2 000 about 4.5 s, before the routes are written. In a narrow gap shared by several lines, the outer ones bend closer than 24 px to the elements beside it. A line between elements that overlap, or one of which holds the other, keeps its route; so does a line from a figure to a line. A kept line's diagonal segments — one drawn straight, centre to centre — are not weighed as crossings, and its end on a side is held as a straight line's is, whichever way it runs. Lines sharing a channel are spread only as far as the elements beside it leave room, so a crowded channel's lines may still run together. The lines on one side of an element are docked by their first turn: a line that first steps a few pixels one way, then turns the other, is placed by the step and may cross a line it could have docked beside.
+15. **The split view** (Req 24). Dragging a palette entry or a tree row places it in the pane in use; dropped on the
+    other pane, nothing is placed — the other pane is pressed first. A pane closed takes its history of views and its
+    undo steps with it. Two panes on one large view draw it twice: twice the time to open it and the memory to hold it.
+    Dragging an element from one pane into the other, more than two panes, and the split kept over a reload are
+    queued (`.agents/tasks/split-view/`, *Later*).
 
 ---
 
 ## Change log
+
+### 2026-11-26 — Two views at once: the split view
+
+- **The split view** (Req 24; key design decision 48; `.agents/tasks/split-view/`; `split-view.ts`). A modeller looked
+  at one view at a time; opening another replaced it. Now *Split*, beside the *View* list's ＋, puts a second pane
+  beside the first — *Side by side* or *One above the other* — showing the same view, then any other: a diagram, a
+  catalog or a matrix, and one view in both. The divider is dragged (each pane at least 15%), moved with the arrow
+  keys or reset by a double-click; the orientation and its place are remembered. The pane last pressed is the pane in
+  use, marked in the accent colour, and everything about the open view follows it — the *View* list, *Back* and
+  *Forward* (each pane its own history), undo (each its own steps), the keys, the canvas toolbar, the palette, the
+  panels, search, export. *Open beside*, from a view's right-click menu in the model tree and a view reference's on
+  the canvas, opens a view in the other pane. A change in either pane, a panel, a collaborator's or Git's shows in
+  both; a view deleted closes its pane; another model opened closes the split. *Sync selection* (on by default)
+  outlines, dashed, in the other pane what is selected in the pane in use. Each pane has its own canvas; the one not
+  in use takes no keys, no clipboard and none of the events about the open view, and is drawn from the store after
+  each change — checked in the browser: Delete in the pane in use leaves the other view as it was. *split-view.test
+  (the frame; the workbench), view-canvas.test, model-explorer.test, mount-ui.test, workbench.spec*
+- **Docs**: README; *Models and views* (*Two views at once*); the specification's Requirement 24.
 
 ### 2026-11-26 — A loader while something large opens
 
