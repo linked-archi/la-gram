@@ -14,7 +14,7 @@ validation and the model questions all come from the metamodel documents it load
 | [Building](building.md) | the npm scripts, build switches and outputs |
 | [Testing and benchmarks](testing.md) | the type check, unit tests, browser suite and benchmarks |
 | [Bundled metamodels and icons](assets.md) | updating the kernel’s pinned semantic assets, and rendering the icons |
-| [Releasing](releasing.md) | the pipeline, job by job, and how to make a release |
+| [Releasing](releasing.md) | the workflow, job by job, how the server installs a release, and how to make one |
 | [Writing the documentation](documentation.md) | these pages: their toolchain, rules and example model |
 | [Specifications](specifications.md) | the requirements, design and conventions, and how current each is |
 
@@ -64,5 +64,5 @@ While the app runs, the browser's console has it, for looking around:
 2. Read `src/index.ts`, then `createApp` in `src/app.ts`: the whole start-up, in order.
 3. Pick the layer of your change from the table above; each folder's main file opens with a comment that
    says what it does and why.
-4. Before a merge request: `npm run typecheck && npm test`, and `npm run test:browser` after a change to
+4. Before a pull request: `npm run typecheck && npm test`, and `npm run test:browser` after a change to
    the canvas or the panels ([Testing](testing.md)).

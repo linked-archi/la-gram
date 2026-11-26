@@ -39,18 +39,18 @@ const sharedModuleRules = [
 const sharedExperiments = { asyncWebAssembly: true };
 
 /**
- * The page of the version built (`scripts/version-page.mjs`), from package.json. Built in CI from a commit
- * rather than a release tag, it names the commit (GitLab's `CI_COMMIT_SHA`); built for a channel
- * (`LA_GRAM_CHANNEL=alpha`), the channel's app.
+ * The page of the version built (`scripts/version-page.mjs`), from package.json. Built on GitHub Actions from
+ * a commit rather than a release tag, it names the commit (GitHub's `GITHUB_SHA`, which every step has);
+ * built for a channel (`LA_GRAM_CHANNEL=alpha`), the channel's app. Built anywhere else, no commit.
  */
 function versionPage() {
   const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
   const channel = process.env.LA_GRAM_CHANNEL;
-  const commit = process.env.CI_COMMIT_TAG ? undefined : process.env.CI_COMMIT_SHA;
+  const commit = process.env.GITHUB_REF_TYPE === 'tag' ? undefined : process.env.GITHUB_SHA;
   return new VersionPagePlugin({
     version: pkg.version,
     licence: pkg.license,
-    repository: 'https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram',
+    repository: 'https://github.com/linked-archi/la-gram',
     ...(commit ? { commit } : {}),
     ...(channel ? { app: `https://app.linked.archi/la-gram-${channel}/` } : {}),
   });

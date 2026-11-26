@@ -26,7 +26,8 @@ export const LA_GRAM_DOCS = 'https://app.linked.archi/la-gram/docs/';
 export function laGramDocs(channel = ''): string {
   return channel ? `https://app.linked.archi/la-gram-${channel}/docs/` : LA_GRAM_DOCS;
 }
-const REPOSITORY = 'https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram';
+/** la-gram's source, issues and releases. */
+export const REPOSITORY = 'https://github.com/linked-archi/la-gram';
 
 export const HELP_LINKS: readonly HelpLink[] = [
   { id: 'la-gram-docs', label: 'la-gram documentation', href: LA_GRAM_DOCS, docsPage: '', group: 'guides' },
@@ -46,10 +47,10 @@ export const HELP_LINKS: readonly HelpLink[] = [
     group: 'guides',
   },
   { id: 'catalogue', label: 'Metamodel catalogue', href: 'https://meta.linked.archi/', group: 'guides' },
-  { id: 'readme', label: 'la-gram: what it does (README)', href: `${REPOSITORY}/-/blob/main/README.md`, group: 'la-gram' },
+  { id: 'readme', label: 'la-gram: what it does (README)', href: `${REPOSITORY}/blob/main/README.md`, group: 'la-gram' },
   { id: 'source', label: 'Source code', href: REPOSITORY, group: 'la-gram' },
-  // GitLab's tracker: anyone may read it; reporting takes a GitLab account.
-  { id: 'issues', label: 'Report a problem or an idea', href: `${REPOSITORY}/-/issues`, group: 'la-gram' },
+  // GitHub's tracker: anyone may read it; reporting takes a GitHub account.
+  { id: 'issues', label: 'Report a problem or an idea', href: `${REPOSITORY}/issues`, group: 'la-gram' },
 ];
 
 /**
@@ -68,9 +69,9 @@ export function helpHref(link: Pick<HelpLink, 'href' | 'docsPage'>, channel = ''
 }
 
 /** Every release: its desktop apps, under their versions, pre-releases too. */
-export const RELEASES = `${REPOSITORY}/-/releases`;
+export const RELEASES = `${REPOSITORY}/releases`;
 
-/** The latest release's desktop apps, as the release puts them beside the web app (`.gitlab-ci.yml`, web-deploy). */
+/** The latest release's desktop apps, as the server puts them beside the web app (`ops/pull-deploy/la-gram-pull`). */
 export const DOWNLOADS = 'https://app.linked.archi/la-gram/downloads/';
 
 /** A desktop app to download: its platform, and its file in {@link DOWNLOADS}. */

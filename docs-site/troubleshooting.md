@@ -138,7 +138,7 @@ This was not tested in a packaged app. If a save seems to do nothing, look in yo
 1. Open la-gram's menu, at the top left, and choose *About la-gram*.
 2. Choose *Copy version info*: la-gram copies one line with its version, where it runs, the metamodels
    loaded and the bundle's snapshot.
-3. Choose *Report a problem or an idea*, in the same menu, which opens la-gram's issues on GitLab, and
+3. Choose *Report a problem or an idea*, in the same menu, which opens la-gram's issues on GitHub, and
    paste the line into a new issue, with what you did, what you expected, and what happened. A model
    file that shows the problem helps; use one without confidential content.
 

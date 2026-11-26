@@ -301,6 +301,7 @@ In parts, each reviewed before the next.
 - [x] Electron packaging and a smoke test of the desktop build — `npm run package`; *electron.spec* launches the desktop build (skipped without the Electron binary); the packaged app checked by hand (macOS arm64)
 - [x] Electron: a current major (28 is past end of life), a Content-Security-Policy, and the renderer without Node integration — done (2026-10-17), see the change log
 - [x] The alpha at app.linked.archi/la-gram-alpha/, deployed from each merge to the default branch while `package.json` says a pre-release; its browser storage its own; its version's page naming the commit (Req 15.10; key design decision 40; 2026-11-20) — *release-pipeline.test, storage-scope.test, version-page.test*
+- [x] la-gram on GitHub, released from there only (Req 15.8, 15.10–15.12, 20.9; key design decision 43; 2026-11-25): one workflow releases la-gram (the GitHub Release, approved in `production`) and la-gram-git (npm by trusted publishing and the image on ghcr.io, approved in `la-gram-git`); `.gitlab-ci.yml` gone; app.linked.archi installs releases itself (`ops/pull-deploy/`); la-gram's menu, version pages, documentation and la-gram-git's package name the GitHub repository — *pull-deploy.test, package.test, version-page.test, help.test*
 
 ## Beyond the reference spec (tool spec phases 3–4)
 - [ ] Freehand sketch layer and progressive typing (tool spec §5.8–5.9)
@@ -466,6 +467,29 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-25 — la-gram on GitHub: one workflow releases la-gram and la-gram-git; the server installs releases
+
+- **GitHub only** (Req 15.12; key design decision 43). la-gram's repository is https://github.com/linked-archi/la-gram,
+  with its history (`.agents/tasks/github-move/`). `.gitlab-ci.yml` is gone: `.github/workflows/la-gram.yml` builds,
+  tests and releases both products. la-gram's menu (*Source code*, *Report a problem or an idea*, *Every release, on
+  GitHub*), its version pages (the Release at its tag, the source at its tag, the alpha's commit), the documentation's
+  footer and links, and la-gram-git's `package.json` and image labels name it. The build takes the commit for the
+  version's page from GitHub's `GITHUB_SHA`, none on a tag. *version-page.test, help.test*
+- **la-gram's release** (Req 15.8, 15.11). A tag `la-gram-v<version>` makes the GitHub Release, once its reviewer
+  approves in the environment `production`: the five desktop apps, the web app with its documentation as one file,
+  their sums and an attestation of each. app.linked.archi installs the newest release and the alpha itself, only a
+  file whose attestation says this workflow built it from the release's tag or `main` (`ops/pull-deploy/`): no job
+  connects to the server, and no key to it is kept. *pull-deploy.test*
+- **la-gram-git's release** (Req 20.9). A tag `la-gram-git-v<version>` (checked against its `package.json` by
+  `version`) publishes the one packed file, once approved in the environment `la-gram-git`: to npm with provenance,
+  by trusted publishing — its first publish by `NPM_TOKEN`, that environment's only secret, deleted after — and as
+  `ghcr.io/linked-archi/la-gram-git`, built on GitHub's amd64 and arm64 runners and tagged with the version, its
+  major version and `latest`. *pull-deploy.test, package.test*
+- **Docs**: README (*Releasing la-gram-git*, *Releasing la-gram*), *Developing › Releasing* (the workflow job by job,
+  the server's side, the setup, each release), *Hosting the web app*, *Container image*, *la-gram-git in CI*,
+  `ops/pull-deploy/README.md`. `release-pipeline.test`, which read `.gitlab-ci.yml`, is gone; what it checked of the
+  operating page moved to *pull-deploy.test*.
 
 - **2026-11-24 — shared kernel migration (KM-1–15; Req 1.9).** Model and asset imports now use the pinned kernel
   package. Web/Electron compile its TypeScript, the CLI bundles it, and all targets copy its assets. App-dependent
@@ -1292,15 +1316,15 @@ Agreed order; relationship visuals come first.
 - **Graph performance** (Req 17.6, 17.8): running the Graph tab's SPARQL CONSTRUCT in Oxigraph took seconds from 100 elements (7 s at depth 5) and grew with the model, so the tab walks the store breadth first instead — milliseconds, growing with what is reached; the query stays the export, and tests require the walk and the query to return the same triples (decision 11).
 - **SPARQL tab**: an empty `CONSTRUCT` result with a `#` in a `PREFIX` IRI came back as an empty table — the query-form detection read comments inside IRIs and let the prefix-stripping swallow the query; it now masks IRIs and strings first and takes the first form keyword.
 
-### 2026-09-27 — relationship graph (commit `88ba85e`)
+### 2026-09-27 — relationship graph (commit `0ac9922`)
 
 - **Relationship graph** (Req 17): a **Graph** tab under the canvas — the relationships around the selected element to a chosen depth (1–5), filterable by element and relationship type (filters prune the traversal), drawn with the notation (Cytoscape.js, a new dependency — decision 10 in the design); exports the SPARQL CONSTRUCT behind it (`.rq`, or into the SPARQL tab) and what is drawn as Turtle.
 
-### 2026-09-26 — relationships, append menu (commit `baf413d`)
+### 2026-09-26 — relationships, append menu (commit `e857a45`)
 
 - **Relationships** (Req 4.2, 4.4, 4.13): what connect, append and "change type" offer comes from the relationship shapes (ArchiMate's matrix), not the domain/range hints alone — before, 68% of the relationships an ArchiMate 4.0 append created by default failed validation. The append menu's icons load (they were asset-relative paths the page could not resolve), and it asks which relationship when several specific ones are permitted. It has two tabs, **New element** and **Existing relationships**: the second brings what the element is already related to in the model into the view, beside it, with the relationship.
 
-### 2026-09-26 — layout, properties, docs (commit `eac25c4`)
+### 2026-09-26 — layout, properties, docs (commit `b03482d`)
 
 - **Layout** (Req 11): model tree left (full height); palette right (hideable "▦ Palette", resizable); under the canvas, tabs **Properties / Validation / SPARQL Query** — resizable by the top edge, folding to the tabs, remembered; the number of Violations on the Validation tab.
 - **Property panel** (Req 3.4, 3.6): the Properties tab, with vertical tabs — *‹Kind› information* (ID, type, `inModel`, name, definition; the name and the definition always listed, emptying the definition removes it), *Properties* (added ones + add field), *Analysis*, *Appears in views* — counts, Up/Down, the open tab remembered.
@@ -1308,13 +1332,13 @@ Agreed order; relationship visuals come first.
 - **Assets:** `archimate4-viewpoint-shapes.ttl` re-synced from `linked-archi-meta` (severity on the property shapes): a view without a viewpoint is a Warning in ArchiMate 4.0 too.
 - **Docs:** specs, README, conventions and the tool spec brought up to date; the tool spec gains the model-namespace, property-editing and format decisions and an implementation-status appendix.
 
-### 2026-09-25 — RDF view, IRIs, first property panel changes (commit `c19608c`)
+### 2026-09-25 — RDF view, IRIs, first property panel changes (commit `b99cdd1`)
 
 - **RDF panel** (Req 5.7): the live model as Turtle (or TriG, JSON-LD, N-Quads, N-Triples, RDF/XML) on the far right, hidden by default (`{ } RDF`, `?rdf=1`); geometry toggle, counts, copy, download, highlighting, selection ⇄ statements; resizable.
 - **HTTP URIs and a model namespace** (Req 9.7a/b): `urn:la-gram:` replaced by `{base}{notation}/{uuid}/`, base `https://example.org/` (or `?base=`); flat local names so the whole model is written with `m:`; the namespace and prefix stated on the model with `vann:`; **Model settings** changes them and moves the model's IRIs (legacy IRIs flattened); collaborators follow. DD-15 graph IRIs under the namespace; the collaboration server's snapshot uses the model's prefix; `rdf:type` first under each subject.
 - **Property panel:** hideable and resizable on the right (since moved to the bottom tabs); fields ordered ID, type, `inModel`, `prefLabel`, then the rest; no `inView` rows.
 
-### 2026-09-25 — Phase 1: spec alignment (commit `0ab0acf`)
+### 2026-09-25 — Phase 1: spec alignment (commit `b5bcfd4`)
 
 - Requirements, design and tasks ported from the `la-modeller-excalidraw` specification (numbers 1–11 kept for comparison; 12–16 la-gram's own); the implementation-independent tool spec copied to `docs/`.
 - Test fixtures read from the bundled assets instead of absolute paths.

@@ -6,12 +6,13 @@
  * was built, its release, its source, its documentation and its licence, and, for a program that reads it,
  * the same as JSON-LD.
  *
- * The web build writes the page of its own version; each release's deploy keeps the pages of the versions
- * released before it (`web-deploy` in `.gitlab-ci.yml`), so every version a model names stays reachable.
+ * The web build writes the page of its own version; the server keeps the pages of the versions installed
+ * before (`ops/pull-deploy/la-gram-pull`, `versions/`), so every version a model names stays reachable.
  *
  * A pre-release built from a commit rather than a release tag — the alpha, from each merge to the default
- * branch (`alpha-deploy`) — has no release to link to: its page names the commit it was built from, the last
- * one, and the app and documentation of its channel (`https://app.linked.archi/la-gram-alpha/`).
+ * branch (`alpha` in `.github/workflows/la-gram.yml`) — has no release to link to: its page names the commit
+ * it was built from, the last one, and the app and documentation of its channel
+ * (`https://app.linked.archi/la-gram-alpha/`).
  */
 
 import path from 'node:path';
@@ -33,10 +34,10 @@ export function versionPageHtml({ version, repository, built, licence, commit, a
   const which = app === LA_GRAM_HOME ? 'the latest release' : 'this pre-release, as it is now';
   const links = [
     ...(commit
-      ? [['The commit it was built from', `${repository}/-/commit/${commit}`]]
+      ? [['The commit it was built from', `${repository}/commit/${commit}`]]
       : [
-          ['Release notes and downloads', `${repository}/-/releases/${tag}`],
-          ['Source at this version', `${repository}/-/tree/${tag}`],
+          ['Release notes and downloads', `${repository}/releases/tag/${tag}`],
+          ['Source at this version', `${repository}/tree/${tag}`],
         ]),
     [`la-gram, in the browser (${which})`, app],
     [`Documentation (${which})`, `${app}docs/`],
@@ -51,7 +52,7 @@ export function versionPageHtml({ version, repository, built, licence, commit, a
     'schema:datePublished': built,
     'schema:license': licence,
     'schema:codeRepository': repository,
-    'schema:url': commit ? `${repository}/-/commit/${commit}` : `${repository}/-/releases/${tag}`,
+    'schema:url': commit ? `${repository}/commit/${commit}` : `${repository}/releases/tag/${tag}`,
   };
   return `<!doctype html>
 <html lang="en">

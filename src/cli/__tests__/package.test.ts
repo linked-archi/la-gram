@@ -68,34 +68,39 @@ describe("la-gram-git's package", () => {
   });
 });
 
-describe('the release pipeline', () => {
-  const pipeline = read('.gitlab-ci.yml');
+describe('the release, in la-gram’s workflow', () => {
+  const workflow = read('.github/workflows/la-gram.yml');
   /** `npm pack`'s file for a scoped name: `@scope/name` → `scope-name-<version>.tgz`. */
   const packed = `${pkg.name.replace(/^@/, '').replace('/', '-')}-`;
+  /** A job's lines, from its name under `jobs:` up to the next job's. */
+  const job = (name: string): string => {
+    const jobs = workflow.slice(workflow.indexOf('\njobs:\n'));
+    const rest = jobs.slice(jobs.search(new RegExp(`^ {2}${name}:\\n`, 'm')));
+    const end = rest.search(/\n {2}[\w-]+:\n/);
+    return end < 0 ? rest : rest.slice(0, end + 1);
+  };
 
   it('runs on the tag of the package’s version, and on no other tag', () => {
-    const rule = /\$CI_COMMIT_TAG =~ \/(.+)\/\s*$/m.exec(pipeline)?.[1];
+    const rule = /=~ (\^la-gram-git-v\S+\$) \]\]/.exec(workflow)?.[1];
     expect(rule).toBeDefined();
     const tag = new RegExp(rule!);
     expect(tag.test(`la-gram-git-v${pkg.version}`)).toBe(true);
     expect(tag.test('la-gram-git-v0.2.0-rc.1')).toBe(true);
     for (const other of [`v${pkg.version}`, 'la-gram-git-v1.2', 'la-gram-v1.2.3', 'la-gram-git-v1.2.3 ']) expect(tag.test(other)).toBe(false);
+    expect(workflow).toContain(`CLI_VERSION="$(node -p 'require("./packages/la-gram-git/package.json").version')"`);
   });
 
-  it('publishes on a release tag only; merge requests and the default branch run the tests and the package', () => {
-    const workflow = /^workflow:\n {2}rules:\n([\s\S]*?)\n\n/m.exec(pipeline)?.[1] ?? '';
-    expect(workflow).toContain('- if: $CI_COMMIT_TAG\n      when: never');
-    expect(workflow).toContain('- if: $CI_PIPELINE_SOURCE == "merge_request_event"');
-    expect(workflow).toContain('- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH');
-    // What publishes extends .release, which runs only with its own tag (not la-gram's); the image's builds, one per platform.
-    expect(pipeline).toMatch(/^\.release:\n(?: {2}.*\n)*? {2}rules:\n {4}- if: \$CI_COMMIT_TAG =~ \/\^la-gram-git-v\/\n/m);
-    for (const job of ['npm', '\\.image-build', 'container-image']) expect(pipeline).toMatch(new RegExp(`^${job}:\\n {2}extends: \\.release$`, 'm'));
-    for (const arch of ['amd64', 'arm64']) expect(pipeline).toMatch(new RegExp(`^image-${arch}:\\n {2}extends: \\.image-build$`, 'm'));
-    expect(pipeline).toMatch(/^container-image:\n(?: {2}.*\n)*? {2}needs: \[image-amd64, image-arm64\]$/m);
+  it('publishes on its tag only; pull requests and main run the tests and the package', () => {
+    expect(workflow).toMatch(/^on:\n {2}pull_request:\n {2}push:\n {4}branches: \[main\]\n/m);
+    for (const name of ['npm', 'image', 'image-tags']) expect(job(name)).toContain("if: needs.version.outputs.cli != 'none'");
+    // The package job runs on la-gram-git's tag too: what it packs is what is published.
+    expect(job('package')).toContain("if: ${{ !startsWith(github.ref, 'refs/tags/la-gram-v') }}");
   });
 
   it('builds the image from the file npm pack makes', () => {
-    expect(pipeline).toContain(`${packed}$VERSION.tgz`);
+    expect(job('package')).toContain(`path: packages/la-gram-git/${packed}*.tgz`);
+    expect(job('npm')).toContain(`"./${packed}$VERSION.tgz"`);
+    expect(job('image')).toMatch(/name: la-gram-git\n {10}path: packages\/la-gram-git\n/);
     expect(read('packages/la-gram-git/Dockerfile')).toContain(`COPY ${packed}*.tgz`);
     expect(read('packages/la-gram-git/.dockerignore')).toContain(`!${packed}*.tgz`);
   });

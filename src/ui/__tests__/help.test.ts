@@ -94,7 +94,7 @@ describe('Download the desktop app', () => {
     expect(rest).toEqual([
       { label: 'Opening it, in the documentation', href: 'https://app.linked.archi/la-gram/docs/getting-started/desktop/' },
       { label: 'SHA-256 checksums', href: 'https://app.linked.archi/la-gram/downloads/SHA256SUMS.txt' },
-      { label: 'Every release, on GitLab', href: 'https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/releases' },
+      { label: 'Every release, on GitHub', href: 'https://github.com/linked-archi/la-gram/releases' },
     ]);
   });
 });
@@ -127,7 +127,7 @@ describe('About la-gram', () => {
     expect(links).toContain('https://meta.linked.archi/docs/');
     expect(links).toContain(LA_GRAM_DOCS);
     expect(links).toContain('https://www.apache.org/licenses/LICENSE-2.0');
-    expect(links).toContain('https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/issues');
+    expect(links).toContain('https://github.com/linked-archi/la-gram/issues');
     expect(versionText(context)).toBe(
       'la-gram 0.1.0 · Web — Chrome 142 · metamodels: ArchiMate 4.0 Metamodel · bundled metamodels: e4882df07d49',
     );

@@ -646,41 +646,46 @@ is taken down. The toolbar's menus, buttons and toggles do not shrink; the
 model's name does, down to 64 px, and media queries narrow the selectors, then
 hide their names, then the toggles' words, so the bar holds from 1100 px.
 
-**Releases** (Req 15.8; `.gitlab-ci.yml`). A tag
-`la-gram-v<version>` starts the tests, then `web` (the web build; it also runs
-on every merge request, and hands the version on as a dotenv variable, since
-the Release's fields take variables, not shell) and `desktop`, a matrix of five
-targets packaged on the amd64 Linux runner: @electron/packager downloads each
-target's Electron and builds a macOS app off macOS, leaving out the asar
-integrity digest that only `codesign` could re-seal — so Electron's ad-hoc
-signature holds and Apple silicon launches it — and edits the Windows
-executable's resources with `resedit`, without Wine (its publisher from
-`win32metadata`, else package.json's `author`). The macOS app's bundle then has
-no valid seal — Electron's binary keeps its ad-hoc signature, the renamed
-bundle has none over it — which Gatekeeper reports for a downloaded copy as
-"damaged", with no Open Anyway; rcodesign (pinned, checksum checked) signs it
-ad hoc on the runner, as `codesign --sign -` would. The macOS and Windows apps
-are zipped (`zip -y` keeps the app bundle's symbolic links), the Linux ones
-tarred (modes kept), and uploaded to the generic package registry with the job
-token; then `web-deploy` copies the web build over SSH (meta.linked.archi's
-variables, and `LA_GRAM_DEPLOY_PATH`), and `la-gram-release` makes the Release
-with the `glab` image and the `release` keyword. Before the copy, `web-deploy`
-fetches the five apps from the package registry (job token) into the build's
-`downloads/`, each named without its version (`la-gram-darwin-arm64.zip`), and
-writes their `SHA256SUMS.txt`: one `rsync --delete` then puts the app, its
-documentation and its desktop apps in place together, of one version, and the
-names stay, so la-gram's menu and documentation link the latest release's apps
-without knowing its version (`DESKTOP_DOWNLOADS` in `help-links.ts`; the
-pipeline's test checks the two name the same files). It waits for the desktop
-jobs: no web app goes out without its apps. A pre-release runs no `web-deploy`,
-so the downloads stay the last release's. The web app needs nothing to
+**Releases** (Req 15.8, 15.11, 15.12; `.github/workflows/la-gram.yml`). A tag
+`la-gram-v<version>` starts `version` (the tag's version against `package.json`,
+before anything is built), the tests, `web` (the web build; it also runs on every
+pull request) and `docs`, and `desktop`, a matrix of five targets packaged on
+GitHub's Linux runner: @electron/packager downloads each target's Electron and
+builds a macOS app off macOS, leaving out the asar integrity digest that only
+`codesign` could re-seal — so Electron's ad-hoc signature holds and Apple silicon
+launches it — and edits the Windows executable's resources with `resedit`,
+without Wine (its publisher from `win32metadata`, else package.json's `author`).
+The macOS app's bundle then has no valid seal — Electron's binary keeps its ad-hoc
+signature, the renamed bundle has none over it — which Gatekeeper reports for a
+downloaded copy as "damaged", with no Open Anyway; rcodesign (pinned, checksum
+checked) signs it ad hoc on the runner, as `codesign --sign -` would. The macOS
+and Windows apps are zipped (`zip -y` keeps the app bundle's symbolic links), the
+Linux ones tarred (modes kept). `release` then makes the GitHub Release, in the
+environment `production`, whose reviewer approves it: the five apps, the web app
+with its documentation as one tarball, `SHA256SUMS.txt`, and an attestation of
+each (`actions/attest-build-provenance`, signed with the run's OIDC token).
+Nothing in the workflow reaches the server: app.linked.archi installs the newest
+release itself (`ops/pull-deploy/la-gram-pull`, a systemd timer per channel), and
+only a file whose sum and attestation check — this workflow, this repository, a
+GitHub-hosted runner, the release's tag (the alpha's: `main`). It puts the
+desktop apps into the release's `downloads/`, each named without its version
+(`la-gram-darwin-arm64.zip`), with their sums, so la-gram's menu and
+documentation link the latest release's apps without knowing its version
+(`DESKTOP_DOWNLOADS` in `help-links.ts`; `pull-deploy.test.ts` checks the
+workflow, the script and the menu name the same files); copies every version's
+page into it (`versions/`); and swaps the served link in one rename, checking the
+site serves the new `index.html` and swapping back if not. A pre-release is a
+GitHub pre-release, which the server never takes. The web app needs nothing to
 run under `/la-gram/`: webpack's `publicPath` is `auto`, and the bundled
 assets resolve against `document.baseURI`. The host's site for app.linked.archi
-— kept with the host's configuration, not here — serves the folder under
+— kept with the host's configuration, not here — serves the link under
 `/la-gram/` (its exact name taking the host over from the `*.linked.archi`
 catch-all), the page and the metamodels revalidated, the content-named scripts
 and WebAssembly kept, and the desktop app's Content-Security-Policy with
-`https:` and `wss:` connections; the README says what la-gram needs of it.
+`https:` and `wss:` connections; *Hosting the web app* says what la-gram needs of it.
+The version's page names la-gram's repository as the menu does (`REPOSITORY` in
+`help-links.ts`, `webpack.config.js`), and the commit from GitHub's `GITHUB_SHA`,
+none when `GITHUB_REF_TYPE` is `tag`.
 
 **Exporting the open view** (Req 14; `toSvg` in `diagram-canvas.ts`,
 `svg-png-exporter.ts`, `exportView` in `mount-ui.ts`). `toSvg` builds the file
@@ -2855,45 +2860,45 @@ under *IRI layout (DD-41), advisory*, after the SPARQL-based rules, each counted
 with its first three names relative to the namespace; a model all in the layout
 gets no line.
 
-**Release** (Req 20.9). `.gitlab-ci.yml`, la-gram's only pipeline, runs on a
-tag `la-gram-git-v<version>`, and for merge requests and the default branch
-(`workflow:rules`; other tags `never`; other branch pushes match no rule, so no
-duplicate branch pipeline beside a merge request's). Jobs are `interruptible`,
-so a newer push cancels an older pipeline, except what publishes: the `.release`
-jobs run only with `$CI_COMMIT_TAG`, `interruptible: false`, without the cache.
-Stages:
-`test` — typecheck and the unit suite, the three benchmark files left out
-(`--exclude '**/{*-bench,bench-*}.test.ts'`: they time the runner); `package` —
-on a tag, its version against `packages/la-gram-git/package.json`; `build:cli`,
-`npm pack`, the packed file installed globally and run: `--version`, and
-`check` on `packages/la-gram-git/smoke/` (a model as la-gram writes it); then,
-from that packed file (an artifact), on a tag, `npm` and the image. `npm` publishes with
-`--access public`, a pre-release under `next`; it asks for the OIDC tokens npm's
-trusted publishing takes (`NPM_ID_TOKEN`, audience `npm:registry.npmjs.org`;
-`SIGSTORE_ID_TOKEN` for provenance), and writes `NPM_TOKEN` to `.npmrc` as a
-reference npm resolves, only when the variable is set — the first publish,
-before the package exists to configure trusted publishing on. The image is
-built on each platform natively — `image-amd64` on the default runner,
-`image-arm64` on gitlab.com's `saas-linux-small-arm64` (Free tier; its
-Docker-in-Docker service started with `--mtu=1400`, the setting GitLab's
-documentation of its hosted Linux runners gives for Arm64) — and pushed as
-`<version>-<arch>`; `container-image` (not `image`: at the top of the file that
-is GitLab's keyword) then makes each published tag an index of both, with
-`docker buildx imagetools create`. Each build is of
-`packages/la-gram-git/Dockerfile` with Docker-in-Docker: `node:22`'s slim
-image, Git and CA certificates, `safe.directory` `*` (a mounted repository
-belongs to the host's user), the packed file installed globally, no entrypoint
-(a CI job runs its script in the image's shell); the context is the packed file
-alone (`.dockerignore`). It runs `--version` and `check` on the smoke model fed
-on the standard input (the Docker service does not see the job's files) on
-its own platform, before it is pushed; the published tags are the version, its
-major version and `latest`. The webpack copy of
-`LICENSE` is a file (`toType: 'file'`; without it, `LICENSE/LICENSE`).
-Measured by hand: the package job and the test job run clean in `node:22` on a
-copy of the repository's files; the image is 526 MB, and checks and diffs a
-mounted repository as root and as the host's user; both platforms' images built
-(amd64 under emulation), tried, pushed to a local registry and combined with
-`imagetools create`, each tag listing `linux/amd64` and `linux/arm64`.
+**Release** (Req 20.9). `.github/workflows/la-gram.yml`, la-gram's only
+workflow, runs on a tag `la-gram-git-v<version>`, and for pull requests and pushes
+to `main`. A newer push to a pull request cancels what is still running; `main`
+and tags run to the end. `version` checks the tag against
+`packages/la-gram-git/package.json` (its case before every other tag's, which
+would refuse it as not `la-gram-v<version>`) and says `cli`: `release`,
+`prerelease` or `none`. `test` — typecheck and the unit suite, the three benchmark
+files left out (`--exclude '**/{*-bench,bench-*}.test.ts'`: they time the
+runner); `package` — `build:cli`, `npm pack`, the packed file installed globally
+and run: `--version`, and `check` on `packages/la-gram-git/smoke/` (a model as
+la-gram writes it); its artifact, the packed file, is what is published. `web`
+and `docs` do not run on la-gram-git's tag, nor `package` on la-gram's. `npm`
+publishes with `--access public` and `--provenance`, a pre-release under `next`,
+in the environment `la-gram-git` (tags `la-gram-git-v*` only, a required
+reviewer): by npm's trusted publishing, which takes the run's OIDC token
+(`id-token: write`) for this repository, workflow and environment, and writes
+`NPM_TOKEN` to `.npmrc` as a reference npm resolves, only when the secret is set
+— the first publish, before the package exists to configure trusted publishing
+on. The image waits for `npm`, so the one approval releases both, and is built on
+each platform natively — `image`'s matrix on `ubuntu-24.04` and
+`ubuntu-24.04-arm`, GitHub's arm64 runner for public repositories — and pushed
+to `ghcr.io/linked-archi/la-gram-git` as `<version>-<arch>` with the run's token
+(`packages: write`); `image-tags` then makes each published tag an index of both,
+with `docker buildx imagetools create`. Each build is of
+`packages/la-gram-git/Dockerfile`: `node:22`'s slim image, Git and CA
+certificates, `safe.directory` `*` (a mounted repository belongs to the host's
+user), the packed file installed globally, no entrypoint (a CI job runs its
+script in the image's shell); the context is the packed file alone
+(`.dockerignore`); its `org.opencontainers.image.source` label names la-gram's
+repository, which links the image to it on ghcr.io. It runs `--version` and
+`check` on the smoke model on its own platform, before it is pushed; the
+published tags are the version, its major version and `latest`. The webpack copy
+of `LICENSE` is a file (`toType: 'file'`; without it, `LICENSE/LICENSE`).
+`package.json`'s `repository` names la-gram's GitHub repository, as npm's
+provenance requires of the repository that publishes. Measured by hand: the
+image is 526 MB, and checks and diffs a mounted repository as root and as the
+host's user; both platforms' images built (amd64 under emulation), tried, pushed
+to a local registry and combined with `imagetools create`, each tag listing
+`linux/amd64` and `linux/arm64`.
 
 Docs: `packages/la-gram-git/README.md` (npm's page: every command, exit codes,
 environment; the image — tags and digests, `linux/amd64`, no entrypoint, a mounted
@@ -3796,6 +3801,21 @@ dialog; the modules' section).
     placement the one box F2 does not rename; offering every permitted type on nesting, past what a notation says.
     The model-manager and metamodel-manager parts and the asset were made in `linked-archi-kernel` too, file for
     file (VC-DD-8).
+
+43. **GitHub only, and the server pulls** (Req 15.8, 15.11, 15.12, 20.9; 2026-11-25;
+    `.agents/tasks/github-move/`, `.agents/tasks/pull-deploy/`). la-gram moved from GitLab to GitHub, public,
+    with its history, and 0.4.0 is the first release made there: one workflow builds and publishes la-gram and
+    la-gram-git, and `.gitlab-ci.yml` is gone, so no second pipeline can publish what the first did not
+    build. The server installs releases itself, rather than a job copying them in: a job that could write to
+    the server would hold a key to it, which a changed workflow, a compromised action or an account could
+    use; with the pull, the worst they can do is publish a release, and the server takes only a file whose
+    attestation says this workflow built it from a release tag or `main`. Publishing is therefore deploying,
+    and the approval moves to the environment that publishes (`production`; `la-gram-git` for npm, whose
+    versions cannot be taken back). The workflow's one secret is `NPM_TOKEN`, in `la-gram-git` only, for the
+    first npm publish, which trusted publishing cannot make; it is deleted after. The image is built on each
+    platform's own runner, as before, rather than with QEMU: no emulation, and no action to pin beyond
+    checkout, setup-node and the artifact pair. Rejected: GitHub Pages (it cannot send the headers
+    app.linked.archi sends), and an SSH push with a restricted key (still a key).
 
 ## Running
 

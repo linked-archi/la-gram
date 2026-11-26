@@ -79,7 +79,7 @@ The kernel's copy-transition section is removed, and its README/design/plan desc
 
 Checkboxes above record the final checked implementation, not separate green intermediate commits. The initial
 source work was already checkpointed by the owner; the implementation commits are kernel `fa73c6e`, la-gram
-`5bc9123`, workspace `65e6cd7`. The 2026-11-25 entry below records the later fixture ownership and equivalence checks. E1/A and the optional
+`e6c6155`, workspace `65e6cd7`. The 2026-11-25 entry below records the later fixture ownership and equivalence checks. E1/A and the optional
 Electron packaging check stay open.
 
 ## Owner step 4 — neutral package boundary, 2026-11-24
@@ -97,7 +97,7 @@ Every changed la-gram file and its reason is in `workspace-integration-changes.m
 - [x] Install the same kernel 0.1.2 archive in the workspace and la-gram. Source commit
   `8fce481af632591094b04f1e7facb17ceac32b4e` carries S01 metadata, the neutral presentation reader and the
   shared canonical fixture. Both lockfiles match archive integrity.
-- [x] Compare the real App at the pre-migration commit `61c75aa` and the current App with 0.1.2. Each opened
+- [x] Compare the real App at the pre-migration commit `208271c` and the current App with 0.1.2. Each opened
   `docs-site/examples/shop.ttl` and `src/__tests__/fixtures/merge/model.trig` in a scratch checkout. Both
   Turtle and TriG saves matched byte for byte with the same test UUID sequence (KM-11).
 - [x] Delete the duplicate ModelIO test and 15 merge/diff fixtures (KM-9). The test differs from the kernel's
@@ -123,7 +123,7 @@ Every changed la-gram file and its reason is in `workspace-integration-changes.m
   definition's RDF value and language. The final repack trims a trailing blank line.
 - [x] Requalify the installed archive after meta review at `d46b2c1`. Web, Electron and CLI builds,
   95 browser tests and CLI example and smoke checks passed using the workspace's exact archive.
-- [x] Package the macOS ARM64 Electron app at la-gram `8494f1d` on the reviewed 0.1.4 archive.
+- [x] Package the macOS ARM64 Electron app at la-gram `5094a61` on the reviewed 0.1.4 archive.
   The packager created `dist/packages/la-gram-darwin-arm64`. It reported webpack size warnings and the absence
   of an optional `.icon` file. The package contains the `.icns` icon and all 272 renderer assets match the
   installed kernel. The packaged app started and loaded ArchiMate 4.0 with a disposable profile and mock

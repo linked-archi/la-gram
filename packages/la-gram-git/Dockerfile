@@ -1,7 +1,8 @@
 # la-gram-git's container image: the npm package, installed globally, with Git.
 #
-# Built by la-gram's release pipeline (.gitlab-ci.yml) from the package `npm pack`
-# made, so the image holds exactly what npm publishes. By hand, from la-gram's folder:
+# Built by la-gram's workflow (.github/workflows/la-gram.yml, image) from the package
+# `npm pack` made, so the image holds exactly what npm publishes, and published as
+# ghcr.io/linked-archi/la-gram-git. By hand, from la-gram's folder:
 #
 #   npm run build:cli && (cd packages/la-gram-git && npm pack)
 #   docker build --tag la-gram-git packages/la-gram-git
@@ -14,8 +15,8 @@ FROM ${NODE_IMAGE}
 ARG VERSION=0.0.0
 LABEL org.opencontainers.image.title="la-gram-git" \
       org.opencontainers.image.description="la-gram's architecture models in Git: checked, rewritten as la-gram writes them, compared and merged by element" \
-      org.opencontainers.image.source="https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram" \
-      org.opencontainers.image.documentation="https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/tree/main/packages/la-gram-git" \
+      org.opencontainers.image.source="https://github.com/linked-archi/la-gram" \
+      org.opencontainers.image.documentation="https://github.com/linked-archi/la-gram/tree/main/packages/la-gram-git" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}"
 

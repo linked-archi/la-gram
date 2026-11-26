@@ -11,7 +11,7 @@ description: How to run la-gram's type check, unit tests, browser suite and benc
 | [`npm run test:browser`](#npm-run-test-browser) | the browser suite, in Chrome against `dist/web`, and the desktop app's | **no** |
 | [`npm run bench`](#npm-run-bench) | the benchmark, in Chrome | no |
 
-Before a merge request, run what CI runs:
+Before a pull request, run what CI runs:
 
 ```sh
 npm run typecheck && npx vitest run --exclude '**/{*-bench,bench-*}.test.ts'
@@ -98,7 +98,7 @@ Git merges in the page, and the desktop app's isolation.
   and runs the suite in one go.
 - **Chrome:** the system's, or `LA_GRAM_CHROME` ([below](#chrome)).
 - **Screenshots** go to `test-results/browser/`, git-ignored.
-- **CI does not run it.** The pipeline's `test` job runs the type check and Vitest only: the browser suite
+- **CI does not run it.** The workflow's `test` job runs the type check and Vitest only: the browser suite
   and the Electron test run only where you run them. Run it before a release, and after any change to the
   canvas, the panels or the desktop app.
 

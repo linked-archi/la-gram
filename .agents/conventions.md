@@ -104,7 +104,7 @@ docs/                     broader tool specification
 
 - Specs are living documents, not gates: a change and the documents that describe
   it go in together.
-- Model logic and bundled semantic assets are maintained in `linked-archi-kernel`. Fix and test them there,
+- Model logic and bundled semantic assets are maintained in `linked-archi-kernel` (https://github.com/linked-archi/kernel). Fix and test them there,
   then install the same qualified archive in la-gram and the workspace. Never edit `node_modules` or maintain
   a parallel copy here. The kernel-migration task records package integration and its reasons.
 - A piece of work another person or agent may have to continue gets a folder,

@@ -1,6 +1,6 @@
 # la-gram-git on GitHub Actions: checks the la-gram models a pull request
 # changes, and comments with their changes by element.
-#   https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/tree/main/ci
+#   https://github.com/linked-archi/la-gram/tree/main/ci
 # Copy to .github/workflows/la-gram-git.yml (`npx @linked-archi/la-gram-git init github` does).
 name: la-gram models
 

@@ -12,23 +12,27 @@
 - [x] `src/__tests__/pull-deploy.test.ts`. Not run yet: run `npm test` before the merge request
 - [x] `bash -n ops/pull-deploy/la-gram-pull`
 
-**Stopped here, 2026-11-23:** everything below waits for the repository on GitHub.
+**Stopped here, 2026-11-25:** the repository is on GitHub and set up (`../github-move/`); the repository's
+part is written, to merge by the first pull request. Next: its first run, then the server.
 
 ## On GitHub, once (DP-3, DP-5)
 
-- [ ] The repository at `linked-archi/la-gram`, or `REPO` changed in `la-gram-pull.conf.example` and the
-      Release notes in the workflow
-- [ ] *Settings › Actions › General*: workflow permissions *Read repository contents*; *Allow GitHub
+Done 2026-11-25, but the first run.
+
+- [x] The repository at `linked-archi/la-gram`
+- [x] *Settings › Actions › General*: workflow permissions *Read repository contents*; *Allow GitHub
       Actions to create and approve pull requests* off
-- [ ] Ruleset for tags `la-gram-v*`: creation, update and deletion restricted to maintainers. Do not
-      include `la-gram-alpha`: the workflow deletes and makes it (DP-DD-6)
-- [ ] Ruleset for `main`: pull requests, the `test`, `web` and `docs` checks required
-- [ ] Environment `production`: required reviewer; deployment tags `la-gram-v*` only; *Prevent
-      self-review* off if you are the only maintainer
-- [ ] Environment `alpha`: deployment branch `main` only
-- [ ] `.github/CODEOWNERS`: `/.github/ @<maintainer>` and `/ops/ @<maintainer>`, and *Require review from
-      Code Owners* in the `main` ruleset
-- [ ] Secret scanning and push protection on
+- [x] Ruleset `release tags`, for tags `la-gram-v*` and `la-gram-git-v*`: creation, update and deletion
+      restricted to admins and maintainers. Not `la-gram-alpha`: the workflow deletes and makes it (DP-DD-6)
+- [x] Ruleset `main`: pull requests (no approval needed, one maintainer), the `test`, `web` and `docs`
+      checks required, no force-push or deletion
+- [x] Environment `production`: required reviewer; deployment tags `la-gram-v*` only; *Prevent
+      self-review* off, as the only maintainer
+- [x] Environment `alpha`: deployment branch `main` only
+- [x] `.github/CODEOWNERS`: `/.github/` and `/ops/`. *Require review from Code Owners* not on: no one may
+      approve their own pull request, so with one maintainer it would hold every change there. Recorded
+      (2026-11-25), not started: on with a second maintainer
+- [x] Secret scanning and push protection on
 - [ ] First run: a pull request (test, package, web, docs); a merge (the alpha published); *Run workflow*
       with *desktop* (the five apps as artifacts)
 
@@ -42,27 +46,29 @@
 - [ ] The SSH deploy away: the GitLab variables, the key in `authorized_keys`, the deploy user if meta
       no longer needs it; `adopted-*` folders once replaced
 
-## In the repository, with the switch-over (one merge request)
+## In the repository, with the switch-over
 
-- [ ] `.gitlab-ci.yml`: `web-deploy`, `alpha-deploy` and `la-gram-release` out; the `desktop` jobs' upload
-      to the package registry out, with the release header comment's lines on them
-- [ ] `src/__tests__/release-pipeline.test.ts`: its web-deploy, alpha-deploy and Releases-page tests out,
-      or the whole file, if la-gram's jobs leave `.gitlab-ci.yml` altogether
-- [ ] `README.md`, *Releasing la-gram*: GitHub's Release, its environment, how the server installs it;
+Done 2026-11-25 with the move to GitHub (`../github-move/`, its 5), in the pull request that makes GitHub
+la-gram's only home: `.gitlab-ci.yml` went altogether.
+
+- [x] `.gitlab-ci.yml` out, all of it
+- [x] `src/__tests__/release-pipeline.test.ts` out; its operating-page checks in *pull-deploy.test*
+- [x] `README.md`, *Releasing la-gram*: GitHub's Release, its environment, how the server installs it;
       *Once, before the first release* as the GitHub settings above
-- [ ] `docs-site/developing/releasing.md`: the workflow job by job, as it is for `.gitlab-ci.yml` now; the
-      pull deploy, from `ops/pull-deploy/README.md`
-- [ ] `docs-site/operating/web-app.md`: *app.linked.archi*, "the release copies the build into the
-      folder" → the server installs it; the links and `versions/`
-- [ ] `src/help-links.ts`: the comment on `DOWNLOADS` (`.gitlab-ci.yml`, web-deploy) → la-gram-pull
-- [ ] `.agents/specs/la-gram/requirements.md`: DP-1 to DP-15 under Req 15, replacing the SSH deploy in
-      Req 15.8 and 15.10; `design.md`: DP-DD-1 to DP-DD-8 as key design decisions; `tasks.md`: the
-      change-log entry, the test file in italics, the limitations above
+- [x] `docs-site/developing/releasing.md`: the workflow job by job; the pull deploy, from
+      `ops/pull-deploy/README.md` (*Installed by the server*)
+- [x] `docs-site/operating/web-app.md`: *app.linked.archi*, the server installs it; the links and `versions/`
+- [x] `src/help-links.ts`: the comment on `DOWNLOADS` → la-gram-pull
+- [x] `.agents/specs/la-gram/`: condensed, not copied — Req 15.8 and 15.10 rewritten, Req 15.11 (installed by
+      the server), key design decision 43 (DP-DD-1 to DP-DD-8 in short); the change-log entry. DP-1 to DP-15
+      and DP-DD-1 to DP-DD-8 stay here, in full
 
-## With the move of the repository (not this task)
+## With the move of the repository
 
-- [ ] `src/help-links.ts` `REPOSITORY`, `RELEASES` (`/-/releases` → `/releases`); `webpack.config.js`
-      `repository`; `mkdocs.yml` `extra.social` (the GitLab icon and link)
-- [ ] `webpack.config.js`: read GitHub's `GITHUB_SHA` and `GITHUB_REF_TYPE` too, and the workflow's
-      `CI_COMMIT_*` away (DP-DD-8)
-- [ ] la-gram-git's releases: npm trusted publishing from GitHub Actions, the image to ghcr.io
+Done 2026-11-25 (`../github-move/`, its 5).
+
+- [x] `src/help-links.ts` `REPOSITORY`, `RELEASES` (`/-/releases` → `/releases`); `webpack.config.js`
+      `repository`; `mkdocs.yml` `extra.social` (GitHub's icon and link)
+- [x] `webpack.config.js`: reads GitHub's `GITHUB_SHA` and `GITHUB_REF_TYPE`; the workflow's `CI_COMMIT_*` away
+      (DP-DD-8)
+- [x] la-gram-git's releases: npm trusted publishing from GitHub Actions, the image to ghcr.io

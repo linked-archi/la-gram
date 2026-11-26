@@ -112,7 +112,7 @@ fail whatever the base.
 `<branch>` is any Git revision: `origin/main` in CI, where the target branch has been fetched.
 
 ```console
-$ la-gram-git check --base b98b9d4~1 packages/la-gram-git/smoke
+$ la-gram-git check --base 1db046a~1 packages/la-gram-git/smoke
 ✓ packages/la-gram-git/smoke/shop.ttl
   · 1 warning, 0 info
   · 5 from the shapes' SPARQL-based rules (advisory):
@@ -121,7 +121,7 @@ $ la-gram-git check --base b98b9d4~1 packages/la-gram-git/smoke
 1 model file checked: all well.
 ```
 
-The smoke model did not exist at `b98b9d4~1`, so nothing was there to compare with, and the result is
+The smoke model did not exist at `1db046a~1`, so nothing was there to compare with, and the result is
 the plain check's.
 
 ### `check --shapes <folder>` {#check-shapes}
@@ -207,7 +207,7 @@ merge base, as a merge request's own diff does) to `HEAD`, or to [`--head`](#dif
 The smoke model, as the commit that added it changed it, in la-gram's own history:
 
 ```console
-$ la-gram-git diff b98b9d4~1 --head b98b9d4 packages/la-gram-git/smoke/shop.ttl
+$ la-gram-git diff 1db046a~1 --head 1db046a packages/la-gram-git/smoke/shop.ttl
 <!-- la-gram-git:diff -->
 ## Model changes by element
 
@@ -227,19 +227,19 @@ $ la-gram-git diff b98b9d4~1 --head b98b9d4 packages/la-gram-git/smoke/shop.ttl
   - Source: Billing
   - Target: Portal
 
-<sub>la-gram-git, from 4a850331 to b98b9d4</sub>
+<sub>la-gram-git, from 770a0f96 to 1db046a</sub>
 ```
 
 A folder given as a path is not searched, so nothing is compared:
 
 ```console
-$ la-gram-git diff b98b9d4~1 --head b98b9d4 packages/la-gram-git/smoke
+$ la-gram-git diff 1db046a~1 --head 1db046a packages/la-gram-git/smoke
 <!-- la-gram-git:diff -->
 ## Model changes by element
 
 _No model file changed._
 
-<sub>la-gram-git, from 4a850331 to b98b9d4</sub>
+<sub>la-gram-git, from 770a0f96 to 1db046a</sub>
 ```
 
 ### `diff --head <ref>` {#diff-head}
@@ -248,7 +248,7 @@ The end of the change: **`HEAD`** by default, or any revision. Without it, the f
 change*:
 
 ```console
-$ la-gram-git diff b98b9d4 packages/la-gram-git/smoke/shop.ttl
+$ la-gram-git diff 1db046a packages/la-gram-git/smoke/shop.ttl
 <!-- la-gram-git:diff -->
 ## Model changes by element
 
@@ -256,7 +256,7 @@ $ la-gram-git diff b98b9d4 packages/la-gram-git/smoke/shop.ttl
 
 _No changes to the model._
 
-<sub>la-gram-git, from b98b9d4b to this change</sub>
+<sub>la-gram-git, from 1db046aa to this change</sub>
 ```
 
 ### `diff --comment` {#diff-comment}

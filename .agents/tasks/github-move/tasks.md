@@ -13,11 +13,12 @@
 - [x] The kernel's `package.json` (`repository`, `homepage`, `bugs`) and `README.md`: GitHub; its link to la-gram,
       a path into the workspace, now la-gram's repository
 
-- [x] Work in progress committed: la-gram `b4efe20`, the kernel `5a7cfc2`; trial run again on them, passed
+- [x] Work in progress committed: la-gram `478a967`, the kernel `4c17b7e`; trial run again on them, passed
 
-**Stopped here, 2026-11-25:** both on GitHub, both checkouts following it. The kernel's first run failed on
-a test timeout. The fix, `vitest.config.ts` with la-gram's `testTimeout` and its change-log entry, is in the
-kernel's working tree: to commit and push to `main`. Next: 5.
+**Stopped here, 2026-11-25:** 5 and 6 written, in the working trees: to commit (la-gram on `pre-release`,
+the kernel on `main`), then la-gram's pull request from `pre-release` to `main`, whose run is the workflow's
+first. Its `test`, `web` and `docs` must pass for it to merge. Not checked by `actionlint` here; the YAML parses
+and `pull-deploy.test` checks its jobs.
 
 ## 1. Before the build
 
@@ -36,17 +37,21 @@ kernel's working tree: to commit and push to `main`. Next: 5.
       `https://app.linked.archi/la-gram/`
 - [x] Both: workflow permissions *Read repository contents*; Actions may not create or approve pull requests
 - [x] la-gram's environments: `production`, required reviewer `linked-k`, self-review allowed, deployments
-      from tags `la-gram-v*` only; `alpha`, from branch `main` only
+      from tags `la-gram-v*` only; `alpha`, from branch `main` only; `la-gram-git`, required reviewer
+      `linked-k`, from tags `la-gram-git-v*` only
 - [x] Pushed, the kernel then la-gram, branches and tags only. GitHub's refs are exactly the build's. One
       contributor in each. la-gram's push ran no workflow (GH-DD-5)
 - [x] Secret scanning and push protection on, both
-- [ ] The kernel's workflow passes on `main`. First run, 2026-11-25: 850 of 851 unit tests passed;
-      `model-merge.property.test.ts` timed out at Vitest's 5 s (6.9 s on the runner, 0.7 s in a local full run)
+- [x] The kernel's workflow passes on `main` (`894c295`). Its first run failed one property test at Vitest's 5 s
+      (`model-merge.property.test.ts`: 6.9 s on the runner, 0.7 s in a local full run): la-gram's `testTimeout`
+      of 20 s, lost when the kernel's configuration was adapted, is back
 - [x] la-gram's rulesets: `main`, pull requests with no approval needed (one maintainer), the checks `test`,
-      `web` and `docs`, no force-push or deletion, no bypass; `release tags`, `refs/tags/la-gram-v*`
-      created, moved or deleted only by admins and maintainers (`la-gram-alpha` not included)
-- [ ] `.github/CODEOWNERS` in la-gram (`/.github/` and `/ops/`), then *Require review from Code Owners* in
-      the `main` ruleset
+      `web` and `docs`, no force-push or deletion, no bypass; `release tags`, `refs/tags/la-gram-v*` and
+      `refs/tags/la-gram-git-v*` created, moved or deleted only by admins and maintainers (`la-gram-alpha` not
+      included)
+- [x] `.github/CODEOWNERS` in la-gram (`/.github/` and `/ops/`). *Require review from Code Owners* stays off:
+      GitHub lets no one approve their own pull request, so with one maintainer it would hold every change
+      there. Recorded (2026-11-25), not started: turn it on with a second maintainer
 - [x] The kernel's `main`: no ruleset, direct pushes for now. Decision confirmed on 2026-11-25
 
 ## 4. The checkouts follow GitHub
@@ -61,38 +66,46 @@ kernel's working tree: to commit and push to `main`. Next: 5.
 
 ## 5. la-gram, GitHub only (a pull request; GH-8, GH-9)
 
-- [ ] *With the move of the repository* in `../pull-deploy/tasks.md`: `src/help-links.ts` (`REPOSITORY`,
-      `RELEASES`), `webpack.config.js` (`repository`; `GITHUB_SHA`, `GITHUB_REF_TYPE` for `CI_COMMIT_*`),
-      `mkdocs.yml` `extra.social`
-- [ ] la-gram-git in `.github/workflows/la-gram.yml`: npm by trusted publishing (OIDC, provenance); the image to
-      ghcr.io, `linux/amd64` and `linux/arm64`, tags version, major, `latest`; the header comment
-- [ ] npmjs.com: `@linked-archi/la-gram-git`'s trusted publisher is GitHub Actions, `linked-archi/la-gram`,
-      `la-gram.yml`
-- [ ] `.gitlab-ci.yml` out; `src/__tests__/release-pipeline.test.ts` out or reduced to what remains
-- [ ] The links: `packages/la-gram-git/` (`package.json` `repository`, `README.md`, `Dockerfile`, `ci/`),
-      `ci/README.md` and its templates, `README.md`, and `docs-site/` (`developing/specifications.md`,
-      `developing/releasing.md`, `operating/container-image.md`, `operating/ci.md`, `index.md`,
-      `getting-started/desktop.md`); `src/ui/__tests__/help.test.ts`, `src/__tests__/version-page.test.ts`
-- [ ] The hashes in `cited-hashes.txt` updated in their files (GH-6), and in the kernel's. Not in
+- [x] *With the move of the repository* in `../pull-deploy/tasks.md`: `src/help-links.ts` (`REPOSITORY`, exported,
+      `RELEASES`, the issues), `src/ui/help.ts` (*Every release, on GitHub*), `scripts/version-page.mjs` (GitHub's
+      `/releases/tag/`, `/tree/`, `/commit/`), `webpack.config.js` (`repository`; `GITHUB_SHA`, none when
+      `GITHUB_REF_TYPE` is `tag`), `mkdocs.yml` `extra.social` — *version-page.test, help.test*
+- [x] la-gram-git in `.github/workflows/la-gram.yml`: the tag `la-gram-git-v*` (`version` checks it, `cli`);
+      `package` on it, its packed file the artifact; `npm`, environment `la-gram-git`, trusted publishing with
+      provenance, `NPM_TOKEN` for the first publish only; `image` on `ubuntu-24.04` and `ubuntu-24.04-arm` and
+      `image-tags` (version, major, `latest`) to `ghcr.io/linked-archi/la-gram-git`; `web` and `docs` not on it;
+      the header comment, and `.gitlab-ci.yml`'s reasons (desktop signing, the example model) brought over
+      — *pull-deploy.test, package.test*
+- [x] `.gitlab-ci.yml` out; `release-pipeline.test.ts` out, its operating-page checks moved to
+      *pull-deploy.test*; *package.test* reads the workflow
+- [x] The links: `packages/la-gram-git/` (`package.json` `repository`, `homepage`, `README.md`, `Dockerfile`),
+      `ci/README.md` and its templates, `README.md`, and `docs-site/`; *Releasing* written again for the workflow
+      and the server's side; *Hosting the web app*, *Container image*, `ops/pull-deploy/README.md`
+- [x] The hashes in `cited-hashes.txt` updated in their files (GH-6), and in the kernel's. Not in
       `build-github-history.sh`: its `KERNEL_BASE` is a commit of the old history, which it reads. In this
       task's README and design, the new hash beside the old
-- [ ] `.agents/specs/la-gram/`: requirements, design, the change-log entry; `CLAUDE.md` and `conventions.md`
-      link to the kernel's repository
-- [ ] Tests, build, `npm run docs:build`
+- [x] `.agents/specs/la-gram/`: Req 15.8, 15.10, 20.9; Req 15.11 (installed by the server) and 15.12 (GitHub
+      only); design's *Releases* and *Release*, key design decision 43; the change-log entry. `conventions.md`
+      links to the kernel's repository
+- [x] Tests, build, `npm run docs:build` (2026-11-25; see the change log)
 - [ ] The pull request: `test`, `package`, `web`, `docs` pass; merged, the alpha published
+- [ ] npmjs.com, at la-gram-git's first release: `NPM_TOKEN` in the environment `la-gram-git` first; after it,
+      the trusted publisher (GitHub Actions, `linked-archi/la-gram`, `la-gram.yml`, environment
+      `la-gram-git`), then the secret deleted and the token revoked; the image's visibility *Public* on ghcr.io
 
 ## 6. The kernel's documents
 
-- [ ] `.agents/specs/kernel/tasks.md`: "the clean GitLab CI run" → GitHub Actions; publication (K02) to npm,
-      not GitLab's package registry; the change-log entry
-- [ ] `.agents/tasks/import-from-la-gram/README.md`: history imported (this task, GH-DD-2); its checklist ticked,
-      "Remote created (GitLab)" → GitHub
-- [ ] `.agents/README.md`, `AGENTS.md`: no GitLab
+- [x] `.agents/specs/kernel/tasks.md`: the checks on GitHub Actions; the hashes; publication (K02):
+      *To decide*, npm or GitHub Packages, now that GitLab's package registry is gone
+- [x] `.agents/tasks/import-from-la-gram/README.md`: history imported (this task, GH-DD-2); its checklist ticked,
+      the remote on GitHub
+- [x] `.agents/README.md`, `AGENTS.md`: no GitLab in either
+- [ ] To decide: the kernel's publication (K02)
 
 ## 7. The switch-over and GitLab
 
-- [ ] The server's pull deploy: *On the server* and *In the repository, with the switch-over* in
-      `../pull-deploy/tasks.md`
+- [ ] The server's pull deploy: *On the server* in `../pull-deploy/tasks.md`; its *In the repository* part is
+      done here (5)
 - [ ] GitLab: `DEPLOY_SSH_KEY` and the deploy variables deleted; the description pointing to GitHub; archived
 - [ ] la-gram checkout: `gitlab` remote removed, old commits dropped (README.md)
 - [ ] `tools/modellers/la-gram-vscode/package.json`: its link to GitLab, with that repository's own change

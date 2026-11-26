@@ -11,7 +11,7 @@ contributor's commits would keep their author. Why a mirror clone: the checkouts
 result is pushed and checked, and a run can be repeated.
 
 **GH-DD-2. The kernel's history: a graft onto la-gram's.** The kernel's first commit (2026-11-21, "init")
-is grafted (`git replace --graft`) onto la-gram's `406a827` ("drag views into views", six minutes earlier),
+is grafted (`git replace --graft`) onto la-gram's `406a827` (`3ef817d` on GitHub) ("drag views into views", six minutes earlier),
 filtered to the kernel's files, and git-filter-repo makes the graft part of the history. `406a827` is the
 la-gram commit whose files differ least from the kernel's first commit. The 22 that differ are the 14 tests
 left in la-gram (KD-4), the adapted turtle-writer test, and the 7 files synced again on 2026-11-23, which la-gram
@@ -39,5 +39,5 @@ neighbours slow, as la-gram's workflow leaves out its own. `npm test` runs them 
 
 **GH-DD-8. GitLab private after 0.4.0 is live.** The archived project keeps the history as it was before GH-2,
 so it is not left public. It becomes private only once app.linked.archi serves 0.4.0, whose links point to
-GitHub: before that, the app's Help menu and la-gram-git 0.1.0's npm page send people to GitLab. Desktop
-installs of 0.3.0 keep their GitLab links. They stop opening, as does the GitLab image without an account.
+GitHub: before that, the app's Help menu sends people to GitLab. Desktop installs of 0.3.0 keep their GitLab
+links, which then stop opening. la-gram-git was never released from GitLab, so nothing published depends on it.

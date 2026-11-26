@@ -2,7 +2,8 @@
 
 The server fetches la-gram's web app from the GitHub Releases that `.github/workflows/la-gram.yml`
 publishes, and puts it in place itself. No CI job connects to the server, and no key to it is stored
-anywhere: what replaces `.gitlab-ci.yml`'s `web-deploy` and `alpha-deploy`, and their `DEPLOY_SSH_KEY`.
+anywhere: it replaces the SSH deploy of la-gram's former GitLab pipeline (`web-deploy`, `alpha-deploy` and
+their `DEPLOY_SSH_KEY`), which left the repository with the move to GitHub.
 Why, and what is still to do: [`.agents/tasks/pull-deploy/`](../../.agents/tasks/pull-deploy/README.md).
 
 | File | Installed as |
@@ -106,9 +107,8 @@ systemctl start la-gram-pull@production.service           # at once, rather than
 journalctl -u 'la-gram-pull@*' -n 50
 ```
 
-From now on, a run of `.gitlab-ci.yml`'s `web-deploy` or `alpha-deploy` would fail. They fail at the
-link, as rsync writes into the folder the link names, and the next check replaces what they wrote. Take
-them out of `.gitlab-ci.yml` in the same change (`.agents/tasks/pull-deploy/tasks.md`).
+From now on, nothing writes into these folders but `la-gram-pull`: the SSH deploy's jobs left the
+repository with `.gitlab-ci.yml`, and its key left GitLab before the switch-over.
 
 Then try both channels:
 

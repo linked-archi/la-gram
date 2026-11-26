@@ -1,6 +1,6 @@
 # Pending: derivation in la-gram, and derived relationships in the matrix
 
-Recorded 2026-11-05. Nothing here has been started. la-gram was at `3ca4759` and
+Recorded 2026-11-05. Nothing here has been started. la-gram was at `dc48eca` and
 linked-archi-meta at `fa3e69e`.
 
 **The case.** A matrix of applications against applications shows only the relationships drawn directly

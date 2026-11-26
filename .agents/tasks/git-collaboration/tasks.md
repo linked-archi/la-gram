@@ -1,7 +1,7 @@
 # Pending: Git collaboration (merge, review, CI, shared rooms)
 
-Recorded 2026-11-05. la-gram was at `3ca4759`. Phase 1 done 2026-11-05 (the merge, then its wiring), committed
-as `06d6ba2`. Phase 2 done 2026-11-05, committed as `12bdb91`. Phase 3 part 1 (the engine and the command) done 2026-11-06,
+Recorded 2026-11-05. la-gram was at `dc48eca`. Phase 1 done 2026-11-05 (the merge, then its wiring), committed
+as `4c7d2c5`. Phase 2 done 2026-11-05, committed as `a1b1999`. Phase 3 part 1 (the engine and the command) done 2026-11-06,
 committed; part 2 (the release and the templates' docs) done 2026-11-06, not committed, not released.
 
 **Source:** `docs/git-collaboration-spec.md` and its Python reference scripts in

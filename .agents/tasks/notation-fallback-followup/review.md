@@ -19,7 +19,7 @@ One resolver per palette feeds both the palette entries and `notationIndex`. The
 
 The spec text follows the new order, but it does not say which default sets count as fallback layers when a context picks an alternative set. The code keeps that context's own metamodel default as a layer. EDGY's Overview map context is the first case where this changes the drawing.
 
-All gates pass: typecheck, 76 files and 1357 tests, and `build:web` with webpack's two size warnings. HEAD is still `36f0a448`, and nothing is staged or committed. `assets/`, `bundled-assets.ts` and its test are untouched, and the build output contains no Basic file.
+All gates pass: typecheck, 76 files and 1357 tests, and `build:web` with webpack's two size warnings. HEAD is still `7f0282a5`, and nothing is staged or committed. `assets/`, `bundled-assets.ts` and its test are untouched, and the build output contains no Basic file.
 
 <details>
 <summary>Issues (2)</summary>

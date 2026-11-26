@@ -3,7 +3,7 @@
 la-gram's architecture models in Git — checked, rewritten as la-gram writes them, compared by element,
 merged by element — on the command line and in CI.
 
-It is built from [la-gram](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram)'s own
+It is built from [la-gram](https://github.com/linked-archi/la-gram)'s own
 engine, with the metamodels la-gram bundles, so what it says of a model file is what la-gram would: each
 file is opened as la-gram's *File › Open* opens it, and validated against the same shapes.
 
@@ -126,11 +126,11 @@ Sets the repository you run it in up. Nothing is overwritten.
 
 The CI templates and how to set them up — the token, pinning a version, your own shapes, the container image
 in a job — are described in
-[ci/README.md](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/ci/README.md).
+[ci/README.md](https://github.com/linked-archi/la-gram/blob/main/ci/README.md).
 
 ## The container image
 
-`registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git` has la-gram-git installed globally on Node.js 22, with Git.
+`ghcr.io/linked-archi/la-gram-git` has la-gram-git installed globally on Node.js 22, with Git.
 
 - **Tags:** each version (`0.1.0`), its major version (`0`) and `latest`. A pre-release (`0.2.0-rc.1`) has
   only its own tag. For a build that never changes, pin the digest `docker pull` prints:
@@ -144,7 +144,7 @@ in a job — are described in
 On your machine, mount the repository's top folder (Git needs its `.git`) at `/repo`, the working folder:
 
 ```sh
-IMAGE=registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
+IMAGE=ghcr.io/linked-archi/la-gram-git:0
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$IMAGE" la-gram-git check --base origin/main
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$IMAGE" la-gram-git fix
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$IMAGE" la-gram-git diff origin/main > changes.md
@@ -158,17 +158,17 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$IMAGE" la-gram-git 
 - **`--base`** compares with a branch the clone has. Fetch it on your machine first: `git fetch origin main`.
 
 **In CI**, make it the job's image — `image:` on GitLab, `container:` on GitHub Actions; both are in
-[ci/README.md](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/ci/README.md).
+[ci/README.md](https://github.com/linked-archi/la-gram/blob/main/ci/README.md).
 The job's environment then reaches la-gram-git as it is, which `diff --comment` needs. Run with `docker run`
 inside a job instead, the variables have to be passed in with `-e`: on GitLab `GITLAB_CI`,
 `CI_MERGE_REQUEST_IID`, `CI_PROJECT_ID`, `CI_API_V4_URL` and `LA_GRAM_GIT_TOKEN`.
 
-**Your own registry.** Where your machines or runners cannot reach `registry.gitlab.com`, copy the image
+**Your own registry.** Where your machines or runners cannot reach `ghcr.io`, copy the image
 into your registry:
 
 ```sh
-docker pull registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0.1.0
-docker tag registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0.1.0 registry.example.com/tools/la-gram-git:0.1.0
+docker pull ghcr.io/linked-archi/la-gram-git:0.1.0
+docker tag ghcr.io/linked-archi/la-gram-git:0.1.0 registry.example.com/tools/la-gram-git:0.1.0
 docker push registry.example.com/tools/la-gram-git:0.1.0
 ```
 
@@ -181,7 +181,7 @@ container each time adds to every merge: install the npm package where the drive
 
 GitHub and gitlab.com merge a pull or merge request as text and cannot run a merge driver. A self-managed
 GitLab can, set up by its administrator on its Gitaly servers — an option, never a requirement:
-[la-gram's merge driver on Gitaly](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/packages/la-gram-git/docs/gitaly.md).
+[la-gram's merge driver on Gitaly](https://github.com/linked-archi/la-gram/blob/main/packages/la-gram-git/docs/gitaly.md).
 la-gram itself merges by element when it saves to Git, and `check` in CI holds on every host.
 
 ## Metamodels

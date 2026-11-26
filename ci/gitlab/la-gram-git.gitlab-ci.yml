@@ -1,6 +1,6 @@
 # la-gram-git on GitLab CI (gitlab.com and self-managed): checks the la-gram
 # models a merge request changes, and comments with their changes by element.
-#   https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/tree/main/ci
+#   https://github.com/linked-archi/la-gram/tree/main/ci
 # Copy into .gitlab-ci.yml, or beside it and `include:` it
 # (`npx @linked-archi/la-gram-git init gitlab` does).
 #

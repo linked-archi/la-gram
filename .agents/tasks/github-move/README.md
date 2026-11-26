@@ -37,9 +37,9 @@ Decision confirmed on 2026-11-25:
    `ghcr.io/linked-archi/la-gram-git`, as `ghcr.io/linked-archi/rdf2docs`.
 8. **The archived GitLab project is private** (GH-DD-8): it keeps the old history, with its own hashes and
    identities. It is made private once 0.4.0 is installed on app.linked.archi. Until then the app's Help
-   menu (`REPOSITORY`, the issue tracker) and la-gram-git 0.1.0's npm page link to it. Desktop installs of 0.3.0
-   keep those links, which then no longer open: accepted. la-gram-git's image at `registry.gitlab.com` stops
-   being pulled without an account: its users move to ghcr.io's.
+   menu (`REPOSITORY`, the issue tracker) links to it. Desktop installs of 0.3.0
+   keep those links, which then no longer open: accepted. la-gram-git was never released from GitLab (no
+   `la-gram-git-v*` tag there): no npm version and no image depend on it.
 
 ## The history
 
@@ -47,12 +47,12 @@ Decision confirmed on 2026-11-25:
 in that folder, and checks them. It pushes nothing and changes neither checkout. It refuses a checkout with
 uncommitted changes (`--allow-dirty` for a trial). It needs `git-filter-repo` on `PATH`.
 
-Trial run, 2026-11-25, on la-gram's `b4efe20` and the kernel's `5a7cfc2`:
+Trial run, 2026-11-25, on la-gram's `478a967` and the kernel's `4c17b7e`:
 
 | | Result |
 |---|---|
 | la-gram | 195 commits, as before; 4 branches, 3 tags; one identity; no home path and no other address in any commit, tag or file version; each branch tip with the same files, but for 5 notes under `.agents/tasks/notation-fallback*/`, whose paths are now relative |
-| kernel | 98 commits of la-gram's history of its files, up to `406a827`; its own 8 on top, the tip with the same files but for `.agents/tasks/import-from-la-gram/README.md` (relative paths) |
+| kernel | 98 commits of la-gram's history of its files, up to `406a827` (`3ef817d` on GitHub); its own 8 on top, the tip with the same files but for `.agents/tasks/import-from-la-gram/README.md` (relative paths) |
 | cited hashes | On `pre-release`, 20 places in 10 files cite a commit by hash; in the kernel, 3 in 2 files. `cited-hashes.txt` in the folder lists each with its new hash, for every branch: the other branches cite the same commits in older copies, left as they are |
 
 A commit that exists now gets the same new hash in every run (same commits, same rules), so a run after

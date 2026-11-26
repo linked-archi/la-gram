@@ -165,7 +165,7 @@ export function downloadBlocks(options: { system?: 'darwin' | 'win32' | 'linux';
       links: [
         { label: 'Opening it, in the documentation', href: docsHref('getting-started/desktop/', options.channel) },
         { label: 'SHA-256 checksums', href: DOWNLOAD_SUMS },
-        { label: 'Every release, on GitLab', href: RELEASES },
+        { label: 'Every release, on GitHub', href: RELEASES },
       ],
     },
   ];

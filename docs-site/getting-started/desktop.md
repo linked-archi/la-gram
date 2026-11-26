@@ -34,7 +34,7 @@ sha256sum --check --ignore-missing SHA256SUMS.txt   # on macOS: shasum -a 256 --
 
 Every release's apps, named with their versions (`la-gram-0.2.0-darwin-arm64.zip`), pre-releases too,
 are on the project's
-[Releases page](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/releases).
+[Releases page](https://github.com/linked-archi/la-gram/releases).
 
 ## The first time you open it
 

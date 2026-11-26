@@ -7,7 +7,7 @@ description: How these pages are written and built, from docs-site/ with MkDocs 
 These pages are Markdown in `docs-site/`, built by [MkDocs](https://www.mkdocs.org/) with
 [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) into `dist/web/docs/`, inside the web
 app's folder. The release puts the two in place together, so https://app.linked.archi/la-gram/docs/
-always describes the app deployed beside it ([Releasing](releasing.md#web-deploy)).
+always describes the app deployed beside it ([Releasing](releasing.md#installed-by-the-server)).
 
 | Path | Holds |
 |---|---|
@@ -126,8 +126,8 @@ menu opens https://app.linked.archi/la-gram/docs/, so open the local copy by its
   `example.org`, `git.example.com` and the like, and placeholders for anything of a real installation:
   `<deploy-host>`, `<web-root>`. No server's own configuration, paths, user names or certificates.
 - **Links:** to other pages, relative `.md` links; to the app, `https://app.linked.archi/la-gram/…`; to
-  semantic assets, their full `https://meta.linked.archi/…` IRIs; to a repository file, its GitLab
-  `-/blob/main/…` address. A relative link out of `docs-site/` fails the strict build.
+  semantic assets, their full `https://meta.linked.archi/…` IRIs; to a repository file, its GitHub
+  `blob/main/…` address. A relative link out of `docs-site/` fails the strict build.
 - **Unimplemented features** appear only in [Not yet in la-gram](../troubleshooting.md#not-yet-in-la-gram).
 - **Embedding a repository file**: a line `--8<-- "ci/github/la-gram-git.yml"` inside a fenced block is
   replaced by that file. To show the line itself, as here, write it with a `;` in front:
@@ -278,7 +278,7 @@ another site for something:
 |---|---|
 | instant navigation (`navigation.instant`) | each page loads as a page of its own, with the scripts the CSP hook moved out of it, rather than being swapped in by script |
 | search sharing (`search.share`) | its link is a `javascript:` URL, which the policy blocks |
-| edit and view links (`content.action.*`), `repo_url` | with `repo_url`, Material's script asks gitlab.com for the project's stars from every reader's browser; the footer links to GitLab instead |
+| edit and view links (`content.action.*`), `repo_url` | with `repo_url`, Material's script asks GitHub's API for the project's stars from every reader's browser; the footer links to GitHub instead |
 | Mermaid | Material loads it from a CDN; diagrams are SVG files |
 | analytics, cookie consent | nothing is measured |
 | Google Fonts (`theme.font: false`) | the system's fonts; the policy takes fonts from the site only |
