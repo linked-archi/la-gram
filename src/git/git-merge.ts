@@ -28,8 +28,8 @@
  * All three versions are read the same way — the model through its own
  * serialization — so a difference of form is never taken for a change.
  */
-import type { MergeConflict, MergeOptions, MergeResult } from '../model-manager/model-merge.js';
-import { NamespaceConflict, mergeSnapshots, snapshotModel, snapshotOfText } from '../model-manager/model-merge.js';
+import type { MergeConflict, MergeOptions, MergeResult } from '@linked-archi/kernel/model-manager/model-merge.js';
+import { NamespaceConflict, mergeSnapshots, snapshotModel, snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
 import type { GitBinding } from './bindings.js';
 import { GitError } from './errors.js';
 import type { CommitResult, GitHostProvider } from './providers/provider.js';

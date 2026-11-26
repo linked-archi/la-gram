@@ -28,8 +28,8 @@ import type { NamedNode } from '@rdfjs/types';
 
 import { DiagramCanvas } from '../diagram-canvas.js';
 import { EventBus } from '../../event-bus.js';
-import type { ElementManager, RelationshipManager } from '../../../model-manager/interfaces.js';
-import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
+import type { ElementManager, RelationshipManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import { installJsdomSvgSupport } from '../../__tests__/jsdom-svg-support.js';
 
 installJsdomSvgSupport();

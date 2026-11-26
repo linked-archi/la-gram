@@ -94,7 +94,7 @@ import { lineOutlineIntersections } from './straight-docking.js';
 import { closestPointOnPolyline, pointAlong } from './connection-docking.js';
 import Diagram from 'diagram-js';
 import { DataFactory } from 'n3';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 // diagram-js feature modules. These are plain didi module declarations; the
 // package ships no type declarations for the index files, hence the assertions.
@@ -125,7 +125,7 @@ import type {
   ElementTypeInfo,
   PaletteDefinition,
   RelationshipTypeInfo,
-} from '../../metamodel-manager/interfaces.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import type {
   ElementManager,
   FigureInfo,
@@ -138,8 +138,8 @@ import type {
   Point,
   ViewInfo,
   ViewManager,
-} from '../../model-manager/interfaces.js';
-import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
+} from '@linked-archi/kernel/model-manager/interfaces.js';
+import type { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 import type { EventBus } from '../event-bus.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
@@ -157,10 +157,10 @@ import {
 } from './rdf-renderer.js';
 import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type LinkLabelWriter } from './rdf-link-label.js';
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal, type RdfConnectionAttrs } from './rdf-rule-provider.js';
-import { humanize } from '../../model-manager/vocabulary.js';
-import { sameAppearance, type Appearance, type AppearanceKey, type LabelAnchor } from '../../model-manager/appearance.js';
-import { labelFromExpression, parseLabelExpression, type LabelSource } from '../../model-manager/label-expression.js';
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { humanize } from '@linked-archi/kernel/model-manager/vocabulary.js';
+import { sameAppearance, type Appearance, type AppearanceKey, type LabelAnchor } from '@linked-archi/kernel/model-manager/appearance.js';
+import { labelFromExpression, parseLabelExpression, type LabelSource } from '@linked-archi/kernel/model-manager/label-expression.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref, shapeGeometry, shapePath } from './notation-shapes.js';
 import {
   APPEARANCE_FIELDS,
@@ -221,9 +221,16 @@ import { REUSE_MENU_ID, RdfReuseMenuProvider, type RdfReuseCheck } from './reuse
 import { rdfAutoResizeModule } from './rdf-auto-resize.js';
 import { CanvasClipboard, fromTextField, type CanvasClipboardHost, type CanvasClipboardOptions } from './canvas-clipboard.js';
 import { isMacPlatform, keyCombo } from '../help.js';
-import { rdfOrderingModule, shapeIndex } from './rdf-ordering.js';
+import { inFront, isOrderedShape, rdfOrderingModule, shapeIndex, sortShapes } from './rdf-ordering.js';
+import { DRAWING_ORDER_ACTIONS } from './drawing-order-actions.js';
+import { reorder, type DrawingOrderChange } from '@linked-archi/kernel/model-manager';
+
+/** `arch-vis:zOrder` (core-vis 0.10): a node's drawing order. */
+const Z_ORDER = NAMESPACES['arch-vis'] + 'zOrder';
 import { joinLastStep, lastStepId } from './undo-steps.js';
-import { CanvasArrange, type ArrangeAvailability, type ArrangeShape } from './canvas-arrange.js';
+import { CanvasArrange, type ArrangeAvailability, type ArrangeShape, type ShapedLines } from './canvas-arrange.js';
+import { LINE_SHAPES, type LineShape } from '../../layout/line-shapes.js';
+import { CanvasSearch, type CanvasSearchState, type SearchShape } from './canvas-search.js';
 import type { Alignment, DistributeAxis, GridAxis, SizeDimension, SizeReference } from '../../layout/arrange-geometry.js';
 import {
   appendableTargetTypes,
@@ -338,6 +345,8 @@ export interface DiagramCanvasOptions {
    * graph, ask the questions about it, copy its IRI.
    */
   onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  /** The search found anew after the diagram changed (Req 23.5): what the find bar shows. */
+  onSearchUpdated?: (state: CanvasSearchState) => void;
   /**
    * Whether the model has folders to file concepts in: the right-click menu
    * then offers *Move to folder…* — and, on one of several selected, moving
@@ -369,6 +378,14 @@ export type CanvasContextAction =
   | 'arrange-relationships'
   | 'align-to-grid'
   | 'sizes'
+  | 'line-straight'
+  | 'line-right-angles'
+  | 'line-horizontal-first'
+  | 'line-vertical-first'
+  | 'order-front'
+  | 'order-forward'
+  | 'order-backward'
+  | 'order-back'
   | 'delete-view'
   | 'export-svg'
   | 'export-png'
@@ -612,6 +629,7 @@ interface DjsServices {
   /** Binds key handling to a DOM node; see `DiagramCanvasOptions.keyboardBindTo`. */
   keyboard: {
     bind(node: EventTarget): void;
+    unbind(): void;
     getBinding(): EventTarget | null;
     /**
      * `Keyboard.addListener(priority, listener, type)`.
@@ -683,6 +701,7 @@ export class DiagramCanvas {
   private confirmDeleteFromModel?: (request: DeleteFromModelRequest) => boolean | Promise<boolean>;
   private confirmRetypeElement?: (request: RetypeElementRequest) => boolean | Promise<boolean>;
   private onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  private onSearchUpdated?: (state: CanvasSearchState) => void;
   private canMoveToFolder?: () => boolean;
   /** Where the right-click menu was opened, for the menus it opens in turn. */
   private contextMenuAt: { x: number; y: number } | undefined;
@@ -694,6 +713,8 @@ export class DiagramCanvas {
    * placement or a line is drawn with when it is first drawn.
    */
   private appearanceToDraw = new Map<string, Appearance>();
+  /** Each node's drawing order as the store last said (core-vis 0.10), by node IRI: none for 0. */
+  private zOrderToDraw = new Map<string, number>();
 
   /** The `arch:View` on the canvas, when a view manager is in use. */
   private viewIri: string | undefined;
@@ -784,6 +805,12 @@ export class DiagramCanvas {
   private clipboardListeners: Array<[EventTarget, string, EventListener]> = [];
   /** Stops redrawing the references to a view renamed in the store ({@link renameReferencesTo}). */
   private stopFollowingViewNames: (() => void) | undefined;
+  /** Whether this is the pane in use ({@link setInUse}). */
+  private inUse = true;
+  /** What it listens to on the app's event bus, taken away with the canvas: a pane closed leaves nothing behind. */
+  private appListeners: Array<[Parameters<EventBus['on']>[0], Parameters<EventBus['on']>[1]]> = [];
+  /** Where the keys are bound while this canvas is in use. */
+  private keyboardNode: EventTarget | null = null;
 
   constructor(options: DiagramCanvasOptions) {
     this.container = options.container;
@@ -801,6 +828,7 @@ export class DiagramCanvas {
     this.confirmDeleteFromModel = options.confirmDeleteFromModel;
     this.confirmRetypeElement = options.confirmRetypeElement;
     this.onContextAction = options.onContextAction;
+    this.onSearchUpdated = options.onSearchUpdated;
     this.canMoveToFolder = options.canMoveToFolder;
     if (options.clipboard) this.clipboard = new CanvasClipboard(this.clipboardHost(), options.clipboard);
 
@@ -986,6 +1014,7 @@ export class DiagramCanvas {
       if (named) this.renameReferencesTo(named);
     });
     this.registerProviders();
+    this.keyboardNode = keyboardBindTo;
     this.bindKeyboard(keyboardBindTo);
     this.guardKeyboardAgainstShadowInputs();
     this.bindClipboard();
@@ -1022,6 +1051,7 @@ export class DiagramCanvas {
       },
       pointer: () => (this.pointerClient ? this.diagramPointAt(this.pointerClient) : undefined),
       record: (apply) => this.recordChange(apply),
+      placeInFront: (nodes) => this.placeInFront(nodes),
       selectPlacements: (iris) => this.selectPlacements(iris),
       removeSelectionFromView: () => this.service<{ trigger(action: string): unknown }>('editorActions')?.trigger('removeSelection'),
       notice: (message, level) => this.onNotice?.(message, level),
@@ -1056,6 +1086,8 @@ export class DiagramCanvas {
         const style = object?.typeIri ? this.notationStyles.styleFor(object.typeIri) : undefined;
         return { width: style?.defaultWidth ?? NOTATION_DEFAULTS.width, height: style?.defaultHeight ?? NOTATION_DEFAULTS.height };
       },
+      // No route given: the layouter draws it as a new line, centre to centre, cropped at the outlines (Req 4.6).
+      straightRoute: (line) => this.services()?.layouter.layoutConnection(line, { source: line.source, target: line.target, waypoints: [] }),
       execute: (command, context) => {
         const services = this.services();
         if (!services || !this.viewIri) return false;
@@ -1095,9 +1127,73 @@ export class DiagramCanvas {
     return this.arranger().defaultSize(wholeView);
   }
 
-  /** The lines of the selected placements, or the view's, routed again around the placements, which stay. */
+  /** The selected lines and the lines of the selected placements, or the view's, routed again around the placements, which stay. */
   arrangeRelationships(wholeView = false): number {
     return this.arranger().arrangeRelationships(wholeView);
+  }
+
+  /** *Line shape* (Req 22.9): the selected lines given the shape, as their routes, in one step. */
+  shapeLines(shape: LineShape): ShapedLines {
+    return this.arranger().shapeLines(shape);
+  }
+
+  /** Search on the canvas (Req 23.2–23.5, `canvas-search.ts`), made once the canvas has its services. */
+  private searching?: CanvasSearch;
+  private searcher(): CanvasSearch {
+    return (this.searching ??= new CanvasSearch({
+      shapes: () => {
+        const services = this.services();
+        if (!services || !this.viewIri) return [];
+        const root = services.canvas.getRootElement();
+        return services.elementRegistry.getAll().filter((e) => e !== root) as unknown as SearchShape[];
+      },
+      typeLabel: (typeIri) =>
+        this.notationStyles.labelFor(typeIri) ?? this.paletteDefinition.relationshipTypes.find((t) => t.iri === typeIri)?.label,
+      select: (shapes) => this.services()?.selection.select(shapes),
+      reveal: (shape) => {
+        try {
+          this.services()?.canvas.scrollToElement(shape, { top: 80, bottom: 80, left: 80, right: 80 });
+        } catch {
+          /* jsdom has no layout */
+        }
+      },
+      mark: (shape, marker, on) => {
+        const canvas = this.services()?.canvas;
+        if (!canvas || !this.services()?.elementRegistry.get(shape.id)) return;
+        if (on) canvas.addMarker(shape, marker);
+        else canvas.removeMarker(shape, marker);
+      },
+    }));
+  }
+
+  /**
+   * Search the open diagram for the text (Req 23.2): the first match selected and scrolled to — or, `again` (the
+   * diagram changed, Req 23.5), the current match kept and nothing moved.
+   */
+  search(query: string, again = false): CanvasSearchState {
+    return this.searcher().search(query, again);
+  }
+
+  /** To the next match (1) or the previous (−1). */
+  searchStep(direction: 1 | -1): CanvasSearchState {
+    return this.searcher().step(direction);
+  }
+
+  /** Every match selected. */
+  searchSelectAll(): void {
+    this.searcher().selectAll();
+  }
+
+  /** The search closed: its outlines away, the selection as it is. */
+  endSearch(): void {
+    this.searcher().clear();
+  }
+
+  /** The diagram changed — drawn anew, another view, an edit on it: an open search finds again (Req 23.5). */
+  private searchAgain(): void {
+    const query = this.searching?.state().query;
+    if (!query) return;
+    this.onSearchUpdated?.(this.searching!.search(query, true));
   }
 
   /** Copy concepts chosen in the model tree (Ctrl/⌘+C there), into a copy event's data; false when nothing was. */
@@ -1159,9 +1255,10 @@ export class DiagramCanvas {
       target.addEventListener(type, listener);
       this.clipboardListeners.push([target, type, listener]);
     };
-    on(doc, 'copy', (event) => (clipboard.copyingConcepts() || this.clipboardOwns(event)) && clipboard.onCopyEvent(event as ClipboardEvent));
-    on(doc, 'cut', (event) => this.clipboardOwns(event) && clipboard.onCopyEvent(event as ClipboardEvent, true));
-    on(doc, 'paste', (event) => this.clipboardOwns(event) && clipboard.onPasteEvent(event as ClipboardEvent));
+    // Only the pane in use takes the clipboard (Req 24): the other pane's canvas listens to the same document.
+    on(doc, 'copy', (event) => this.inUse && (clipboard.copyingConcepts() || this.clipboardOwns(event)) && clipboard.onCopyEvent(event as ClipboardEvent));
+    on(doc, 'cut', (event) => this.inUse && this.clipboardOwns(event) && clipboard.onCopyEvent(event as ClipboardEvent, true));
+    on(doc, 'paste', (event) => this.inUse && this.clipboardOwns(event) && clipboard.onPasteEvent(event as ClipboardEvent));
     on(this.container, 'pointermove', (event) => {
       const e = event as PointerEvent;
       this.pointerClient = { x: e.clientX, y: e.clientY };
@@ -1185,6 +1282,13 @@ export class DiagramCanvas {
         }
         if (e.code === 'KeyV' && e.altKey && !e.shiftKey) {
           void clipboard.paste('references');
+          return true;
+        }
+        // Drawing order (DO-3): ] forward, [ backward, with Shift to the front or the back — in place of a Mac
+        // browser's back and forward (⌘[ ⌘]), while the canvas has the focus.
+        if ((e.code === 'BracketRight' || e.code === 'BracketLeft') && !e.altKey) {
+          const right = e.code === 'BracketRight';
+          this.askReorder(right ? (e.shiftKey ? 'front' : 'forward') : e.shiftKey ? 'back' : 'backward');
           return true;
         }
         return undefined;
@@ -1308,6 +1412,8 @@ export class DiagramCanvas {
     queueMicrotask(() => {
       this.drawnThisTask = undefined;
     });
+    // No view: nothing to find any more.
+    if (!viewIri) this.searchAgain();
   }
 
   /**
@@ -1529,6 +1635,7 @@ export class DiagramCanvas {
     const nodes = this.viewManager.getNodes(viewIri);
     const links = this.viewManager.getLinks(viewIri);
     this.appearanceToDraw = new Map();
+    this.zOrderToDraw = new Map(nodes.flatMap((n) => (n.zOrder ? [[n.nodeIri, n.zOrder] as const] : [])));
     for (const drawn of [...nodes, ...links]) {
       // A placement's or a line's look for the presentation chosen: its style for every context, its style for that one over it.
       const look = this.lookFor(drawn);
@@ -1678,6 +1785,89 @@ export class DiagramCanvas {
     this.redrawContainers();
     this.applyViewpointMarkers();
     this.refreshLabelTexts();
+    this.applyDrawingOrder(nodes);
+    this.searchAgain();
+  }
+
+  /**
+   * Each placement's drawing order as the store has it (core-vis 0.10) — changed by *Bring to front* and the rest,
+   * by a collaborator, or undone — and every parent's shapes put back in that order, their graphics re-stacked
+   * (`rdf-ordering.ts`).
+   */
+  private applyDrawingOrder(nodes: readonly NodeInfo[]): void {
+    const services = this.services();
+    if (!services) return;
+    const parents = new Set<DjsShape>();
+    for (const node of nodes) {
+      const shape = this.shapeOfNode(node.nodeIri);
+      const object = shape?.businessObject;
+      if (!shape || !object) continue;
+      if (node.zOrder) object.zOrder = node.zOrder;
+      else delete object.zOrder;
+      if (shape.parent) parents.add(shape.parent as DjsShape);
+    }
+    const moved = [...parents].flatMap((parent) => sortShapes(parent as never) as unknown as DjsShape[]);
+    if (moved.length > 0) services.eventBus.fire('elements.changed', { elements: moved });
+  }
+
+  /** The view's node a shape draws: its placement of an element, or a figure. */
+  private nodeInfoOf(shape: DjsShape): NodeInfo | undefined {
+    const viewIri = this.viewIri;
+    const key = this.nodeKeyOf(shape);
+    if (!viewIri || !key || !this.viewManager) return undefined;
+    const nodes = this.viewManager.getNodes(viewIri);
+    return nodes.find((n) => n.nodeIri === key) ?? nodes.find((n) => n.elementIri === key);
+  }
+
+  /**
+   * Placements just added, or taken into another container, put in front of the placements they overlap there
+   * (DO-4) — written now, so call it inside a recorded change. Nothing is written where nothing they overlap is
+   * above them.
+   */
+  private placeInFront(nodeIris: readonly string[]): void {
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
+    if (!viewIri || !viewManager?.setNodeZOrder || nodeIris.length === 0) return;
+    for (const [iri, zOrder] of inFront(viewManager.getNodes(viewIri), new Set(nodeIris))) viewManager.setNodeZOrder(viewIri, iri, zOrder);
+  }
+
+  /**
+   * *Bring to front*, *Bring forward*, *Send backward*, *Send to back* (DO-2): the selected elements and figures, less
+   * what is in a selected container and what another collaborator holds, each among the shapes in its place — one
+   * undoable step. How many were asked to move, and how many zOrders changed: none when they are there already.
+   */
+  reorderSelection(change: DrawingOrderChange): { selected: number; changed: number } {
+    const services = this.services();
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
+    if (!services || !viewIri || !viewManager?.setNodeZOrder) return { selected: 0, changed: 0 };
+    const shapes = (services.selection.get() as DjsShape[]).filter(
+      (s) => isOrderedShape(s as never) && !(s.businessObject?.iri && this.locked.has(s.businessObject.iri)),
+    );
+    const inside = (shape: DjsShape, container: DjsShape) => {
+      for (let p = shape.parent as DjsShape | undefined; p; p = p.parent as DjsShape | undefined) if (p === container) return true;
+      return false;
+    };
+    const chosen = shapes.filter((s) => !shapes.some((c) => c !== s && inside(s, c)));
+    const moving = new Set(chosen.map((s) => this.nodeInfoOf(s)?.nodeIri).filter((iri): iri is string => Boolean(iri)));
+    if (moving.size === 0) return { selected: 0, changed: 0 };
+    const groups = new Map<string, NodeInfo[]>();
+    for (const node of viewManager.getNodes(viewIri)) {
+      const key = node.parentNodeIri ?? '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(node);
+    }
+    const changes = new Map<string, number>();
+    for (const group of groups.values()) {
+      const mine = new Set(group.filter((n) => moving.has(n.nodeIri)).map((n) => n.nodeIri));
+      if (mine.size === 0) continue;
+      for (const [iri, zOrder] of reorder(group, mine, change)) changes.set(iri, zOrder);
+    }
+    if (changes.size === 0) return { selected: moving.size, changed: 0 };
+    this.recordChange(() => {
+      for (const [iri, zOrder] of changes) viewManager.setNodeZOrder!(viewIri, iri, zOrder);
+    });
+    return { selected: moving.size, changed: changes.size };
   }
 
   /**
@@ -1856,15 +2046,14 @@ export class DiagramCanvas {
   }
 
   /**
-   * The shapes selected with `element` showing concepts of its kind — elements
-   * or relationships — when the model has folders to move them to; none when
-   * it is not selected.
+   * The shapes selected with `element` of its kind — lines, to shape them; elements and figures, to order them and
+   * move them to a folder — whether or not the model has folders (Req 22.10, DO-3); none when it is not selected.
    */
   private selectedAlike(element: DjsShape): DjsShape[] {
-    if (!this.onContextAction || !this.canMoveToFolder?.()) return [];
+    const kind = element.businessObject?.kind;
+    if (!this.onContextAction || !kind) return [];
     const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
     if (!selected.includes(element)) return [];
-    const kind = element.businessObject?.kind;
     return selected.filter((s) => s.businessObject?.iri && s.businessObject.kind === kind);
   }
 
@@ -2072,6 +2261,7 @@ export class DiagramCanvas {
       iconUrl,
       ...(node ? { nodeIri: node } : {}),
       ...(node && this.appearanceToDraw.get(node) ? { appearance: this.appearanceToDraw.get(node)! } : {}),
+      ...(node && this.zOrderToDraw.get(node) ? { zOrder: this.zOrderToDraw.get(node)! } : {}),
     };
 
     const shape = services.elementFactory.createShape({
@@ -2084,9 +2274,9 @@ export class DiagramCanvas {
       businessObject,
     });
 
-    // Under the lines already drawn (rdf-ordering.ts): added without a command, so placed here.
+    // In its drawing order, under the lines already drawn (rdf-ordering.ts): added without a command, so placed here.
     const container = this.containerFor(parentNodeIri);
-    services.canvas.addShape(shape, container, shapeIndex(container));
+    services.canvas.addShape(shape, container, shapeIndex(container, shape));
     if (container !== services.canvas.getRootElement()) this.containersToRedraw.add(container);
     if (this.viewpointFilter && typeIri && !this.viewpointFilter(typeIri)) {
       services.canvas.addMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
@@ -2168,9 +2358,9 @@ export class DiagramCanvas {
       const shape = services.elementFactory.createShape({
         id: node.elementIri,
         ...node.bounds,
-        businessObject: this.figureObject(node.elementIri, figure),
+        businessObject: { ...this.figureObject(node.elementIri, figure), ...(node.zOrder ? { zOrder: node.zOrder } : {}) },
       });
-      services.canvas.addShape(shape, container, shapeIndex(container));
+      services.canvas.addShape(shape, container, shapeIndex(container, shape));
       if (container !== services.canvas.getRootElement()) this.containersToRedraw.add(container);
       return;
     }
@@ -2594,13 +2784,13 @@ export class DiagramCanvas {
   /**
    * Ask the app to open the view a reference opens (`open-referenced-view`): its
    * double-click, its pad's and its menu's *Open view*. The app opens it, or
-   * says it is not in the model (Req 3.23).
+   * says it is not in the model (Req 3.23). `beside`: in the other pane (Req 24).
    */
-  private openReferencedView(element: DjsShape): void {
+  private openReferencedView(element: DjsShape, beside = false): void {
     const figure = element.businessObject?.kind === 'figure' ? element.businessObject.figure : undefined;
     const nodeIri = this.nodeKeyOf(element);
     if (figure?.kind !== 'reference' || !nodeIri) return;
-    this.eventBus.emit('open-referenced-view', { nodeIri, ...(figure.view ? { viewIri: figure.view } : {}) });
+    this.eventBus.emit('open-referenced-view', { nodeIri, ...(figure.view ? { viewIri: figure.view } : {}), ...(beside ? { beside } : {}) });
   }
 
   /**
@@ -2646,6 +2836,37 @@ export class DiagramCanvas {
     }
     this.zoomMenuProvider.pending = { views };
     services.popupMenu.open(element, ZOOM_MENU_ID, at, { title: 'Zoom in', width: 280 });
+  }
+
+  /**
+   * Whether this canvas is the pane in use, of two (Req 24; split view's SV-DD-2). Only that one takes the keys
+   * diagram-js binds to the document, copy and paste, and the events the app sends about the open view — which name
+   * no view, so another canvas following them would draw in, or take out of, the wrong view; nor does it say what is
+   * selected. The other is brought up to date from the store ({@link syncFromStore}).
+   */
+  setInUse(inUse: boolean): void {
+    if (inUse === this.inUse) return;
+    this.inUse = inUse;
+    const services = this.services();
+    if (!services) return;
+    // Its selection stays; its context pad shows only while it is in use — one pad on the page.
+    const pad = this.service<{ open(target: unknown): void; close(): void }>('contextPad');
+    if (inUse) {
+      this.bindKeyboard(this.keyboardNode);
+      // As diagram-js opens it on a selection: on the one selected, or on all of them.
+      const selected = services.selection.get();
+      if (selected.length > 0) pad?.open(selected.length === 1 ? selected[0] : selected);
+    } else {
+      services.keyboard.unbind();
+      this.stopFormatPainter();
+      services.popupMenu.close();
+      pad?.close();
+    }
+  }
+
+  /** Whether this canvas is the pane in use ({@link setInUse}). */
+  isInUse(): boolean {
+    return this.inUse;
   }
 
   /** Ask the app to open a view (`open-view`): zooming in (VC-6). */
@@ -3266,6 +3487,8 @@ export class DiagramCanvas {
 
   /** Tear the diagram down and leave the host container empty. */
   destroy(): void {
+    for (const [type, handler] of this.appListeners) this.eventBus.off(type, handler);
+    this.appListeners = [];
     this.unbindClipboard();
     this.stopFollowingViewNames?.();
     this.stopFollowingViewNames = undefined;
@@ -3453,10 +3676,18 @@ export class DiagramCanvas {
     // One of several selected: moving them to a folder together.
     const alike = this.selectedAlike(element);
     if (alike.length > 1) {
+      const lines = shown.kind === 'relationship' || shown.kind === 'connector';
       const words = shown.kind === 'relationship' ? 'relationships' : 'elements';
       return [
-        ...this.clipboardMenuActions(shown.kind !== 'relationship'),
-        { id: 'move-to-folder', label: `Move ${alike.length} ${words} to folder…`, section: 'edit', run: () => this.onContextAction?.('move-to-folder', iri) },
+        ...this.clipboardMenuActions(!lines),
+        // A figure, or a line from one, is in no folder.
+        ...((shown.kind === 'element' || shown.kind === 'relationship') && this.canMoveToFolder?.()
+          ? [{ id: 'move-to-folder', label: `Move ${alike.length} ${words} to folder…`, section: 'edit' as const, run: () => this.onContextAction?.('move-to-folder', iri) }]
+          : []),
+        // Every selected line given the shape.
+        ...(lines ? this.lineShapeMenuActions(element, iri) : []),
+        // Every selected element or figure brought forward or sent back.
+        ...(lines ? [] : this.orderMenuActions(element, iri)),
       ];
     }
     const at = this.contextMenuAt ?? { x: 0, y: 0 };
@@ -3482,6 +3713,7 @@ export class DiagramCanvas {
       if (this.canAppend(pad)) {
         actions.push({ id: 'append', label: 'Append…', section: 'relate', run: then(() => this.openAppendMenu(pad, { clientX: at.x, clientY: at.y })) });
       }
+      actions.push(...this.orderMenuActions(element, iri));
     } else if (shown.kind === 'relationship') {
       // Named on its line, as an element in its box; a derivation the model does not state is not (as in the model tree).
       if (isRenamable(element)) {
@@ -3512,11 +3744,17 @@ export class DiagramCanvas {
       }
       // A line is copied with its ends: only pasting here.
       actions.push(...this.clipboardMenuActions(false));
+      actions.push(...this.lineShapeMenuActions(element, iri));
+    } else if (shown.kind === 'connector') {
+      // A line from a note or a figure: shaped as a relationship's line is.
+      actions.push(...this.lineShapeMenuActions(element, iri));
     } else if (shown.kind === 'figure') {
       // A reference to another view opens it, first, as its double-click does (Req 3.23) — and, its view's
       // placement, renames the view as an element's box renames the element (VC-DD-4).
       if (isViewReference(element)) {
         actions.push({ id: 'open-view', label: 'Open view', section: 'view', run: () => this.openReferencedView(element) });
+        // In the canvas's other pane, split first if need be (Req 24).
+        actions.push({ id: 'open-view-beside', label: 'Open beside', section: 'view', run: () => this.openReferencedView(element, true) });
         actions.push({
           id: 'rename',
           label: 'Rename',
@@ -3527,6 +3765,7 @@ export class DiagramCanvas {
       }
       // A group, a note, a shape or a reference: cut, copied and duplicated as an element is.
       actions.push(...this.clipboardMenuActions(true));
+      actions.push(...this.orderMenuActions(element, iri));
     }
     // Refined by a view — `V arch:refines` it — an element or a relationship zooms into each (VC-6).
     this.viewsRefining(element).forEach((view, index) => {
@@ -3573,6 +3812,44 @@ export class DiagramCanvas {
       actions.push({ id: 'delete-model', label: 'Delete view from model…', section: 'delete', run: () => this.deleteReferencedView(element) });
     }
     return actions;
+  }
+
+  /**
+   * Drawing order on the right-click menu of an element or a figure (DO-3): the four, in a group of their own, for
+   * the selected — this one, or the several selected with it.
+   */
+  private orderMenuActions(shape: DjsShape, iri: string): ContextMenuAction[] {
+    if (!this.onContextAction || !this.viewManager?.setNodeZOrder || !isOrderedShape(shape as never)) return [];
+    const mac = isMacPlatform();
+    return DRAWING_ORDER_ACTIONS.map(({ change, label, keys }) => ({
+      id: `order-${change}`,
+      label,
+      section: 'order' as const,
+      shortcut: keyCombo(keys, mac),
+      run: () => this.onContextAction?.(`order-${change}`, iri),
+    }));
+  }
+
+  /** A drawing-order key: through the host, which says when nothing changed; on its own without one. */
+  private askReorder(change: DrawingOrderChange): void {
+    const first = (this.services()?.selection.get() as DjsShape[] | undefined)?.find((s) => isOrderedShape(s as never));
+    const iri = first?.businessObject?.iri;
+    if (this.onContextAction && iri) this.onContextAction(`order-${change}`, iri);
+    else this.reorderSelection(change);
+  }
+
+  /**
+   * *Line shape* on a line's right-click menu (Req 22.9, LS-8): the four shapes, in a group of their own, for the
+   * selected lines — this one, or the several selected with it. None for a line no shape applies to (LS-1).
+   */
+  private lineShapeMenuActions(line: DjsShape, iri: string): ContextMenuAction[] {
+    if (!this.onContextAction || !this.arranger().shapeable(line as unknown as ArrangeShape)) return [];
+    return LINE_SHAPES.map(({ shape, label }) => ({
+      id: `line-${shape}`,
+      label,
+      section: 'route' as const,
+      run: () => this.onContextAction?.(`line-${shape}`, iri),
+    }));
   }
 
   /** The right-click menu on the empty canvas: the open view's actions, as the model tree offers them, and the canvas's. */
@@ -4042,9 +4319,9 @@ export class DiagramCanvas {
     if (!services || previous === container) return;
     const at = previous?.children?.indexOf(shape) ?? -1;
     if (at >= 0) previous!.children!.splice(at, 1);
-    // Before the first line, as a moved shape goes (rdf-ordering.ts).
+    // In its drawing order, before the first line, as a moved shape goes (rdf-ordering.ts).
     const children = (container.children ??= []);
-    children.splice(shapeIndex(container) ?? children.length, 0, shape);
+    children.splice(shapeIndex(container, shape) ?? children.length, 0, shape);
     shape.parent = container;
     services.eventBus.fire('elements.changed', { elements: [shape, ...(previous ? [previous] : []), container] });
   }
@@ -4918,6 +5195,14 @@ export class DiagramCanvas {
     djs.on([`commandStack.${RDF_STORE_EDIT_COMMAND}.executed`, `commandStack.${RDF_STORE_EDIT_COMMAND}.reverted`], () => {
       storeEdited = true;
     });
+    // A canvas command that wrote drawing orders — a placement in front of what it overlaps (DO-4) — done, undone or
+    // redone: the shapes take the store's order once it settles, as no shape command carries it.
+    let orderTouched = false;
+    const touchesOrder = (context?: RdfChangeContext) =>
+      [...(context?.diff?.added ?? []), ...(context?.diff?.removed ?? [])].some((q) => q.predicate.value === Z_ORDER);
+    djs.on([`commandStack.${RDF_CHANGE_COMMAND}.executed`, `commandStack.${RDF_CHANGE_COMMAND}.reverted`], (event: { context?: RdfChangeContext }) => {
+      if (touchesOrder(event.context)) orderTouched = true;
+    });
 
     // Every command changes the model; tell the rest of the app once it settles.
     // Clearing the stack (a view opened) changes nothing.
@@ -4925,7 +5210,11 @@ export class DiagramCanvas {
       if (event.trigger === 'clear') return;
       if (storeEdited) {
         storeEdited = false;
+        orderTouched = false;
         this.syncFromStore();
+      } else if (orderTouched && this.viewIri && this.viewManager) {
+        orderTouched = false;
+        this.applyDrawingOrder(this.viewManager.getNodes(this.viewIri));
       }
       this.eventBus.emit('model-changed', { origin: 'canvas', viewIri: this.viewIri });
     });
@@ -4984,6 +5273,16 @@ export class DiagramCanvas {
     djs.on('commandStack.shape.create.postExecute', 500, (event: { context?: { shape?: DjsShape } }) => {
       const shape = event.context?.shape;
       if (shape && this.hasViewContext() && containerIri(shape)) this.writeLayout(shape);
+    });
+    // A placement or a figure just drawn — from the palette, the tree, *Append* — in front of what it overlaps (DO-4):
+    // after its node and its container are written, in the same command.
+    djs.on('commandStack.shape.create.postExecute', 400, (event: { context?: { shape?: DjsShape } }) => {
+      const shape = event.context?.shape;
+      if (!shape || !this.hasViewContext() || !isOrderedShape(shape as never)) return;
+      const node = this.nodeInfoOf(shape)?.nodeIri;
+      const viewIri = this.viewIri;
+      if (!node || !viewIri || !this.viewManager) return;
+      if (inFront(this.viewManager.getNodes(viewIri), new Set([node])).size > 0) this.change(() => this.placeInFront([node]));
     });
     // What a nesting shows, it shows instead of a line; taken out, it is drawn as
     // one again (showByNesting, showAsLines) — in the same command. Noted as each
@@ -5053,8 +5352,11 @@ export class DiagramCanvas {
       },
     );
     djs.on('commandStack.changed', (event: { trigger?: string }) => {
-      // A rename on the canvas, undone or redone: what a label expression shows of it.
-      queueMicrotask(() => this.refreshLabelTexts());
+      // A rename on the canvas, undone or redone: what a label expression shows of it, and what a search finds.
+      queueMicrotask(() => {
+        this.refreshLabelTexts();
+        this.searchAgain();
+      });
       const pending = nested;
       nested = undefined;
       if (pending && event.trigger === 'execute') queueMicrotask(() => this.offerNesting(pending.inner, pending.outer));
@@ -5122,6 +5424,8 @@ export class DiagramCanvas {
     // way in.
 
     djs.on('selection.changed', (event: { newSelection?: DjsShape[] }) => {
+      // The other pane's selection is its own, not what the panels show (Req 24).
+      if (!this.inUse) return;
       const selected = event.newSelection ?? [];
       const iri = selected[0]?.businessObject?.iri;
       this.eventBus.emit('selection-changed', {
@@ -5136,7 +5440,7 @@ export class DiagramCanvas {
     // handler (1000), which clears a selection and says so itself.
     djs.on('element.click', 1500, (event: { element?: DjsShape }) => {
       const services = this.services();
-      if (!services || event.element !== services.canvas.getRootElement()) return;
+      if (!services || !this.inUse || event.element !== services.canvas.getRootElement()) return;
       if (services.selection.get().length === 0) this.eventBus.emit('selection-changed', { iri: undefined, iris: [] });
     });
 
@@ -5227,9 +5531,12 @@ export class DiagramCanvas {
     const viewManager = this.viewManager;
     if (viewIri && viewManager) {
       const parentIri = containerIri(shape);
+      const before = this.nodeInfoOf(shape);
       this.change(() => {
         viewManager.updateNodeBounds(viewIri, node, bounds);
         viewManager.setNodeParent?.(viewIri, node, parentIri);
+        // Taken into another container, or out of one: in front of what it overlaps there (DO-4).
+        if (before && before.parentElementIri !== parentIri) this.placeInFront([before.nodeIri]);
       });
       return;
     }
@@ -5540,13 +5847,22 @@ export class DiagramCanvas {
     if (quads.length > 0) store.removeQuads(quads as never[]);
   }
 
-  /** Set up EventBus listeners to sync canvas state with the RDF store. */
+  /** Listen on the app's event bus, until {@link destroy}. */
+  private listen(type: Parameters<EventBus['on']>[0], handler: Parameters<EventBus['on']>[1]): void {
+    this.eventBus.on(type, handler);
+    this.appListeners.push([type, handler]);
+  }
+
+  /**
+   * Set up EventBus listeners to sync canvas state with the RDF store. They are about the open view, and name none:
+   * the canvas of a pane not in use ignores them, and is drawn from the store instead (Req 24).
+   */
   private setupEventListeners(): void {
-    this.eventBus.on('element-created', (event) => {
+    this.listen('element-created', (event) => {
       // Suppressed while the canvas is announcing a creation it performed itself:
       // the shape is already drawn, and re-entering the modeling layer from a
       // command hook is illegal anyway. See `emitWithoutSelfSync`.
-      if (this.suppressSync) return;
+      if (this.suppressSync || !this.inUse) return;
       const detail = event.detail;
       if (detail?.iri && detail?.typeIri && detail?.bounds) {
         this.addElement(
@@ -5559,15 +5875,16 @@ export class DiagramCanvas {
       }
     });
 
-    this.eventBus.on('element-deleted', (event) => {
-      if (this.suppressSync) return;
+    this.listen('element-deleted', (event) => {
+      if (this.suppressSync || !this.inUse) return;
       const detail = event.detail;
       if (detail?.iri) {
         this.removeElement(detail.iri as string);
       }
     });
 
-    this.eventBus.on('element-updated', (event) => {
+    this.listen('element-updated', (event) => {
+      if (!this.inUse) return;
       const detail = event.detail;
       if (detail?.iri) {
         this.updateElement(detail.iri as string, {
@@ -5578,8 +5895,8 @@ export class DiagramCanvas {
       }
     });
 
-    this.eventBus.on('relationship-created', (event) => {
-      if (this.suppressSync) return;
+    this.listen('relationship-created', (event) => {
+      if (this.suppressSync || !this.inUse) return;
       const detail = event.detail;
       if (detail?.sourceIri && detail?.targetIri && detail?.typeIri) {
         this.addRelationship(
@@ -5591,8 +5908,8 @@ export class DiagramCanvas {
       }
     });
 
-    this.eventBus.on('relationship-deleted', (event) => {
-      if (this.suppressSync) return;
+    this.listen('relationship-deleted', (event) => {
+      if (this.suppressSync || !this.inUse) return;
       const detail = event.detail;
       const relationshipIri = detail?.relationshipIri as string | undefined;
       const key =

@@ -8,7 +8,7 @@ import {
   OxigraphRdfStore,
   NAMESPACES,
   PREFIXES,
-} from '../../rdf-engine/index.js';
+} from '@linked-archi/kernel/rdf-engine/index.js';
 import type { PlatformService, FileFilter } from '../../platform/interfaces.js';
 
 const { namedNode, literal, quad } = DataFactory;

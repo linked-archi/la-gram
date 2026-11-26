@@ -1,89 +1,47 @@
 ---
 title: Bundled metamodels and icons
-description: Refresh la-gram's bundled semantic assets from meta.linked.archi or a local checkout, and render its application icons.
+description: Use the kernel's pinned metamodel snapshot and render la-gram's application icons.
 ---
 # Bundled metamodels and icons
 
-`assets/` holds a snapshot of what meta.linked.archi serves: ArchiMate 4.0 and 3.2, la-gram's Basic
-metamodel, the Linked.Archi core vocabularies, their icons and markers, and the catalogue
-(`assets/catalog.ttl`) that the *Metamodels* menu offers. The web app uses it first, the desktop app and
-la-gram-git use it alone ([`assets`](../reference/url-parameters.md#assets)), and every build copies it
-as it is ([Building](building.md#bundled-assets)). Everything in it is meta.linked.archi's: do not edit
-it by hand.
+The installed `@linked-archi/kernel` package owns the bundled semantic assets: ArchiMate 4.0 and 3.2,
+Basic, the core vocabularies, icons, markers and the catalogue. They are in
+`node_modules/@linked-archi/kernel/assets/`. The web app uses this snapshot first; the desktop app and
+la-gram-git use it alone ([asset modes](../reference/url-parameters.md#assets)). Every build copies the
+installed snapshot into its output `assets/` directory.
 
-LeanIX and other languages outside this snapshot load from meta.linked.archi when selected. Their
-documents are fetched with HTTP revalidation and kept in memory for that session. After publishing
-new resources, reopen la-gram to load them again. Listing a language in the bundled catalogue does
-not mean its semantic documents are bundled for offline use.
+A catalogue entry does not mean the language is bundled offline. Other languages, including LeanIX,
+load by IRI when selected. Uploaded documents and the chosen asset mode work through the same kernel
+loader. Reopen the application to refresh documents already held in a session.
 
-## `npm run sync-assets` {#npm-run-sync-assets}
+## Updating the snapshot {#updating-the-snapshot}
 
-Refreshes `assets/` from **https://meta.linked.archi/** by default. No local meta checkout is required.
-The published files are copied byte for byte into the snapshot:
+Refresh and qualify assets in the **linked-archi-kernel repository**, following its development guide.
+Its asset synchronizer is the only implementation. la-gram takes an updated kernel package; it does
+not maintain or edit a second source snapshot.
 
-- Turtle documents from `<their namespace's path>/ontology.ttl`, using the namespace in the bundled
-  copy (`vann:preferredNamespaceUri`, else `@prefix :`, else `@base`);
-- icons, glyphs and markers from their paths relative to the published site;
-- the catalogue from `https://meta.linked.archi/catalog.ttl`.
-
-The online sync also downloads newly referenced icons within folders already bundled, discovered
-from the notation documents it downloads. It refreshes the bundled languages; it does not add every
-language listed in the catalogue or discover new Turtle dependencies.
+Until registry publication, put the kernel's packed archive in `vendor/` and install it as a file
+package. For the current package:
 
 ```sh
-npm run sync-assets -- --check
-npm run sync-assets
+npm install ./vendor/linked-archi-kernel-0.1.5-k02b.1.tgz
+npm run typecheck
+npm test
 npm run build
+npm run test:browser
 ```
 
-`--check` compares with the selected source without changing files. An online request that fails
-fails the sync: there is no fallback to a local checkout or a successful result based on the old
-snapshot. Every required download is staged before the snapshot is changed, so a network failure
-leaves `assets/` intact.
-
-### Choosing a source {#sync-source}
-
-| Option | Values | Default |
-|---|---|---|
-| `--check` | compare only; change nothing | **off**: update `assets/` |
-| `--meta <path>` | explicitly use a `linked-archi-meta` checkout | **unset**: use the published site |
-| `LINKED_ARCHI_META=<path>` | select a local checkout from the environment; `--meta` takes precedence | **unset**: use the published site |
-| `--online` | use the published site even when `LINKED_ARCHI_META` is set | **off**: honour an explicit local source |
-| `--help`, `-h` | show usage without syncing | **off** |
-
-`--online` and `--meta` are alternative source choices; passing both is a usage error.
-
-To work with an unpublished meta checkout:
-
-```sh
-npm run sync-assets -- --meta ../../../linked-archi-meta
-```
-
-Local mode runs that checkout's publishing scripts (`.scripts/copy-ttl-sources.sh` and
-`.scripts/copy-icon-assets.sh`) into a temporary folder, then copies the bundled files from their
-published paths. New files in a bundled icon folder are included. The catalogue comes from the
-checkout's last generated site, `.onto-docs/catalog.ttl`; run `.scripts/docgen/generate-docs.sh` in
-that checkout first for a current full catalogue. When the generated catalogue is missing, the
-bundled catalogue is kept and the run reports it. A successful local `--check` compares with the
-checkout's generated files; it does not establish that its catalogue reflects the current sources.
-
-To select the published site despite an environment override:
-
-```sh
-LINKED_ARCHI_META=../../../linked-archi-meta npm run sync-assets -- --online --check
-```
-
-| Exit code | Means |
-|---|---|
-| **0** | updated successfully; with `--check`, nothing differs |
-| **1** | `--check` found differences or missing files, or an online request failed |
-| **2** | invalid arguments or an unavailable local checkout |
+Commit the archive, dependency manifest and lockfile together. The workspace must use the same qualified
+archive for the two-tool gate. Install the archive, not a link to the kernel checkout: a linked checkout
+can resolve a second instance of n3 or Oxigraph. `kernel-package.test.ts` checks dependency identity and
+asset ownership.
 
 ### Building the snapshot {#building-the-snapshot}
 
-After an update, rebuild (`npm run build`) to ship it. Each build's `?v=` digest of `assets/` changes
-with the snapshot, so browsers load the new files ([Building](building.md#assets-version)). Builds
-copy the snapshot as it stands and do not run the sync command automatically.
+Builds copy the installed package's assets without fetching updates. Their `?v=` digest is computed
+from that same package's file names and contents ([Building](building.md#assets-version)). Changing
+the package's assets changes the digest. Each output replaces its generated asset copy, removing
+files the new package no longer contains.
 
 ## `npm run icons` {#npm-run-icons}
 

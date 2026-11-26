@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest';
-import type { PropertySuggestion, ResolvedProperty } from '../../../model-manager/property-catalog.js';
+import type { PropertySuggestion, ResolvedProperty } from '@linked-archi/kernel/model-manager/property-catalog.js';
 import '../property-picker.js';
 import type { PropertyPicker, PropertyPickedDetail } from '../property-picker.js';
 

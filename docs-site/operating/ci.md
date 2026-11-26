@@ -100,7 +100,7 @@ downloads nothing more ([Container image](container-image.md)). On GitLab:
 
 ```yaml
 la-gram-git:
-  image: registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
+  image: ghcr.io/linked-archi/la-gram-git:0
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   variables:
@@ -118,7 +118,7 @@ On GitHub Actions, as the job's container; keep the template's `on:` and `permis
 jobs:
   models:
     runs-on: ubuntu-latest
-    container: registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
+    container: ghcr.io/linked-archi/la-gram-git:0
     steps:
       - uses: actions/checkout@v4
         with:

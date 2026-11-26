@@ -291,6 +291,13 @@ In parts, each reviewed before the next.
 - [x] SPARQL console: SELECT tables under their projected columns, CONSTRUCT triples as a table, prefixed names that reveal the concept, 500-row cap, results scrolled into sight — *sparql-editor.test, workbench.test, workbench.spec*
 - [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; drawn by walking the store; the query behind it as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported as `.rq`, the drawn triples as `.ttl`; ＋ New view laid out as drawn; tests hold walk and both query forms to the same result — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Relationship graph, live force layout (Req 17.2, 17.7–17.12) (2026-11-10): Force the default, d3-force stepped by la-gram's own loop (`graph-force.ts`); animated up to 100 elements, laid out at once up to 800, rings above with a note on the stats line; seeding beside the parent, turned clear of what is drawn; the middle element pinned; drags live, held or alone, released on drop; the camera moved only at rest; paused while hidden; a refresh that changes nothing moves nothing; the limits measured and checked by `npm run bench -- --graph` — *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
+- [x] A loader while something large opens (Req 11.13; key design decision 47; 2026-11-26): models opened and imported, diagrams of 500 shapes and lines or more; painted before the work, turned by the compositor — *busy.test, workbench.test, workbench.spec*
+- [x] Two views at once (Req 24; key design decision 48; `.agents/tasks/split-view/`; 2026-11-26): *Split* side by side or one above the other, a divider dragged or moved with the keys, the pane in use and what follows it, *Open beside* from the tree and from a view reference, any view in either pane, kept up to date from the store, *Sync selection*, closed with another model — *split-view.test (both), view-canvas.test, model-explorer.test, mount-ui.test, workbench.spec*
+- [x] Git messages kept until closed (Req 18.31; 2026-11-26): sticky toasts with a ×, links in every toast; a step on the way transient — *dialogs.test, git-module.test*
+- [x] The Git tab's *Save to Git* (Req 18.25; 2026-11-26): the File menu's action, its commit message asked the same way, enabled while bound and no Git operation runs — *git-sync.test, git-module.test*
+- [x] Drawing order (Req 22.11, 22.12, 13.1; key design decision 46; 2026-11-26): *Bring to front*, *Bring forward*, *Send backward*, *Send to back* — the right-click menu, the toolbar's *Order* menu, Ctrl/⌘+[ ] with Shift for the ends; stored as core-vis 0.10's `arch-vis:zOrder` through kernel `0.1.5-k02b.1`; shapes drawn and re-stacked in that order; a move keeps it; new, pasted and re-parented placements in front of what they overlap; the exchange import keeps the file's order — *drawing-order.test, rdf-ordering.test, canvas-clipboard.test, archimate-importer.test, canvas-toolbar.test, workbench.test, workbench.spec*
+- [x] Search (Req 23; key design decision 45; 2026-11-26): the diagram's — Ctrl/⌘+F or 🔍; names, figure texts and types' names; outlined, stepped, *Select all*, "N more in other views" opening the tree filtered; searched again on every change — and the RDF panel's — 🔍 or Ctrl/⌘+F in it; highlights; *Aa*; searched again on a new text; Ctrl/⌘+F by where the focus is, or the last click — *find-bar.test, text-search.test, canvas-search.test, rdf-panel.test, model-explorer.test, canvas-toolbar.test, workbench.test, workbench.spec*
+- [x] Relationship graph, the wheel's zoom (Req 17.14) (2026-11-26): by the distance scrolled, the same for a mouse, a trackpad and a pinch (`wheel-zoom.ts`) — *wheel-zoom.test, workbench.spec*
 - [x] Relationship graph, force controls (Req 17.13) (2026-11-10): *Forces* under *Layout* with Force, folded — *Link distance* 40–400 px (**180**), *Charge strength* 0–1 500 (**350**, d3's −350), *Collision radius* 0.5×–2× (**1.0×**), native sliders with their values and units, `aria-valuetext`, a focus ring; *Reset*; followed live while the run animates (at most one update a frame), laid out again on release otherwise; framed at rest; `la-gram:graph-forces`, brought into range on read; disabled where Force draws rings; the defaults give the layout unchanged — *graph-force.test, graph-force.property.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Performance: cold start ≈ 1.2 s; 500 elements — create 140 ms, draw 56 ms, validate 140 ms, save 20 ms (Chrome, bundled ArchiMate 4.0)
 - [x] Automatic layout (Req 21; key design decision 21) (2026-11-15): ELK's layered layout in a worker (`src/layout/`), right-angled routes, nesting, bands from the manifest's `arch:diagramGroupOrder`, deterministic; *Arrange view…* on the canvas toolbar and the empty canvas's right-click menu — scope, *Direction*, *Spacing*, *Group by band*, remembered, one undoable step; a model opened with no geometry and *Render as new view* laid out the same; the grid above 2 000 elements, on failure or after 10 s, said; ELK's effort by the diagram's size; `npm run bench -- --layout` — *layout.test, bands.test, canvas-toolbar.test, connection-docking.test, workbench.test, workbench.spec*
@@ -301,6 +308,8 @@ In parts, each reviewed before the next.
 - [x] Electron packaging and a smoke test of the desktop build — `npm run package`; *electron.spec* launches the desktop build (skipped without the Electron binary); the packaged app checked by hand (macOS arm64)
 - [x] Electron: a current major (28 is past end of life), a Content-Security-Policy, and the renderer without Node integration — done (2026-10-17), see the change log
 - [x] The alpha at app.linked.archi/la-gram-alpha/, deployed from each merge to the default branch while `package.json` says a pre-release; its browser storage its own; its version's page naming the commit (Req 15.10; key design decision 40; 2026-11-20) — *release-pipeline.test, storage-scope.test, version-page.test*
+- [x] Line shape (Req 22.9, 22.10, 22.2; key design decision 44; 2026-11-26): the selected lines given a shape, set once as their route — *Straight*, *Right angles*, *Horizontal first*, *Vertical first* — from the toolbar's *Line shape* menu and a line's right-click menu; *Right angles* and *Arrange relationships* on a selection route among the view's other lines, kept where they are (`routeOrthogonal`'s kept lines); the elbows `layout/line-shapes.ts` — *orthogonal-router.test, line-shapes.test, canvas-arrange.test, canvas-toolbar.test, workbench.test, workbench.spec*
+- [x] la-gram on GitHub, released from there only (Req 15.8, 15.10–15.12, 20.9; key design decision 43; 2026-11-25): one workflow releases la-gram (the GitHub Release, approved in `production`) and la-gram-git (npm by trusted publishing and the image on ghcr.io, approved in `la-gram-git`); `.gitlab-ci.yml` gone; app.linked.archi installs releases itself (`ops/pull-deploy/`); la-gram's menu, version pages, documentation and la-gram-git's package name the GitHub repository — *pull-deploy.test, package.test, version-page.test, help.test*
 
 ## Beyond the reference spec (tool spec phases 3–4)
 - [ ] Freehand sketch layer and progressive typing (tool spec §5.8–5.9)
@@ -343,7 +352,7 @@ when it starts; what is already recorded elsewhere is named, not repeated.
 
 Agreed order; relationship visuals come first.
 
-- [ ] **la-gram on `@linked-archi/kernel` (L01)** — recorded (2026-11-20), not started: the model logic (`rdf-engine`, `metamodel-manager`, `model-manager`, `model-io.ts`) and `assets/` moved to the kernel repository (`tools/platform/linked-archi-kernel`, platform decision PD-14); la-gram builds on the package and deletes its copies, with no change in behaviour. Until then, a fix to these modules is made in the kernel first and copied here. `.agents/tasks/kernel-migration/`.
+- [x] **la-gram consumes `@linked-archi/kernel` (L01 implementation)** — 2026-11-24: shared modules/assets come from the installed archive, with app-specific tests retained. Web/Electron/CLI builds and browser conformance pass. Full closure criteria and remaining packaging/history checks are recorded in `.agents/tasks/kernel-migration/tasks.md`; no independent model copies are maintained here.
 - [x] **The Linked.Archi IRI layout, part 4** (DD-41) — done (2026-11-18): a merge follows a namespace move, la-gram asks before moving a model saved to Git and keeps it bound, `la-gram-git check` reports the layout. Parts 1–4 done 2026-11-18, see the change log. `.agents/tasks/iri-layout/`.
 - [x] **la-gram follows a namespace move made on the other side of a merge** — recorded (2026-11-18), done (2026-11-19): *Pull from Git*, *Merge with the newer version*, *Update from main…* and *Open this version* (after a second question) move the open model to the IRI the other version has it under, its session, binding and History tab with it; automatic checks and auto-commit stop and say that Pull follows (Req 18.28; key design decision 34). See the change log.
 - [x] **Access and directed-association ends** — done (2026-10-10): the kinds of access and the directed association are subclasses with their own ends; see the change log.
@@ -386,6 +395,7 @@ Agreed order; relationship visuals come first.
 - [x] **The order of proposal: one rule, by the kinds of the two elements, named by the manifest** — done (2026-11-15): the ArchiMate orders are by kind of element and the manifest names them; core's `arch:relationshipProposalOrder` gives the rule, la-gram ranks by it (Req 4.2; key design decision 22; meta's `.agents/tasks/relationship-proposal-order/`, with the before-and-after comparison of every pair). See the change log.
 - [ ] **Arrange view: write and redraw only what moved** — recorded (2026-11-15), not started. ELK runs in its worker, but writing its result and redrawing the diagram run on the main thread: the canvas pauses 0.5 s after arranging 500 elements and 2.1 s after 2 000 (4× CPU: 2.9 s and 11.3 s; `npm run bench -- --layout`). Updating the moved shapes and routes in place, rather than the view drawn again from the store, would shorten it.
 - [ ] **Metamodels that offer nothing to draw, less than they define, or are not in the menu** — recorded (2026-11-16); la-gram's part done the same day (Req 2.24: *Other*, the notices, the unload); the data is meta's, measured and planned in `linked-archi-meta/.agents/tasks/metamodel-completeness/README.md`: abstract classes to mark, palette groupings to name, taxonomies to complete or add (UML, UAF, TOGAF, DoDAF, BPMN, LeanIX v3, ATAM…), manifests for the asset sets that have none (Architecture Decisions first, `decision-modelling-layer`). Done in meta the same day — Reference Architecture with Tactics has its manifest too — but for what its README lists as left: element types for EA-as-a-Service's other classes, the four sets that define nothing to draw, and Processes, whose process classes are to become element types with a manifest, a taxonomy and relationship types (`linked-archi-meta/.agents/tasks/processes-as-elements/`; la-gram's part there: G1–G4).
+- [ ] **A line's shape kept, and curved lines** — recorded (2026-11-26), not started; with the next core-vis and kernel. *Line shape* (Req 22.9) sets a route once. A shape kept as a property of the line would route it again whenever an element it touches moves, or one moves into its way, and would let a line be drawn as a curve through its bends. core-vis has no term for how a line is routed: one goes into meta's core-vis first (its name and values to decide; whether a relationship type's notation may set a default), then the kernel's assets, then la-gram — the menu setting it, the *Appearance* tab showing it, the canvas drawing curves, a move re-routing the kept-shape lines in the same step, copy, merge and the exports carrying it. `.agents/tasks/line-shape/README.md`, *Later*.
 - [ ] **A benchmark row for *Arrange relationships*** — recorded (2026-11-16), not started: `npm run bench -- --layout` times *Arrange view* only; a row routing the lines of 500 and 2 000 placements would catch a slow router (one change took routing 2 000 elements from seconds to 52 s before it was measured) and give the figures the worker move is judged by.
 - [ ] **The router in the layout worker** — recorded (2026-11-16), not started: *Arrange relationships* and the routing after *Arrange view* run on the main thread (known limitation 14: up to 1.8 s for 1 000 lines, about 4.5 s for 4 000); in the worker the canvas stays responsive, and *Arrange view* could route above 500 placements (`ROUTE_AFTER_LAYOUT_MAX`).
 - [ ] **Docking a line whose first turn is a short step** — recorded (2026-11-16), not started: a line that steps a few pixels one way and then turns the other is placed by the step, and may cross a line it could have docked beside (1 case in 242 of one tall element's lines to four others; known limitation 14). Placing it by its first turn longer than the spacing would do.
@@ -461,11 +471,178 @@ Agreed order; relationship visuals come first.
 11. **Copy and paste** (Req 3.22): *Paste as copies*, *Paste as references*, *Duplicate* and the right-click menu's pastes paste what this window copied or pasted last — a page may not read the clipboard without asking; only Ctrl/⌘+V (and the desktop app's Edit › Paste) reads what another window copied. The desktop app's Edit menu has *Cut*, *Copy* and *Paste* only. A potential derivation the model does not state is not copied from the tree.
 12. **Automatic layout** (Req 21). The layout runs in a worker, but its result is written and the diagram redrawn on the main thread: arranging 500 elements pauses the canvas 0.5 s, 2 000 elements 2.1 s (Apple M4 Pro, Chrome; four times that with the CPU throttled 4×). Above 2 000 elements, or after 10 s, the grid is used. A model opened with no geometry is laid out on its first diagram only, where every element is placed. Above 150 elements a layer no longer keeps the elements in their type and name order, and above 500 ELK spends less effort on crossings (Req 21.13), so a diagram of 151 elements is arranged differently from one of 150 with the same relationships. The bands are the manifest's: a language whose manifest names no `arch:diagramGroupOrder` (Basic) has none.
 13. **What is proposed first** (Req 4.2): an order cannot lift a relationship the tables permit only by derivation above one they permit directly. So between two ArchiMate 4.0 events Composition comes first — 4.0 gives Triggering there only as derived — and between a path or a network and the elements it connects a derived Serving comes before the Association the figures draw. Where the closure sizes of two orders' classes decide and neither's classes are subclasses of the other's, the result is la-gram's, not core's rule.
-14. **Arranging relationships** (Req 22.2) runs on the main thread, and above 500 elements *Arrange view* keeps ELK's routes (Req 21.1) — *Arrange relationships* routes them afterwards: 1 000 lines among 500 elements pause the canvas up to 1.8 s, 4 000 among 2 000 about 4.5 s, before the routes are written. In a narrow gap shared by several lines, the outer ones bend closer than 24 px to the elements beside it. A line between elements that overlap, or one of which holds the other, keeps its route; so does a line from a figure to a line. Lines sharing a channel are spread only as far as the elements beside it leave room, so a crowded channel's lines may still run together. The lines on one side of an element are docked by their first turn: a line that first steps a few pixels one way, then turns the other, is placed by the step and may cross a line it could have docked beside.
+14. **Arranging relationships** (Req 22.2) runs on the main thread, and above 500 elements *Arrange view* keeps ELK's routes (Req 21.1) — *Arrange relationships* routes them afterwards: 1 000 lines among 500 elements pause the canvas up to 1.8 s, 4 000 among 2 000 about 4.5 s, before the routes are written. In a narrow gap shared by several lines, the outer ones bend closer than 24 px to the elements beside it. A line between elements that overlap, or one of which holds the other, keeps its route; so does a line from a figure to a line. A kept line's diagonal segments — one drawn straight, centre to centre — are not weighed as crossings, and its end on a side is held as a straight line's is, whichever way it runs. Lines sharing a channel are spread only as far as the elements beside it leave room, so a crowded channel's lines may still run together. The lines on one side of an element are docked by their first turn: a line that first steps a few pixels one way, then turns the other, is placed by the step and may cross a line it could have docked beside.
+15. **The split view** (Req 24). Dragging a palette entry or a tree row places it in the pane in use; dropped on the
+    other pane, nothing is placed — the other pane is pressed first. A pane closed takes its history of views and its
+    undo steps with it. Two panes on one large view draw it twice: twice the time to open it and the memory to hold it.
+    Dragging an element from one pane into the other, more than two panes, and the split kept over a reload are
+    queued (`.agents/tasks/split-view/`, *Later*).
 
 ---
 
 ## Change log
+
+### 2026-11-26 — Two views at once: the split view
+
+- **The split view** (Req 24; key design decision 48; `.agents/tasks/split-view/`; `split-view.ts`). A modeller looked
+  at one view at a time; opening another replaced it. Now *Split*, beside the *View* list's ＋, puts a second pane
+  beside the first — *Side by side* or *One above the other* — showing the same view, then any other: a diagram, a
+  catalog or a matrix, and one view in both. The divider is dragged (each pane at least 15%), moved with the arrow
+  keys or reset by a double-click; the orientation and its place are remembered. The pane last pressed is the pane in
+  use, marked in the accent colour, and everything about the open view follows it — the *View* list, *Back* and
+  *Forward* (each pane its own history), undo (each its own steps), the keys, the canvas toolbar, the palette, the
+  panels, search, export. *Open beside*, from a view's right-click menu in the model tree and a view reference's on
+  the canvas, opens a view in the other pane. A change in either pane, a panel, a collaborator's or Git's shows in
+  both; a view deleted closes its pane; another model opened closes the split. *Sync selection* (on by default)
+  outlines, dashed, in the other pane what is selected in the pane in use. Each pane has its own canvas; the one not
+  in use takes no keys, no clipboard and none of the events about the open view, and is drawn from the store after
+  each change — checked in the browser: Delete in the pane in use leaves the other view as it was. *split-view.test
+  (the frame; the workbench), view-canvas.test, model-explorer.test, mount-ui.test, workbench.spec*
+- **Docs**: README; *Models and views* (*Two views at once*); the specification's Requirement 24.
+
+### 2026-11-26 — A loader while something large opens
+
+- **The loader** (Req 11.13; key design decision 47; `busy.ts`). Opening a large model or diagram held the page for
+  seconds with nothing to show it was working. Now a spinner and what is opening — *Opening shop.trig…*, *Opening
+  Landscape (2,941 shapes)…* — are over the workspace until it is open: for opening a model (*File › Open…*, from Git,
+  from a link), importing an ArchiMate exchange file, and opening a diagram of 500 shapes and lines or more from any
+  of the ways in. The loader is painted before the work starts, and turns while it runs (Chrome's screencast, frame by
+  frame, during a 2.5 s draw); it fades in after a quarter of a second, so a quick open does not flash it. A smaller
+  diagram opens at once, as before. *busy.test, workbench.test, workbench.spec*
+- **Docs**: README; *Files* (*Open*), *Models and views* (*Open a view*).
+
+### 2026-11-26 — What a Git action did stays on screen until closed
+
+- **Kept until closed** (Req 18.31). A Git result — *Committed abc12345 to … — https://…*, a pull's outcome, a merge's
+  conflicts, a refusal — went after four seconds (eight for an error), often before it was read, and with it the
+  commit's address. Now every message the Git module gives stays in the corner until its × closes it; several stack.
+  *Pulling … from …*, a step on the way, still goes by itself. *dialogs.test, git-module.test*
+- **Links in messages.** A web address in any message is a link, opened in a new tab (the desktop app opens it in the
+  browser). Only http(s); a full stop or a comma after it is left out; the rest stays text. *dialogs.test*
+- **Docs**: README; *Git storage* (*Messages*).
+
+### 2026-11-26 — Save to Git from the Git tab
+
+- **Save to Git in the Git tab** (Req 18.25). The tab offered *Check for remote changes*, *Pull from Git* and *Git
+  settings…*; committing meant going to *File › Git*. Its first button is now *Save to Git*: the menu's action itself,
+  asking for the commit message as the menu does, committing to the bound repository, branch and file. Enabled
+  whenever the model is bound and no Git operation is running — in a shared room and with conflicts too, as the menu
+  offers it. *git-sync.test, git-module.test*
+- **Docs**: README; *Git storage* (*Git status and regular checks*).
+
+### 2026-11-26 — Drawing order: to the front, to the back
+
+- **What is drawn above what is saved** (Req 22.11, 22.12; key design decision 46; `.agents/tasks/drawing-order/`). A
+  view's shapes were drawn in the order the store returned them, by IRI hash, and a moved shape went on top until the
+  next reload, so two overlapping shapes could swap after a save. Now a node's `arch-vis:zOrder` (core-vis 0.10,
+  linked-archi-meta's DD-45) orders it among the shapes in its place, the same in every window and tool; a move keeps
+  the order. *drawing-order.test, rdf-ordering.test*
+- **The four** — *Bring to front*, *Bring forward*, *Send backward*, *Send to back* — for the selected elements and
+  figures: the right-click menu (one of several selected keeps the selection, with or without folders), the canvas
+  toolbar's *Order* menu, and Ctrl/⌘+Shift+], Ctrl/⌘+], Ctrl/⌘+[, Ctrl/⌘+Shift+[. A step goes past the next shape it
+  overlaps. One undoable step; said only when nothing changes. *drawing-order.test, canvas-toolbar.test,
+  workbench.test, workbench.spec*
+- **New placements in front of what they overlap**: from the palette, the tree, *Append*, a paste or *Duplicate*, and
+  one taken into a container. Over nothing, nothing is written. *drawing-order.test, canvas-clipboard.test*
+- **The ArchiMate exchange import** keeps the file's order as zOrder where nodes in one place overlap (Req 13.1).
+  *archimate-importer.test*
+- **Kernel `0.1.5-k02b.1`**: the K02b candidate with drawing order, packed from kernel `a9f0b38` as `k02b.0` was, and
+  pinned in la-gram and the workspace. A figure's right-click menu on one of several selected no longer offers *Move
+  to folder…*: a figure is in no folder.
+- **Docs**: README; *Drawing on the canvas* (*Order*, the right-click menu, the toolbar), *Keyboard and mouse*,
+  *File formats*; the in-app *Keyboard shortcuts*.
+
+### 2026-11-26 — Search on the canvas and in the RDF panel
+
+- **The diagram's search** (Req 23.1–23.5; key design decision 45; `.agents/tasks/search/`). Ctrl/⌘+F, or 🔍 in the
+  canvas toolbar, opens a find bar over the diagram: it finds the open diagram's elements and relationships by name
+  and by type's name ("application component" finds every one), and notes, groups, shapes and view references by
+  their text. Every match is outlined, the current one selected and scrolled into view; Enter and Shift+Enter, or
+  ↑ ↓, step through them in reading order; *Select all* selects them all; "4 more in other views" opens the model
+  tree filtered by the same text. An edit, undo, a collaborator's change or another view searches again. The
+  desktop app had no find, and the browser's reads the page, not the diagram. *canvas-search.test, find-bar.test,
+  canvas-toolbar.test, workbench.test, workbench.spec*
+- **The RDF panel's search** (Req 23.6). 🔍 in its header, or Ctrl/⌘+F in the panel: every match in the text shown
+  highlighted, the current one scrolled to, case ignored unless *Aa*; searched again whenever the text changes. The
+  matches are painted with the browser's highlights, so the panel's text and its click-to-select are as they were.
+  *text-search.test, rdf-panel.test, workbench.spec*
+- **Ctrl/⌘+F** (Req 23.7): the RDF panel's search in it, the model tree's filter in the tree, the diagram's elsewhere
+  while a diagram is open — or, with nothing focused, where the pointer was last pressed. The browser's own stays
+  in the SPARQL editor, over a catalog or a matrix, and under a dialog. *model-explorer.test, workbench.test*
+- **Docs**: README; *Drawing on the canvas* (*Search*), *RDF panel* (*Search*), *Model tree*, *Keyboard and mouse*.
+
+### 2026-11-26 — The Graph tab zooms as far for a mouse as for a trackpad
+
+- **The wheel's zoom** (Req 17.14; design, *Relationship graph*). On Linux with a mouse the Graph tab zoomed 0.8% a
+  notch — about 90 notches to zoom in twice as far — and on a Mac's trackpad sixteen times over in 1 000 px of
+  scrolling: the drawing library takes a wheel whose events are all one size for notches, each a fixed small step,
+  and any other wheel pixel by pixel, and the panel slowed both by 0.3. la-gram now zooms each event by its length in
+  pixels: a notch 15–18%, 1 000 px of a trackpad four times, a pinch as far as the fingers spread, no event more
+  than 1.41×. *wheel-zoom.test, workbench.spec*
+- **Docs**: *Relationship graph* (*Navigate*).
+
+### 2026-11-26 — Line shape: one line, or a few, routed as chosen
+
+- **Line shape** (Req 22.9, 22.10; key design decision 44; `.agents/tasks/line-shape/`). A modeller could route
+  every line of a view, or of the selected elements, but not tidy one line. *Line shape* gives the selected lines a
+  shape in one undoable step, written as their route (`arch-vis:points`), so every tool reading core-vis draws it:
+  ***Straight*** (the bends out, centre to centre, as a new line), ***Right angles*** (the router, around the
+  elements, the other lines staying), ***Horizontal first*** and ***Vertical first*** (one bend at the corner of the
+  two centres; straight between facing sides where the corner would fall inside one). From a button in the canvas
+  toolbar, after *Arrange relationships*, with a menu of the four with their pictures, enabled when a line is
+  selected; and from a line's right-click menu, for it or for every line selected with it. Lines ending on a line or
+  on their own element, held by a collaborator, or — but for *Straight* — between placements that overlap are left as
+  they are, and said. *line-shapes.test, canvas-arrange.test, canvas-toolbar.test, workbench.test, workbench.spec*
+- **Kept lines in the router** (Req 22.2; design, *Arrange options*). `routeOrthogonal` takes the lines it is not to
+  route: it weighs crossing them, docks beside their ends — a bent one in the order of the bent lines, so neither
+  crosses the other — and runs beside them in a gap; it never moves them. With none it routes as before.
+  *Arrange relationships* on a selection now passes the view's other lines, so the lines of a few elements no longer
+  dock on top of, or run along, the lines around them; and it routes the selected lines too — with only a line
+  selected it routed every line of the view, and its dialog offered no choice. *orthogonal-router.test,
+  canvas-arrange.test*
+- **Later**: a shape the line keeps — routed again when an element moves — and curved lines, once core-vis has a term
+  for how a line is routed (*Queued next*).
+- **Docs**: README; *Tidy a diagram* (*Give a line a shape*), *Diagrams* (the line's right-click menu).
+
+### 2026-11-25 — la-gram on GitHub: one workflow releases la-gram and la-gram-git; the server installs releases
+
+- **GitHub only** (Req 15.12; key design decision 43). la-gram's repository is https://github.com/linked-archi/la-gram,
+  with its history (`.agents/tasks/github-move/`). `.gitlab-ci.yml` is gone: `.github/workflows/la-gram.yml` builds,
+  tests and releases both products. la-gram's menu (*Source code*, *Report a problem or an idea*, *Every release, on
+  GitHub*), its version pages (the Release at its tag, the source at its tag, the alpha's commit), the documentation's
+  footer and links, and la-gram-git's `package.json` and image labels name it. The build takes the commit for the
+  version's page from GitHub's `GITHUB_SHA`, none on a tag. *version-page.test, help.test*
+- **la-gram's release** (Req 15.8, 15.11). A tag `la-gram-v<version>` makes the GitHub Release, once its reviewer
+  approves in the environment `production`: the five desktop apps, the web app with its documentation as one file,
+  their sums and an attestation of each. app.linked.archi installs the newest release and the alpha itself, only a
+  file whose attestation says this workflow built it from the release's tag or `main` (`ops/pull-deploy/`): no job
+  connects to the server, and no key to it is kept. *pull-deploy.test*
+- **la-gram-git's release** (Req 20.9). A tag `la-gram-git-v<version>` (checked against its `package.json` by
+  `version`) publishes the one packed file, once approved in the environment `la-gram-git`: to npm with provenance,
+  by trusted publishing — its first publish by `NPM_TOKEN`, that environment's only secret, deleted after — and as
+  `ghcr.io/linked-archi/la-gram-git`, built on GitHub's amd64 and arm64 runners and tagged with the version, its
+  major version and `latest`. *pull-deploy.test, package.test*
+- **Docs**: README (*Releasing la-gram-git*, *Releasing la-gram*), *Developing › Releasing* (the workflow job by job,
+  the server's side, the setup, each release), *Hosting the web app*, *Container image*, *la-gram-git in CI*,
+  `ops/pull-deploy/README.md`. `release-pipeline.test`, which read `.gitlab-ci.yml`, is gone; what it checked of the
+  operating page moved to *pull-deploy.test*.
+
+- **2026-11-24 — shared kernel migration (KM-1–15; Req 1.9).** Model and asset imports now use the pinned kernel
+  package. Web/Electron compile its TypeScript, the CLI bundles it, and all targets copy its assets. App-dependent
+  tests remain here; shared tests live in the kernel. The migration manifest names every removed copy and its
+  destination, and `api-usage.md` inventories the exported names used by the app. *kernel-package.test*, the
+  existing unit/browser suites, CLI checks and workspace *verify-interoperability.mjs* verify the transition.
+  Documentation now describes package ownership, not a second asset synchronizer.
+
+
+### 2026-11-23 — la-gram's documentation links are absolute
+
+- *la-gram documentation* in la-gram's menu and About, and the documentation links of *Keyboard shortcuts*
+  and *Download the desktop app…*, open the published documentation wherever la-gram runs:
+  https://app.linked.archi/la-gram/docs/, and from an alpha build https://app.linked.archi/la-gram-alpha/docs/
+  (`laGramDocs`, by `BUILD.channel`). They followed the app's address before, so an installation on another
+  host had to serve the site itself (Req 15.5). *Third-party licences* stays the file beside the web app.
+- Tests: *help.test*, *workbench.spec*. Docs: *User guide* (la-gram’s menu), *Hosting the web app*.
 
 ### 2026-11-23 — unit tests: 20 s a test
 
@@ -1275,15 +1452,15 @@ Agreed order; relationship visuals come first.
 - **Graph performance** (Req 17.6, 17.8): running the Graph tab's SPARQL CONSTRUCT in Oxigraph took seconds from 100 elements (7 s at depth 5) and grew with the model, so the tab walks the store breadth first instead — milliseconds, growing with what is reached; the query stays the export, and tests require the walk and the query to return the same triples (decision 11).
 - **SPARQL tab**: an empty `CONSTRUCT` result with a `#` in a `PREFIX` IRI came back as an empty table — the query-form detection read comments inside IRIs and let the prefix-stripping swallow the query; it now masks IRIs and strings first and takes the first form keyword.
 
-### 2026-09-27 — relationship graph (commit `88ba85e`)
+### 2026-09-27 — relationship graph (commit `0ac9922`)
 
 - **Relationship graph** (Req 17): a **Graph** tab under the canvas — the relationships around the selected element to a chosen depth (1–5), filterable by element and relationship type (filters prune the traversal), drawn with the notation (Cytoscape.js, a new dependency — decision 10 in the design); exports the SPARQL CONSTRUCT behind it (`.rq`, or into the SPARQL tab) and what is drawn as Turtle.
 
-### 2026-09-26 — relationships, append menu (commit `baf413d`)
+### 2026-09-26 — relationships, append menu (commit `e857a45`)
 
 - **Relationships** (Req 4.2, 4.4, 4.13): what connect, append and "change type" offer comes from the relationship shapes (ArchiMate's matrix), not the domain/range hints alone — before, 68% of the relationships an ArchiMate 4.0 append created by default failed validation. The append menu's icons load (they were asset-relative paths the page could not resolve), and it asks which relationship when several specific ones are permitted. It has two tabs, **New element** and **Existing relationships**: the second brings what the element is already related to in the model into the view, beside it, with the relationship.
 
-### 2026-09-26 — layout, properties, docs (commit `eac25c4`)
+### 2026-09-26 — layout, properties, docs (commit `b03482d`)
 
 - **Layout** (Req 11): model tree left (full height); palette right (hideable "▦ Palette", resizable); under the canvas, tabs **Properties / Validation / SPARQL Query** — resizable by the top edge, folding to the tabs, remembered; the number of Violations on the Validation tab.
 - **Property panel** (Req 3.4, 3.6): the Properties tab, with vertical tabs — *‹Kind› information* (ID, type, `inModel`, name, definition; the name and the definition always listed, emptying the definition removes it), *Properties* (added ones + add field), *Analysis*, *Appears in views* — counts, Up/Down, the open tab remembered.
@@ -1291,13 +1468,13 @@ Agreed order; relationship visuals come first.
 - **Assets:** `archimate4-viewpoint-shapes.ttl` re-synced from `linked-archi-meta` (severity on the property shapes): a view without a viewpoint is a Warning in ArchiMate 4.0 too.
 - **Docs:** specs, README, conventions and the tool spec brought up to date; the tool spec gains the model-namespace, property-editing and format decisions and an implementation-status appendix.
 
-### 2026-09-25 — RDF view, IRIs, first property panel changes (commit `c19608c`)
+### 2026-09-25 — RDF view, IRIs, first property panel changes (commit `b99cdd1`)
 
 - **RDF panel** (Req 5.7): the live model as Turtle (or TriG, JSON-LD, N-Quads, N-Triples, RDF/XML) on the far right, hidden by default (`{ } RDF`, `?rdf=1`); geometry toggle, counts, copy, download, highlighting, selection ⇄ statements; resizable.
 - **HTTP URIs and a model namespace** (Req 9.7a/b): `urn:la-gram:` replaced by `{base}{notation}/{uuid}/`, base `https://example.org/` (or `?base=`); flat local names so the whole model is written with `m:`; the namespace and prefix stated on the model with `vann:`; **Model settings** changes them and moves the model's IRIs (legacy IRIs flattened); collaborators follow. DD-15 graph IRIs under the namespace; the collaboration server's snapshot uses the model's prefix; `rdf:type` first under each subject.
 - **Property panel:** hideable and resizable on the right (since moved to the bottom tabs); fields ordered ID, type, `inModel`, `prefLabel`, then the rest; no `inView` rows.
 
-### 2026-09-25 — Phase 1: spec alignment (commit `0ab0acf`)
+### 2026-09-25 — Phase 1: spec alignment (commit `b5bcfd4`)
 
 - Requirements, design and tasks ported from the `la-modeller-excalidraw` specification (numbers 1–11 kept for comparison; 12–16 la-gram's own); the implementation-independent tool spec copied to `docs/`.
 - Test fixtures read from the bundled assets instead of absolute paths.

@@ -6,7 +6,7 @@
  */
 
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js';
-import type { Bounds, Point } from '../model-manager/interfaces.js';
+import type { Bounds, Point } from '@linked-archi/kernel/model-manager/interfaces.js';
 import type { LayoutResult } from './layout-types.js';
 
 export function fromElkGraph(laidOut: ElkNode, origin: Point): Pick<LayoutResult, 'bounds' | 'routes'> {

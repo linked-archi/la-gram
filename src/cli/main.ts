@@ -14,8 +14,8 @@ import { commentTarget, diffMarkdown, postComment } from './diff.js';
 import { init } from './init.js';
 import { runMergeDriver } from './merge.js';
 import { asLaGramWrites, hasModelExtension, isModel, type ShapesFile } from './models.js';
-import { parseModelText } from '../import-export/model-io.js';
-import { detectFormat } from '../metamodel-manager/asset-sources.js';
+import { parseModelText } from '@linked-archi/kernel/import-export/model-io.js';
+import { detectFormat } from '@linked-archi/kernel/metamodel-manager/asset-sources.js';
 
 export const USAGE = `la-gram-git — la-gram's models in Git: checked, rewritten, compared, merged.
 

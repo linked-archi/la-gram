@@ -1,6 +1,6 @@
 {
   "name": "la-gram",
-  "version": "0.3.0",
+  "version": "0.4.0-alpha",
   "description": "Semantic modeller for enterprise and IT architecture, built on Linked.Archi metamodels",
   "productName": "la-gram",
   "main": "dist/electron/main.cjs",
@@ -24,7 +24,6 @@
     "collab": "node server/collab-server.mjs",
     "dev": "npm run build:dev -- --config-name web && npm run serve",
     "typecheck": "tsc --noEmit",
-    "sync-assets": "node scripts/sync-assets.mjs",
     "icons": "node scripts/make-icons.mjs",
     "package": "npm run build:electron && node scripts/package-electron.mjs",
     "bench": "node scripts/bench.mjs",
@@ -40,6 +39,7 @@
     "@codemirror/view": "^6.26.0",
     "@hocuspocus/provider": "^4.7.0",
     "@hocuspocus/server": "^4.7.0",
+    "@linked-archi/kernel": "file:vendor/linked-archi-kernel-0.1.5-k02b.1.tgz",
     "cytoscape": "^3.34.3",
     "d3-force": "3.0.1",
     "diagram-js": "^14.0.0",

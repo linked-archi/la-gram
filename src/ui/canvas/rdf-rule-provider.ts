@@ -16,8 +16,8 @@
 
 import RuleProvider from 'diagram-js/lib/features/rules/RuleProvider.js';
 
-import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
-import type { RelationshipManager } from '../../model-manager/interfaces.js';
+import type { RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { RelationshipManager } from '@linked-archi/kernel/model-manager/interfaces.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import { labelFitsInside } from './notation-shapes.js';
 import { isDrawingOnly } from './view-reference.js';

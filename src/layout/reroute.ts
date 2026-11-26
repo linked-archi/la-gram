@@ -7,7 +7,7 @@
  */
 
 import type { LayoutResult } from './layout-types.js';
-import type { ViewManager } from '../model-manager/interfaces.js';
+import type { ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
 import { routeOrthogonal, type RouterEdge, type RouterNode } from './orthogonal-router.js';
 
 /**

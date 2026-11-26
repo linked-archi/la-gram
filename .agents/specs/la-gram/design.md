@@ -53,9 +53,9 @@ graph TB
 
 | Layer | Directory | Responsibility |
 |---|---|---|
-| RDF engine | `src/rdf-engine` | Oxigraph store (native bulk load), observable wrapper (change feed, recording), IRI minting, parser/serializer, SHACL validator |
-| Metamodel manager | `src/metamodel-manager` | Asset sources, manifest-driven loader, catalogue, palette generation (dual classification, axes, notation), viewpoints |
-| Model manager | `src/model-manager` | Session, model namespace (minting, moving), element/relationship/view managers, cascade rules, queries, property catalog (what to offer when adding a property), legacy migration, shared vocabulary |
+| RDF engine | `@linked-archi/kernel/rdf-engine` | Oxigraph store (native bulk load), observable wrapper (change feed, recording), IRI minting, parser/serializer, SHACL validator |
+| Metamodel manager | `@linked-archi/kernel/metamodel-manager` | Asset sources, manifest-driven loader, catalogue, palette generation (dual classification, axes, notation), viewpoints |
+| Model manager | `@linked-archi/kernel/model-manager` | Session, model namespace (minting, moving), element/relationship/view managers, cascade rules, queries, property catalog (what to offer when adding a property), legacy migration, shared vocabulary |
 | Import/export | `src/import-export` | Model I/O (six formats, DD-15 partition, profiles), ArchiMate exchange import, SVG/PNG |
 | UI | `src/ui` | Shell (layout, side panels, bottom tabs), panels, canvas, dialogs, mounting |
 | Collaboration | `src/collab`, `server/` | Y.Doc binding, presence and locks, Hocuspocus server |
@@ -239,9 +239,8 @@ pictures are loaded by the browser as images, which no fetch option reaches:
 the files' names and contents), so a build with other assets gives them other
 addresses and the same ones keep theirs; the servers, and the desktop app's
 `app://` handler, read the path alone. `assets/` is
-refreshed from the published meta.linked.archi site by default with `npm run sync-assets`.
-A local `linked-archi-meta` checkout can be selected explicitly (`--meta` or `LINKED_ARCHI_META`),
-using that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
+copied from the installed kernel package. Asset refresh and qualification belong in that repository;
+la-gram installs its new archive/version with the lockfile. Every discovered document gets a status (loaded,
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
 loaded natively into Oxigraph — 110 ms for the 72 740-quad ArchiMate 3.2
 relationship shapes, against 1.4 s quad by quad. Derivation rules, deliverable
@@ -473,8 +472,7 @@ then — unless offline — the published one, read from meta.linked.archi
 whatever the asset mode: under `bundled-first` the chain would always answer
 from the bundle, and a newly published metamodel would wait for a new la-gram.
 A published catalogue that is missing or unreadable leaves the bundled list.
-`npm run sync-assets` takes the published `catalog.ttl` by default. Explicit local mode uses
-the meta checkout's last generated site (`.onto-docs/catalog.ttl`).
+The installed kernel provides the bundled catalogue; updates arrive with a qualified kernel package.
 
 Snapshot freshness is a release preparation step (key design decision 25). The sync command compares
 the files already bundled with the selected source. Online mode fetches Turtle by namespace path,
@@ -619,12 +617,12 @@ the toolbar's `_appMenu` under the name, `installMenu` in `electron-main.ts`).
 The pages the menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
 desktop app's menu bar read the same. A page of la-gram's own documentation (`docsPage`:
 *la-gram documentation*, and the shortcuts' page) is resolved by `helpHref`/`docsHref`
-against the web app's address — `docs/` beside it, where the build puts the site
-(`docs-site/`, `npm run docs:build`) and the release deploys it with the app — so a
-deployment elsewhere opens its own copy, of its own version. The desktop app's files
-are no site: `mount-ui` gives the toolbar, About and the shortcuts no address there
-(`isElectronEnvironment`), and they open the published copy, `LA_GRAM_DOCS`, as the
-menu bar does from the list's `href`. *Download the desktop app…* is a dialog of
+to the published copy for the build's channel (`laGramDocs`: `LA_GRAM_DOCS`, or the
+alpha's, `/la-gram-alpha/docs/`), never against the app's address: an installation
+elsewhere — another host, the desktop app, a developer's machine — need not serve the
+site, and still opens the documentation online (2026-11-23). `mount-ui` gives the
+toolbar, the shortcuts and *Download the desktop app…* the channel (`BUILD.channel`);
+About's *Third-party licences* stays the file beside the web app it runs from. *Download the desktop app…* is a dialog of
 blocks too (`downloadBlocks`): a link for each of `DESKTOP_DOWNLOADS` at
 app.linked.archi — absolute, unlike the documentation: the apps are the project's
 release, which a deployment elsewhere does not build — those of the system the user
@@ -648,41 +646,46 @@ is taken down. The toolbar's menus, buttons and toggles do not shrink; the
 model's name does, down to 64 px, and media queries narrow the selectors, then
 hide their names, then the toggles' words, so the bar holds from 1100 px.
 
-**Releases** (Req 15.8; `.gitlab-ci.yml`). A tag
-`la-gram-v<version>` starts the tests, then `web` (the web build; it also runs
-on every merge request, and hands the version on as a dotenv variable, since
-the Release's fields take variables, not shell) and `desktop`, a matrix of five
-targets packaged on the amd64 Linux runner: @electron/packager downloads each
-target's Electron and builds a macOS app off macOS, leaving out the asar
-integrity digest that only `codesign` could re-seal — so Electron's ad-hoc
-signature holds and Apple silicon launches it — and edits the Windows
-executable's resources with `resedit`, without Wine (its publisher from
-`win32metadata`, else package.json's `author`). The macOS app's bundle then has
-no valid seal — Electron's binary keeps its ad-hoc signature, the renamed
-bundle has none over it — which Gatekeeper reports for a downloaded copy as
-"damaged", with no Open Anyway; rcodesign (pinned, checksum checked) signs it
-ad hoc on the runner, as `codesign --sign -` would. The macOS and Windows apps
-are zipped (`zip -y` keeps the app bundle's symbolic links), the Linux ones
-tarred (modes kept), and uploaded to the generic package registry with the job
-token; then `web-deploy` copies the web build over SSH (meta.linked.archi's
-variables, and `LA_GRAM_DEPLOY_PATH`), and `la-gram-release` makes the Release
-with the `glab` image and the `release` keyword. Before the copy, `web-deploy`
-fetches the five apps from the package registry (job token) into the build's
-`downloads/`, each named without its version (`la-gram-darwin-arm64.zip`), and
-writes their `SHA256SUMS.txt`: one `rsync --delete` then puts the app, its
-documentation and its desktop apps in place together, of one version, and the
-names stay, so la-gram's menu and documentation link the latest release's apps
-without knowing its version (`DESKTOP_DOWNLOADS` in `help-links.ts`; the
-pipeline's test checks the two name the same files). It waits for the desktop
-jobs: no web app goes out without its apps. A pre-release runs no `web-deploy`,
-so the downloads stay the last release's. The web app needs nothing to
+**Releases** (Req 15.8, 15.11, 15.12; `.github/workflows/la-gram.yml`). A tag
+`la-gram-v<version>` starts `version` (the tag's version against `package.json`,
+before anything is built), the tests, `web` (the web build; it also runs on every
+pull request) and `docs`, and `desktop`, a matrix of five targets packaged on
+GitHub's Linux runner: @electron/packager downloads each target's Electron and
+builds a macOS app off macOS, leaving out the asar integrity digest that only
+`codesign` could re-seal — so Electron's ad-hoc signature holds and Apple silicon
+launches it — and edits the Windows executable's resources with `resedit`,
+without Wine (its publisher from `win32metadata`, else package.json's `author`).
+The macOS app's bundle then has no valid seal — Electron's binary keeps its ad-hoc
+signature, the renamed bundle has none over it — which Gatekeeper reports for a
+downloaded copy as "damaged", with no Open Anyway; rcodesign (pinned, checksum
+checked) signs it ad hoc on the runner, as `codesign --sign -` would. The macOS
+and Windows apps are zipped (`zip -y` keeps the app bundle's symbolic links), the
+Linux ones tarred (modes kept). `release` then makes the GitHub Release, in the
+environment `production`, whose reviewer approves it: the five apps, the web app
+with its documentation as one tarball, `SHA256SUMS.txt`, and an attestation of
+each (`actions/attest-build-provenance`, signed with the run's OIDC token).
+Nothing in the workflow reaches the server: app.linked.archi installs the newest
+release itself (`ops/pull-deploy/la-gram-pull`, a systemd timer per channel), and
+only a file whose sum and attestation check — this workflow, this repository, a
+GitHub-hosted runner, the release's tag (the alpha's: `main`). It puts the
+desktop apps into the release's `downloads/`, each named without its version
+(`la-gram-darwin-arm64.zip`), with their sums, so la-gram's menu and
+documentation link the latest release's apps without knowing its version
+(`DESKTOP_DOWNLOADS` in `help-links.ts`; `pull-deploy.test.ts` checks the
+workflow, the script and the menu name the same files); copies every version's
+page into it (`versions/`); and swaps the served link in one rename, checking the
+site serves the new `index.html` and swapping back if not. A pre-release is a
+GitHub pre-release, which the server never takes. The web app needs nothing to
 run under `/la-gram/`: webpack's `publicPath` is `auto`, and the bundled
 assets resolve against `document.baseURI`. The host's site for app.linked.archi
-— kept with the host's configuration, not here — serves the folder under
+— kept with the host's configuration, not here — serves the link under
 `/la-gram/` (its exact name taking the host over from the `*.linked.archi`
 catch-all), the page and the metamodels revalidated, the content-named scripts
 and WebAssembly kept, and the desktop app's Content-Security-Policy with
-`https:` and `wss:` connections; the README says what la-gram needs of it.
+`https:` and `wss:` connections; *Hosting the web app* says what la-gram needs of it.
+The version's page names la-gram's repository as the menu does (`REPOSITORY` in
+`help-links.ts`, `webpack.config.js`), and the commit from GitHub's `GITHUB_SHA`,
+none when `GITHUB_REF_TYPE` is `tag`.
 
 **Exporting the open view** (Req 14; `toSvg` in `diagram-canvas.ts`,
 `svg-png-exporter.ts`, `exportView` in `mount-ui.ts`). `toSvg` builds the file
@@ -853,7 +856,8 @@ as a drag's are written: a moved element's lines keep their bends and re-dock th
 what moves into its edge.
 
 What is acted on is what is selected less what is in a selected container (it moves with it), unlocked; with nothing
-selected, align to grid, arrange relationships and the default size act on the whole view.
+selected, align to grid, arrange relationships and the default size act on the whole view. *Arrange relationships*
+also takes the selected lines.
 
 The router routes each line, in order of IRI, on the orthogonal visibility graph of the placements near it: the grid
 of the edges, grown by a 16 px margin, of every placement but the line's ends and their containers, with the ports'
@@ -898,7 +902,25 @@ states is done again with crossings free; a grid above 60 000 vertices is not se
 
 The toolbar's quick actions use what the dialogs last chose, remembered per browser (`la-gram:arrange-grid`,
 `la-gram:arrange-sizes`, `arrange-settings.ts`), and say it in their tooltips; the toolbar is told how many
-placements are selected (`DiagramCanvas.arrangeAvailability`) on every selection change, to enable what that allows.
+placements and lines are selected (`DiagramCanvas.arrangeAvailability`) on every selection change, to enable what that allows.
+
+**Kept lines.** Routing some of a view's lines — *Arrange relationships* on a selection, *Right angles* — the router
+is given the others as kept lines (`routeOrthogonal`'s `kept`): never routed or moved, and counted as lines routed
+before. The search weighs crossing their horizontal and vertical segments (a diagonal one is not weighed); docking,
+a kept line's end holds its point — a straight one as a straight line does, a bent one in the order of the bent lines,
+as a line that cannot move — and a routed line on its point moves off it; in a gap, a kept segment holds its place and
+a routed one goes as near its own as it can, the spacing from it. With none, the router routes as it did, so
+*Arrange relationships* on the whole view and *Arrange view* are unchanged.
+
+**Line shape** (Req 22.9, 22.10; `.agents/tasks/line-shape/`). `CanvasArrange.shapeLines` takes the selected lines
+between two placements, computes each one's route and runs the changed ones as `la.arrange.apply`'s routes: one undo
+step, written as a bent line is. *Straight* asks the canvas's layouter for the line with no route — centre to centre,
+cropped by the docking service, each end keeping the centre as its reference, as a new line is drawn. *Right angles*
+is the router with the other lines kept. The elbows are `layout/line-shapes.ts`'s `elbowRoute`, pure: one bend at
+the corner of the two centres, ends at the middles of the sides on the bounding box, as the router's are; straight
+between facing sides where the corner would fall inside one. The toolbar's *Line shape* button opens its menu as the
+arrange menu opens; the right-click menu's group runs the same through the host's context actions
+(`line-straight`, …), which say what was done.
 
 ### Which relationships are permitted
 
@@ -1485,6 +1507,15 @@ itself only at rest: the run frames the graph before `data-layout` turns `settle
 while the view is *following* — a press, scroll or pinch in the drawing ends it; the
 first drawing, a change the user asked for, a switch of layout, a change of forces
 and *Fit* start it.
+The wheel is la-gram's (Req 17.14; `wheel-zoom.ts`): a listener added to the drawing's
+element before Cytoscape.js is made runs before its own wheel zoom there and stops it.
+Cytoscape.js takes a wheel whose first events are all one size for a mouse, each event a
+fixed small step, and any other for a trackpad, every pixel counted: a mouse's notch zoomed
+0.8% (with the `wheelSensitivity` 0.3 the panel had), 1 000 px of a trackpad's scrolling 16×.
+Each event is now measured in pixels — a line 40, a page the panel's height — and zooms
+2^(−Δ/500), clamped to ±½ a doubling an event; a pinch, which browsers send as a wheel with
+Ctrl, 2^(−Δ/69), as the scale it stands for, e^(−Δ/100). The zoom stays within the view's 0.05–3×,
+and still says `scrollzoom`, which ends following.
 The panel says whether a drawing was asked for (`show(…, { follow })`) by comparing
 what is asked — source, root, depth, filters — with what it drew, so a refresh after
 a model change and a return to the tab keep the camera. Hiding the tab or folding
@@ -1561,6 +1592,100 @@ is selected (`?conceptType`).
 and passes its viewpoint (`viewpointOfAnswer`): the one it fits, or the one it
 was asked about (`?viewpoint`, `viewpoint-scope`) — `createViewWith(…, {
 viewpointIri })`.
+
+### Drawing order
+
+What is drawn above what (Req 22.11, 22.12; `.agents/tasks/drawing-order/`). A node's `arch-vis:zOrder` (core-vis
+0.10, linked-archi-meta's DD-45) orders it among the nodes in its place; the kernel compares
+(`compareDrawingOrder`: zOrder, then node IRI by code point) and reorders (`reorder`). On the canvas
+(`rdf-ordering.ts`), each shape's business object carries its node's `zOrder`, from the store (`zOrderToDraw`, as
+`appearanceToDraw`); `shapeIndex(parent, shape)` puts a shape among its parent's shapes in that order, before the
+first line, wherever one is added — `syncFromStore`, a re-parent, diagram-js's create and move through `RdfOrdering` —
+so a move keeps a shape's place. At the end of every sync, `applyDrawingOrder` takes each placement's zOrder from the
+store and `sortShapes` puts a parent's shapes back in order in the places shapes held, its lines and labels where
+they were; the shapes that moved are said changed, and the canvas's re-stacking puts their graphics in place. A
+canvas command that wrote zOrders — `rdf.store.change` whose diff holds `arch-vis:zOrder` — done, undone or
+redone, applies it once the stack settles; an edit outside the canvas (`rdf.store.edit`) is followed by a sync.
+
+The four (`DiagramCanvas.reorderSelection`) group the selected placements, less what is in a selected container and
+what a collaborator holds, by parent, ask `reorder` for each, and write the changes with `recordChange`: one
+`rdf.store.edit`. New placements (`inFront`): after a `shape.create` has written the node and its container
+(priority 400, after nesting at 500), a placement under one it overlaps in its place is brought to the front of it, in
+a nested `rdf.store.change`; a paste does the same inside its recorded change (`placeInFront` on the clipboard's
+host); `writeLayout` does it when a move changes a node's container. The ArchiMate exchange import writes each
+place's file order as zOrder where any of its nodes overlap.
+
+### The loader
+
+Opening a model, or drawing a large diagram, holds the page's main thread for up to seconds (Task 22: a view of 2 941
+shapes in 0.56 s, one of 10 000 in 2.2 s, a model with such a view 3.3 s), and the browser paints nothing meanwhile
+(Req 11.13). `busy.ts`'s `BusyIndicator.while(message, work)` puts the loader on the page, waits until it is painted
+(`nextPaint`: the next animation frame, then a task after it), and only then runs the work; several share one
+overlay. Its spinner turns by a CSS `transform` animation and it fades in by an `opacity` animation after 0.25 s —
+both run by the compositor, off the main thread, so they go on while the work holds it, and a quick open never shows
+it. mount-ui's `openView` is how the toolbar, the tree, the panels, references, history and reveals open a view: a
+diagram of `LOADER_FROM_SHAPES` (500) nodes and links or more goes under the loader, and its callers await it before
+acting on the view; a smaller one opens at once, synchronously, as before. `openModelText`, the import and the
+`?model=` start-up run under it. The overlay is under the dialogs and the messages (z-index 1990).
+
+### Split view
+
+Two views at once (Req 24; `.agents/tasks/split-view/`). The canvas area holds the canvas toolbar and, under it,
+`split-view.ts`'s `SplitLayout`: one pane, or two with a divider — a flex row or column, the first pane's share as its
+`flex-basis` (less the divider), the second taking the rest; dragged with pointer capture, moved with the arrow keys,
+reset by a double-click; the orientation, the share and *Sync selection* remembered in `localStorage`. mount-ui's
+*pane* is a column — a header (the view's name, ×), a diagram host with its own `DiagramCanvas`, a catalog and a
+matrix — with the view it shows, its kind and its own `ViewHistory`. The second pane is made by `split` and destroyed
+by `closePane` (its canvas's diagram-js, listeners and observers with it).
+
+The pane in use is mount-ui's `pane`; `diagramCanvas`, `canvasHost`, `catalogView`, `matrixView` and `viewHistory`
+are its parts, so the code that acts on "the canvas" acts on the pane in use. A capture-phase `pointerdown` or a
+`focusin` on a pane calls `usePane` before diagram-js sees the event: the canvas left gives up the
+keys (`setInUse(false)`: diagram-js's `Keyboard.unbind`, the clipboard ignored, its context pad closed), the find bar
+moves to the pane and searches it, and `session.openView(pane.viewIri)` runs with `switchingPane` set, so that
+`onViewOpened` only follows the view (`followActiveView`: the viewpoint, the tree, the toolbar, the headers) and shows
+the pane's own selection, without drawing, visiting the history or starting undo afresh. What is said to every
+canvas — the palette, the relationship-names and notation-only switches, labels, violations, what collaborators hold
+(`setCanvasMarkers`, `setLockedIris`, remembered for a pane made later) — goes to both (`eachCanvas`).
+
+The pane not in use is brought up to date from the store: every model event (`onAnyModelChange`) asks for
+`syncOtherPanes`, which runs once in a microtask after the burst — `syncFromStore` for a diagram, `refresh` for a
+catalog or a matrix — and closes the pane whose view is gone. *Sync selection* is `la-selected-elsewhere`, set on the
+other canvas by `setMarkers` with what the pane in use has selected (its canvas's selection, or the concept a catalog
+selected), and a catalog's `selectedIri`. On `model-loaded`, a model moved (`previousModelIri`) keeps the other pane
+on its view under the new namespace (`namespaceShown`, the namespace before); another model closes it.
+
+### Search
+
+Search on the canvas and in the RDF panel (Req 23; `.agents/tasks/search/`). Both use one find bar, `find-bar`, a
+Lit component that searches nothing itself: it says what is typed and pressed (`find-query`, `find-step`,
+`find-close`, `find-select-all`, `find-elsewhere`) and shows the count its host gives it; Esc in it goes no further,
+so the maximized RDF panel is not also restored.
+
+**The diagram's.** `canvas-search.ts`: a shape's texts (`searchTextsOf`: its label — a name, a figure's text, a view
+reference's view — its own text, and an element's or a relationship's type's name, as the palette names it), matched
+case-insensitively with runs of white space as one; the matches sorted into reading order (rows of 20 px by their
+top, left to right; a line by its route's top left). Each wears the diagram-js marker `la-search-match`, the current
+one `la-search-current` too, painted on `.djs-outline` in orange in `index.html` — over the selection's outline,
+which the current one also has; exports drop `.djs-outline`. The current match is selected and scrolled to
+(`canvas.scrollToElement`). `DiagramCanvas.search(query, again)`: a new text makes the first match current; `again`
+keeps the current one while it matches and selects nothing — called after `syncFromStore`, another view, and every
+`commandStack.changed`, and said to the host (`onSearchUpdated`), which updates the bar. The bar is inside the diagram
+host, so it hides with it under a catalog or a matrix. "N more in other views" counts the model's elements and stated
+relationships (`ModelContentsIndex`, as the tree lists them) matching by name or type's name and not placed in the
+view; its link shows the tree and sets its filter (`ModelExplorer.focusFilter`).
+
+**The RDF panel's.** `text-search.ts`: `findMatches` (plain text, case ignored unless asked; a text whose lower case
+has another length — İ — is searched as it is, so the offsets stay its own) and `rangesOf` (offsets as DOM ranges
+over the code element's text nodes, found by binary search). They are painted with the CSS Custom Highlight API —
+`CSS.highlights`, `la-rdf-match` and `la-rdf-current`, styled by `::highlight(…)` in the panel's styles — so the HTML
+the tokenizer assigned is never touched, and a match may run across tokens. A new text (`updated`, after the HTML is
+assigned) is searched again, keeping the match nearest the current one's offset. Without the API the current match
+is the page's text selection.
+
+**Ctrl/⌘+F.** One window listener, as Ctrl/⌘+S's: the key's composed path says where it came from — the RDF panel,
+the model tree, the SPARQL editor. The RDF text and the tree's rows take no focus, so a key from the page itself goes
+by the path of the last `pointerdown` (captured on the window).
 
 ### RDF panel
 
@@ -2761,7 +2886,7 @@ merging about 0.5 s; under the plan's 1 s for splitting a model into files. The
 suite runs it on 100 000 (`MERGE_BENCH_TRIPLES` for more): the large one, beside
 the other tests, pushed *questions-bench.test* past its limits.
 
-**Tests.** *model-merge.test* — a fixture per kind (`src/__tests__/fixtures/merge/`,
+**Tests.** *model-merge.test* — a fixture per kind (kernel `src/__tests__/fixtures/merge/`,
 each side's additions and removals on one base model): changes that combine;
 a name per language; a retype; a retarget kept whole; a concept deleted against
 a rename, a new relationship, a placement, a folder entry, and deletions that
@@ -2857,45 +2982,45 @@ under *IRI layout (DD-41), advisory*, after the SPARQL-based rules, each counted
 with its first three names relative to the namespace; a model all in the layout
 gets no line.
 
-**Release** (Req 20.9). `.gitlab-ci.yml`, la-gram's only pipeline, runs on a
-tag `la-gram-git-v<version>`, and for merge requests and the default branch
-(`workflow:rules`; other tags `never`; other branch pushes match no rule, so no
-duplicate branch pipeline beside a merge request's). Jobs are `interruptible`,
-so a newer push cancels an older pipeline, except what publishes: the `.release`
-jobs run only with `$CI_COMMIT_TAG`, `interruptible: false`, without the cache.
-Stages:
-`test` — typecheck and the unit suite, the three benchmark files left out
-(`--exclude '**/{*-bench,bench-*}.test.ts'`: they time the runner); `package` —
-on a tag, its version against `packages/la-gram-git/package.json`; `build:cli`,
-`npm pack`, the packed file installed globally and run: `--version`, and
-`check` on `packages/la-gram-git/smoke/` (a model as la-gram writes it); then,
-from that packed file (an artifact), on a tag, `npm` and the image. `npm` publishes with
-`--access public`, a pre-release under `next`; it asks for the OIDC tokens npm's
-trusted publishing takes (`NPM_ID_TOKEN`, audience `npm:registry.npmjs.org`;
-`SIGSTORE_ID_TOKEN` for provenance), and writes `NPM_TOKEN` to `.npmrc` as a
-reference npm resolves, only when the variable is set — the first publish,
-before the package exists to configure trusted publishing on. The image is
-built on each platform natively — `image-amd64` on the default runner,
-`image-arm64` on gitlab.com's `saas-linux-small-arm64` (Free tier; its
-Docker-in-Docker service started with `--mtu=1400`, the setting GitLab's
-documentation of its hosted Linux runners gives for Arm64) — and pushed as
-`<version>-<arch>`; `container-image` (not `image`: at the top of the file that
-is GitLab's keyword) then makes each published tag an index of both, with
-`docker buildx imagetools create`. Each build is of
-`packages/la-gram-git/Dockerfile` with Docker-in-Docker: `node:22`'s slim
-image, Git and CA certificates, `safe.directory` `*` (a mounted repository
-belongs to the host's user), the packed file installed globally, no entrypoint
-(a CI job runs its script in the image's shell); the context is the packed file
-alone (`.dockerignore`). It runs `--version` and `check` on the smoke model fed
-on the standard input (the Docker service does not see the job's files) on
-its own platform, before it is pushed; the published tags are the version, its
-major version and `latest`. The webpack copy of
-`LICENSE` is a file (`toType: 'file'`; without it, `LICENSE/LICENSE`).
-Measured by hand: the package job and the test job run clean in `node:22` on a
-copy of the repository's files; the image is 526 MB, and checks and diffs a
-mounted repository as root and as the host's user; both platforms' images built
-(amd64 under emulation), tried, pushed to a local registry and combined with
-`imagetools create`, each tag listing `linux/amd64` and `linux/arm64`.
+**Release** (Req 20.9). `.github/workflows/la-gram.yml`, la-gram's only
+workflow, runs on a tag `la-gram-git-v<version>`, and for pull requests and pushes
+to `main`. A newer push to a pull request cancels what is still running; `main`
+and tags run to the end. `version` checks the tag against
+`packages/la-gram-git/package.json` (its case before every other tag's, which
+would refuse it as not `la-gram-v<version>`) and says `cli`: `release`,
+`prerelease` or `none`. `test` — typecheck and the unit suite, the three benchmark
+files left out (`--exclude '**/{*-bench,bench-*}.test.ts'`: they time the
+runner); `package` — `build:cli`, `npm pack`, the packed file installed globally
+and run: `--version`, and `check` on `packages/la-gram-git/smoke/` (a model as
+la-gram writes it); its artifact, the packed file, is what is published. `web`
+and `docs` do not run on la-gram-git's tag, nor `package` on la-gram's. `npm`
+publishes with `--access public` and `--provenance`, a pre-release under `next`,
+in the environment `la-gram-git` (tags `la-gram-git-v*` only, a required
+reviewer): by npm's trusted publishing, which takes the run's OIDC token
+(`id-token: write`) for this repository, workflow and environment, and writes
+`NPM_TOKEN` to `.npmrc` as a reference npm resolves, only when the secret is set
+— the first publish, before the package exists to configure trusted publishing
+on. The image waits for `npm`, so the one approval releases both, and is built on
+each platform natively — `image`'s matrix on `ubuntu-24.04` and
+`ubuntu-24.04-arm`, GitHub's arm64 runner for public repositories — and pushed
+to `ghcr.io/linked-archi/la-gram-git` as `<version>-<arch>` with the run's token
+(`packages: write`); `image-tags` then makes each published tag an index of both,
+with `docker buildx imagetools create`. Each build is of
+`packages/la-gram-git/Dockerfile`: `node:22`'s slim image, Git and CA
+certificates, `safe.directory` `*` (a mounted repository belongs to the host's
+user), the packed file installed globally, no entrypoint (a CI job runs its
+script in the image's shell); the context is the packed file alone
+(`.dockerignore`); its `org.opencontainers.image.source` label names la-gram's
+repository, which links the image to it on ghcr.io. It runs `--version` and
+`check` on the smoke model on its own platform, before it is pushed; the
+published tags are the version, its major version and `latest`. The webpack copy
+of `LICENSE` is a file (`toType: 'file'`; without it, `LICENSE/LICENSE`).
+`package.json`'s `repository` names la-gram's GitHub repository, as npm's
+provenance requires of the repository that publishes. Measured by hand: the
+image is 526 MB, and checks and diffs a mounted repository as root and as the
+host's user; both platforms' images built (amd64 under emulation), tried, pushed
+to a local registry and combined with `imagetools create`, each tag listing
+`linux/amd64` and `linux/arm64`.
 
 Docs: `packages/la-gram-git/README.md` (npm's page: every command, exit codes,
 environment; the image — tags and digests, `linux/amd64`, no entrypoint, a mounted
@@ -2951,7 +3076,7 @@ description; CI's comment (Phase 3) is to use the same. 200 ms on 350 000 triple
 (*model-merge-bench.test*).
 
 **Tests.** *model-diff.test* (a fixture with each kind of change,
-`src/__tests__/fixtures/diff/`: a rename in one language, an element added and
+the kernel’s `src/__tests__/fixtures/diff/`: a rename in one language, an element added and
 placed, one deleted, a retarget, moves and resizes, a value added, a folder
 entry; a retype; a metamodel's single-valued property; the Markdown);
 *model-merge.property.test* (on random edits: every line under one concept, no
@@ -3451,14 +3576,12 @@ dialog; the modules' section).
     all draw the same thing without knowing why. Not done by loading Basic silently: that would add a metamodel
     to the model the modeller did not choose.
 
-25. **Sync published assets by default; local checkout as an explicit source** (Req 1.9;
-    `scripts/sync-assets.mjs`). The default build preparation must reflect what meta.linked.archi
-    publishes, including its catalogue, without requiring a developer's local checkout or generated
-    documentation tree. `--meta` or `LINKED_ARCHI_META` opts into unpublished local resources;
-    `--online` selects the published site over the environment. Required online downloads are staged
-    before writing and failures do not fall back to another source, so a failed sync cannot report
-    an older or partially updated snapshot as current. Builds remain explicit consumers of the
-    snapshot, keeping builds from adding an implicit network operation.
+25. **One qualified asset snapshot, owned by the kernel** (Req 1.9; L01, updated 2026-11-24).
+    The kernel owns the synchronizer and bundled assets. la-gram copies and digests the installed package's
+    snapshot for web, Electron and CLI; it performs no implicit refresh during builds. Both editing tools
+    install the same qualified archive. This removes independently refreshable snapshots and duplicate model
+    implementations. TypeScript in the installed package is compiled by webpack; the CLI bundles it while
+    leaving its RDF runtime dependencies external. The migration task inventories imports for K02.
 
 ---
 
@@ -3521,7 +3644,15 @@ dialog; the modules' section).
     `applyGitObservation` only for an opted-in scheduled check; that helper checks the clean-only
     precondition again synchronously before the existing undoable store change. Local status is
     debounced from effective model changes, independently of the app's local-file dirty marker.
-    The Git tab reports status without opening itself; File provides the manual check action.
+    The Git tab reports status without opening itself; File provides the manual check action. The tab's buttons
+    send the module the File menu's actions (`git-sync-action`): its *Save to Git* is the menu's `save`, run by the
+    same `run`, enabled by the status's `canSave` — bound, and no check, commit or other Git operation running —
+    which a room or unchosen conflicts do not clear, as they do not hide the menu's (2026-11-26). What a Git action
+    says is kept on screen until closed (Req 18.31): the module's one `report` (`gitReport`) asks the app's for a
+    `sticky` toast, which has a × and no timeout; a call marked `progress` — *Pulling …* — stays transient. Every
+    toast's web addresses are links (`linkedText`: http(s) only, trailing punctuation left out, the rest as text).
+    A message covers what is under it until closed; the gaps between stacked ones pass clicks through
+    (`pointer-events`), and they sit above dialogs, so an error during one is seen.
     Personal defaults are Off, with intervals 1/2/5/10 minutes and clean-only auto-pull Off.
     A queued Web Lock selects the visible, online owner per destination; a different short lock
     coordinates Git operations, allowing a waiting editor to act manually. Lifecycle/environment
@@ -3800,6 +3931,67 @@ dialog; the modules' section).
     placement the one box F2 does not rename; offering every permitted type on nesting, past what a notation says.
     The model-manager and metamodel-manager parts and the asset were made in `linked-archi-kernel` too, file for
     file (VC-DD-8).
+
+43. **GitHub only, and the server pulls** (Req 15.8, 15.11, 15.12, 20.9; 2026-11-25;
+    `.agents/tasks/github-move/`, `.agents/tasks/pull-deploy/`). la-gram moved from GitLab to GitHub, public,
+    with its history, and 0.4.0 is the first release made there: one workflow builds and publishes la-gram and
+    la-gram-git, and `.gitlab-ci.yml` is gone, so no second pipeline can publish what the first did not
+    build. The server installs releases itself, rather than a job copying them in: a job that could write to
+    the server would hold a key to it, which a changed workflow, a compromised action or an account could
+    use; with the pull, the worst they can do is publish a release, and the server takes only a file whose
+    attestation says this workflow built it from a release tag or `main`. Publishing is therefore deploying,
+    and the approval moves to the environment that publishes (`production`; `la-gram-git` for npm, whose
+    versions cannot be taken back). The workflow's one secret is `NPM_TOKEN`, in `la-gram-git` only, for the
+    first npm publish, which trusted publishing cannot make; it is deleted after. The image is built on each
+    platform's own runner, as before, rather than with QEMU: no emulation, and no action to pin beyond
+    checkout, setup-node and the artifact pair. Rejected: GitHub Pages (it cannot send the headers
+    app.linked.archi sends), and an SSH push with a restricted key (still a key).
+
+44. **A line's shape is set once, as its route, until core-vis says how a line is routed** (Req 22.9, 22.10;
+    2026-11-26; `.agents/tasks/line-shape/`). *Line shape* writes the line's `arch-vis:points`, as a bend dragged by
+    hand is: every tool that reads core-vis, and every earlier la-gram, draws the line as it was shaped, and nothing
+    new is stored. A shape kept as a property of the line — routed again whenever an element moves, or drawn as a
+    curve — needs a core-vis term on the line's style, which has none for routing; it waits for the next core-vis and
+    kernel, the term first in meta. Until then a right-angled line stays right-angled as elements move (Req 4.6),
+    and a line with no bends runs centre to centre. The elbows bend once and do not go around elements, as asked
+    of them; going around is *Right angles*, which routes with the router and keeps the view's other lines where
+    they are (kept lines) — the same as *Arrange relationships* on a selection, which before routed the lines of the
+    selected elements as if no other line were drawn, docking on top of them.
+
+45. **One find bar for the diagram and the RDF panel; the RDF panel's matches painted, not marked up** (Req 23;
+    2026-11-26; `.agents/tasks/search/`). The desktop app has no find at all, and the browser's reads the page — not the
+    diagram's viewport, and not by name and type. diagram-js's search pad (a field with a list of results) was not
+    used: one bar for both places steps through matches as a text editor's does, and has room for *Select all* and
+    what is in other views. The canvas's matches are diagram-js markers, so an export, which drops outlines, never
+    shows them. The RDF panel's text is one HTML string assigned once per change; wrapping matches in elements would
+    rewrite it on every keystroke and split its tokens, so the matches are highlights (`CSS.highlights`), which paint
+    ranges and leave the DOM as it is. Ctrl/⌘+F takes the browser's find only where la-gram has a better one: not in
+    the SPARQL editor, and not over a catalog or a matrix, which are tables the browser's find reads well.
+
+46. **Drawing order is a number per node, written only where it shows** (Req 22.11, 22.12; 2026-11-26;
+    `.agents/tasks/drawing-order/`; linked-archi-meta's DD-45). la-gram drew a view's nodes in the order the store
+    returned them — by IRI hash — and put a moved shape on top until the next reload, so what was drawn was not what
+    was saved. A core-vis term makes the order data that every tool reads, merges and copies; the order of nodes
+    without one is their IRIs', so most nodes never get one: a node is given a zOrder when it is reordered, or placed
+    over another, and nowhere else — fewer triples, smaller diffs, fewer conflicts. A step goes past the next shape
+    a shape overlaps, because order shows only between shapes that overlap, and changes no other two that do. A move
+    keeps the order, so that what is drawn is what is saved.
+
+47. **The loader is painted before the work, and turned by the compositor** (Req 11.13; 2026-11-26). The work that
+    makes a modeller wait — parsing a model, drawing thousands of shapes — is synchronous, so a loader shown in the
+    same task would never be painted. Yielding one frame first gets it on screen; animations of `transform` and
+    `opacity`, which the browser runs off the main thread, keep it alive while the work runs (checked frame by frame
+    with Chrome's screencast during a 2.5 s draw). Only diagrams of 500 shapes and lines or more wait a frame: a small
+    view still opens synchronously, so every caller that acts on the view it opened behaves as before.
+
+48. **The pane in use is the session's open view; the other is drawn from the store** (Req 24; 2026-11-26). The
+    session has one open view, and every panel, the toolbar, validation's scope, export and the collaborators'
+    presence read it; putting a pane in use opens its view in the session, with its drawing kept, so all of them follow
+    without knowing there are two — and the kernel is unchanged. Each pane has its own `DiagramCanvas`: one diagram-js
+    showing two views is not possible, and its undo steps are a view's. The app's events about the open view
+    (`element-created` with bounds, `element-deleted` from a view, `element-updated`) name no view, so the canvas not
+    in use ignores them and is synced from the store after each change; and diagram-js binds its keys to the
+    document, so only the canvas in use has them bound — otherwise Delete or Ctrl+Z would act in both panes.
 
 ## Running
 

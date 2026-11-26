@@ -8,8 +8,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import { createApp, type App } from '../app.js';
-import { ValidationEngine } from '../rdf-engine/validation-engine.js';
-import { encodeQuads } from '../rdf-engine/term-codec.js';
+import { ValidationEngine } from '@linked-archi/kernel/rdf-engine/validation-engine.js';
+import { encodeQuads } from '@linked-archi/kernel/rdf-engine/term-codec.js';
 
 const { namedNode, defaultGraph } = DataFactory;
 const AP = 'https://meta.linked.archi/arch-processes#';

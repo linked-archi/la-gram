@@ -15,14 +15,14 @@ import { basename } from 'node:path';
 import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
 import { createApp, type App } from '../app.js';
-import type { ValidationResult } from '../rdf-engine/interfaces.js';
-import { shapeIriOf } from '../rdf-engine/finding-shape.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { MODEL_FORMATS, formatOfPath, parseModelText } from '../import-export/model-io.js';
-import { detectFormat } from '../metamodel-manager/asset-sources.js';
-import { hasLabel, labelOf } from '../model-manager/model-queries.js';
-import { fieldName } from '../model-manager/field-names.js';
-import type { DiffWords } from '../model-manager/model-diff-text.js';
+import type { ValidationResult } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import { shapeIriOf } from '@linked-archi/kernel/rdf-engine/finding-shape.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { MODEL_FORMATS, formatOfPath, parseModelText } from '@linked-archi/kernel/import-export/model-io.js';
+import { detectFormat } from '@linked-archi/kernel/metamodel-manager/asset-sources.js';
+import { hasLabel, labelOf } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { fieldName } from '@linked-archi/kernel/model-manager/field-names.js';
+import type { DiffWords } from '@linked-archi/kernel/model-manager/model-diff-text.js';
 
 /** A shapes file given with `--shapes`. */
 export interface ShapesFile {

@@ -1,0 +1,12 @@
+# Updates for the actions .github/workflows/ pins to commits: a pull request a week with the new
+# commits, each with its version beside it. Read the actions' changes before merging: a pinned action
+# runs with the job's token, and the publishing jobs' can write.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

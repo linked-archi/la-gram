@@ -217,6 +217,77 @@ describe('routes at right angles around the boxes', () => {
   });
 });
 
+/** Whether two routes run along each other somewhere: a segment of one on a segment of the other, overlapping. */
+function alongEachOther(a: Point[], b: Point[]): boolean {
+  const segments = (w: Point[]) => w.slice(1).map((q, i) => ({ p: w[i], q }));
+  return segments(a).some(({ p, q }) =>
+    segments(b).some(({ p: r, q: s }) => {
+      if (p.y === q.y && r.y === s.y && p.y === r.y) return Math.max(Math.min(p.x, q.x), Math.min(r.x, s.x)) < Math.min(Math.max(p.x, q.x), Math.max(r.x, s.x));
+      if (p.x === q.x && r.x === s.x && p.x === r.x) return Math.max(Math.min(p.y, q.y), Math.min(r.y, s.y)) < Math.min(Math.max(p.y, q.y), Math.max(r.y, s.y));
+      return false;
+    }),
+  );
+}
+
+describe('kept lines: routed around, never moved (LS-DD-2)', () => {
+  it('a line docks off the point a kept line docks at, and runs beside it', () => {
+    const nodes = [node('a', 0, 0), node('b', 300, 0)];
+    const kept = [{ id: 'k', source: 'a', target: 'b', points: [{ x: 100, y: 25 }, { x: 300, y: 25 }] }];
+    const routes = routeOrthogonal(nodes, [{ id: 'l', source: 'a', target: 'b' }], undefined, kept);
+    const route = routes.get('l')!;
+    expect(route).toHaveLength(2);
+    expect(Math.abs(route[0].y - 25)).toBeGreaterThanOrEqual(12);
+    expect(route[0].y).toBe(route[1].y);
+  });
+
+  it('docks beside a kept line that turns the same way sooner, on the side where neither crosses the other', () => {
+    const nodes = [node('g', 0, 0), node('d', 300, 200), node('o', 0, 100)];
+    // Out of d's top, turning left to o: as the router itself routes it.
+    const points = [{ x: 350, y: 200 }, { x: 350, y: 125 }, { x: 100, y: 125 }];
+    expect(routeOrthogonal(nodes, [{ id: 'k', source: 'd', target: 'o' }]).get('k')).toEqual(points);
+    const route = routeOrthogonal(nodes, [{ id: 'l', source: 'd', target: 'g' }], undefined, [{ id: 'k', source: 'd', target: 'o', points }]).get('l')!;
+    // Alone, it would leave d's top at its middle too; beside the kept line, further along, it turns later.
+    expect(route[0]).toEqual({ x: 362, y: 200 });
+    expect(crossingsOf(new Map([['l', route], ['k', points]]))).toEqual([]);
+  });
+
+  it('crosses no kept line where another shape crosses none', () => {
+    const nodes = [node('a', 0, 0), node('b', 300, 200)];
+    const edge = { id: 'l', source: 'a', target: 'b' };
+    // One across the L that runs right then down, one across the L that runs down then right: either way, the other.
+    for (const points of [
+      [{ x: 200, y: 120 }, { x: 500, y: 120 }],
+      [{ x: 200, y: 150 }, { x: 200, y: 300 }],
+    ]) {
+      const route = routeOrthogonal(nodes, [edge], undefined, [{ id: 'k', points }]).get('l')!;
+      expect(rightAngled(route)).toBe(true);
+      expect(crossingsOf(new Map([['l', route], ['k', points]]))).toEqual([]);
+    }
+  });
+
+  it('a step through a gap a kept line takes runs beside it, and docks apart from it at both ends', () => {
+    const nodes = [node('a', 0, 0), node('b', 300, 42)];
+    const edge = { id: 'l', source: 'a', target: 'b' };
+    const first = routeOrthogonal(nodes, [edge]).get('l')!;
+    // A step, its middle segment in the middle of the gap.
+    expect(first.length).toBe(4);
+    const route = routeOrthogonal(nodes, [edge], undefined, [{ id: 'k', source: 'a', target: 'b', points: first }]).get('l')!;
+    expect(rightAngled(route)).toBe(true);
+    expect(alongEachOther(route, first)).toBe(false);
+    expect(route[0]).not.toEqual(first[0]);
+    expect(route[route.length - 1]).not.toEqual(first[first.length - 1]);
+  });
+
+  it('a kept line is neither routed nor moved, and is not in the answer', () => {
+    const nodes = [node('a', 0, 0), node('b', 300, 0), node('c', 0, 200)];
+    const points = [{ x: 100, y: 25 }, { x: 300, y: 25 }];
+    const kept = [{ id: 'k', source: 'a', target: 'b', points }];
+    const routes = routeOrthogonal(nodes, [{ id: 'l', source: 'a', target: 'c' }], undefined, kept);
+    expect([...routes.keys()]).toEqual(['l']);
+    expect(points).toEqual([{ x: 100, y: 25 }, { x: 300, y: 25 }]);
+  });
+});
+
 describe('places in order along a side', () => {
   const free = (place: number) => ({ place, lower: -Infinity, upper: Infinity });
 

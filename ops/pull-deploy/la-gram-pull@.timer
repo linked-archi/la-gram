@@ -1,0 +1,14 @@
+# la-gram-pull@production.timer, la-gram-pull@alpha.timer: a check every five minutes. A check that
+# finds nothing new costs GitHub's hourly limit nothing (an answer of 304). Installed as
+# /etc/systemd/system/la-gram-pull@.timer (ops/pull-deploy/README.md).
+[Unit]
+Description=la-gram: check GitHub for a new %i web app every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+Persistent=false
+
+[Install]
+WantedBy=timers.target

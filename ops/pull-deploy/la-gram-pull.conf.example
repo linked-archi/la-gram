@@ -1,0 +1,24 @@
+# /etc/la-gram-pull.conf: read by la-gram-pull (as shell, KEY=value lines only). Owner root, group
+# la-gram-pull, mode 0640: it may hold GH_TOKEN. Every key has the default shown.
+
+# The repository whose releases are installed, and the workflow in it whose build records count.
+REPO=linked-archi/la-gram
+WORKFLOW=.github/workflows/la-gram.yml
+
+# The folder nginx serves la-gram/ and la-gram-alpha/ from, and the site, to check what it serves.
+BASE=/var/www/linked-archi-app
+SITE=https://app.linked.archi
+
+# How many builds stay to roll back to, the one served among them. A release keeps its desktop apps,
+# about 0.7 GB; an alpha has none.
+KEEP_RELEASES=2
+KEEP_ALPHAS=2
+
+# The check of the site through this server's own nginx, when the server cannot reach its public
+# address (curl --resolve host:port:address):
+#CHECK_RESOLVE=app.linked.archi:443:127.0.0.1
+
+# Only if gh asks to log in, or GitHub's limit of 60 questions an hour without one is reached: a
+# fine-grained personal access token with "Public repositories (read-only)" and no permissions. It can
+# read nothing that is not public already.
+#GH_TOKEN=github_pat_...

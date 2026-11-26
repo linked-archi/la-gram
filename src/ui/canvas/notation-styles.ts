@@ -24,8 +24,8 @@ import type {
   ElementTypeInfo,
   PaletteDefinition,
   RelationshipTypeInfo,
-} from '../../metamodel-manager/interfaces.js';
-import type { NotationIndexEntry } from '../../metamodel-manager/notation-resolver.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { NotationIndexEntry } from '@linked-archi/kernel/metamodel-manager/notation-resolver.js';
 import {
   effectiveRenderingMode,
   labelExpressionIn,
@@ -33,8 +33,8 @@ import {
   type RenderingMode,
   type RelationshipVisualStyle,
   type VisualStyle,
-} from '../../metamodel-manager/notation.js';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+} from '@linked-archi/kernel/metamodel-manager/notation.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import { SHAPE_TYPES } from './notation-shapes.js';
 
 /** Where core-vis's own shapes are named: `arch-vis:Rectangle`. */

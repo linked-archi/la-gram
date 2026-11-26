@@ -1,0 +1,8 @@
+# Who reviews changes to what releases la-gram and what the server runs: the workflow, which publishes,
+# and ops/, which app.linked.archi installs from (.agents/tasks/pull-deploy/, .agents/tasks/github-move/).
+#
+# The main ruleset does not require their review yet: GitHub lets no one approve their own pull request,
+# so with one maintainer every change here would wait for ever. Turn on "Require review from Code Owners"
+# there once a second maintainer is listed.
+/.github/ @linked-k
+/ops/ @linked-k

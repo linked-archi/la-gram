@@ -25,7 +25,7 @@ import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import type { App } from '../app.js';
 import type { MountedUi } from '../ui/mount-ui.js';
-import { ObservableRdfStore } from '../rdf-engine/observable-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 import { RdfYjsBinding, type SeedPolicy } from './rdf-yjs-binding.js';
 import { domDialogs } from '../ui/dialogs.js';
 
@@ -95,8 +95,9 @@ export function startCollaboration(app: App, ui: MountedUi, options: Collaborati
       peers.push(s.user);
       for (const iri of s.selection ?? []) held.add(iri);
     }
-    ui.diagramCanvas.setMarkers(REMOTE_SELECTION_MARKER, held);
-    ui.diagramCanvas.setLockedIris(held);
+    // In both panes when the canvas is split (Req 24).
+    ui.setCanvasMarkers(REMOTE_SELECTION_MARKER, held);
+    ui.setLockedIris(held);
     setIndicator(peers);
     eventBus.emit('peers-changed', { peers, held: [...held] });
   };
@@ -171,8 +172,8 @@ export function startCollaboration(app: App, ui: MountedUi, options: Collaborati
     app.collaborationRoom = undefined;
     app.collaborationUser = undefined;
     status = 'off';
-    ui.diagramCanvas.setLockedIris(new Set());
-    ui.diagramCanvas.setMarkers(REMOTE_SELECTION_MARKER, new Set());
+    ui.setLockedIris(new Set());
+    ui.setCanvasMarkers(REMOTE_SELECTION_MARKER, new Set());
     setIndicator();
   }
 

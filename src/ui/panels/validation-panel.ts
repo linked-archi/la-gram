@@ -26,9 +26,9 @@ import type {
   ValidationResult,
   ValidationReport,
   ShaclValidator,
-} from '../../rdf-engine/interfaces.js';
+} from '@linked-archi/kernel/rdf-engine/interfaces.js';
 import type { Quad, NamedNode } from '@rdfjs/types';
-import { isIri as isIriValue, isLink, shapeIriOf } from '../../rdf-engine/finding-shape.js';
+import { isIri as isIriValue, isLink, shapeIriOf } from '@linked-archi/kernel/rdf-engine/finding-shape.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 

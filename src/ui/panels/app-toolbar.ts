@@ -2,7 +2,7 @@
  * App toolbar — the bar across the top.
  *
  * ```
- * [◭] la-gram ▾ │ Order Platform ● │ File ▾  Metamodels ▾ │ View: [Main ▾] [+] Viewpoint: [— ▾] │ Presentation: [Architect ▾] │ ◉ room · 2
+ * [◭] la-gram ▾ │ Order Platform ● │ File ▾  Metamodels ▾ │ View: [Main ▾] [+] [◫] Viewpoint: [— ▾] │ Presentation: [Architect ▾] │ ◉ room · 2
  *
  * The icon and name open la-gram's own menu: About, the keyboard shortcuts, the
  * guides and la-gram's pages.
@@ -21,15 +21,19 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { ViewInfo } from '../../model-manager/interfaces.js';
+import type { ViewInfo } from '@linked-archi/kernel/model-manager/interfaces.js';
 import {
   CATALOGUE_KIND_LABELS,
   type CatalogueEntry,
-} from '../../metamodel-manager/catalogue.js';
-import { MODEL_FORMATS } from '../../import-export/model-io.js';
+} from '@linked-archi/kernel/metamodel-manager/catalogue.js';
+import { MODEL_FORMATS } from '@linked-archi/kernel/import-export/model-io.js';
 import { HELP_LINKS, helpHref, type HelpLink } from '../../help-links.js';
 import { isMacPlatform, keyCombo } from '../help.js';
 import { menuIcon, type MenuIconName } from './menu-icons.js';
+
+/** *Split*'s icon: a frame of two panes. */
+const SPLIT_GLYPH = html`<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor"
+  stroke-width="1.3" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1"></rect><path d="M8 2.5v11"></path></svg>`;
 
 /** Commands the toolbar can issue. */
 export type ToolbarCommand =
@@ -75,7 +79,12 @@ export type ToolbarCommand =
   /** Keyboard shortcuts, in la-gram's menu. */
   | 'shortcuts'
   /** Download the desktop app, in la-gram's menu: the latest release's, a link for each platform. */
-  | 'download';
+  | 'download'
+  /**
+   * The *Split* menu (Req 24): `side-by-side` or `stacked` splits the canvas, or turns the split; `close` closes the
+   * pane not in use; `sync-selection` switches *Sync selection*.
+   */
+  | 'split';
 
 /** Detail of `toolbar-command`. */
 export interface ToolbarCommandDetail {
@@ -279,6 +288,27 @@ export class AppToolbar extends LitElement {
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
+    /* The Split menu: a column for the mark of what is in force, then the entry. */
+    .dropdown.split {
+      min-width: 210px;
+    }
+    .dropdown.split button {
+      justify-content: flex-start;
+      gap: 8px;
+    }
+    .dropdown.split .check {
+      width: 1em;
+      flex: none;
+      color: #1a73e8;
+    }
+    button.split-button {
+      display: inline-flex;
+      align-items: center;
+    }
+    button.split-button[aria-pressed='true'] {
+      color: #1a73e8;
+      background: #e8f0fe;
+    }
     .dropdown hr {
       border: 0;
       border-top: 1px solid #eee;
@@ -475,10 +505,14 @@ export class AppToolbar extends LitElement {
   @property({ attribute: false }) fileMenuItems: () => FileMenuItem[] = () => [];
   /** Whether File › Settings… is offered: there is a module to switch, or a part with settings. */
   @property({ type: Boolean }) settingsMenu = false;
-  /** The web app's address, which serves la-gram's documentation beside it; empty in the desktop app: the published one. */
-  @property({ type: String }) appBase = '';
+  /** The channel la-gram is built for (`alpha`), whose documentation its menu opens; empty for a release. */
+  @property({ type: String }) channel = '';
 
-  @state() private _open: 'file' | 'metamodels' | 'new-view' | 'app' | null = null;
+  /** How the canvas is split (Req 24): side by side, one above the other, or not at all (''). */
+  @property({ type: String }) split: '' | 'side-by-side' | 'stacked' = '';
+  /** Whether the selection in the pane in use is outlined in the other. */
+  @property({ type: Boolean }) syncSelection = true;
+  @state() private _open: 'file' | 'metamodels' | 'new-view' | 'split' | 'app' | null = null;
   /** The File menu's open submenu, by id. */
   @state() private _sub: string | null = null;
   private _subTimer: ReturnType<typeof setTimeout> | undefined;
@@ -529,7 +563,7 @@ export class AppToolbar extends LitElement {
     );
   }
 
-  private _toggle(menu: 'file' | 'metamodels' | 'new-view' | 'app'): void {
+  private _toggle(menu: 'file' | 'metamodels' | 'new-view' | 'split' | 'app'): void {
     this._open = this._open === menu ? null : menu;
     this._sub = null;
     clearTimeout(this._subTimer);
@@ -769,10 +803,41 @@ export class AppToolbar extends LitElement {
     </div>`;
   }
 
+  /** The *Split* menu (Req 24): the two orientations, the one in force marked; closing; *Sync selection*. */
+  private _splitMenu() {
+    const orientation = (value: 'side-by-side' | 'stacked', label: string) =>
+      html`<button
+        role="menuitemradio"
+        aria-checked=${this.split === value ? 'true' : 'false'}
+        data-command="split"
+        data-value=${value}
+        @click=${() => this._cmd('split', value)}
+      >
+        <span class="check">${this.split === value ? '✓' : ''}</span><span class="label">${label}</span>
+      </button>`;
+    return html`<div class="dropdown split" role="menu">
+      ${orientation('side-by-side', 'Side by side')} ${orientation('stacked', 'One above the other')}
+      <button role="menuitem" data-command="split" data-value="close" ?disabled=${!this.split} @click=${() => this._cmd('split', 'close')}>
+        <span class="check"></span><span class="label">Close split</span>
+      </button>
+      <hr />
+      <button
+        role="menuitemcheckbox"
+        aria-checked=${this.syncSelection ? 'true' : 'false'}
+        data-command="split"
+        data-value="sync-selection"
+        title="Outline what is selected in the pane in use in the other pane too"
+        @click=${() => this._cmd('split', 'sync-selection')}
+      >
+        <span class="check">${this.syncSelection ? '✓' : ''}</span><span class="label">Sync selection</span>
+      </button>
+    </div>`;
+  }
+
   /** la-gram's menu, under its icon and name: About, the keyboard shortcuts, the guides, la-gram's own pages. */
   private _appMenu() {
     const link = (l: HelpLink) =>
-      html`<a href=${helpHref(l, this.appBase || undefined)} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
+      html`<a href=${helpHref(l, this.channel)} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
         >${l.label}<span class="hint">↗</span></a
       >`;
     return html`<div class="dropdown" role="menu">
@@ -878,6 +943,19 @@ export class AppToolbar extends LitElement {
       <div class="menu-wrap">
         <button class="icon" title="New view" data-menu="new-view" @click=${() => this._toggle('new-view')}>＋</button>
         ${this._open === 'new-view' ? this._newViewMenu() : nothing}
+      </div>
+      <div class="menu-wrap">
+        <button
+          class="icon split-button"
+          title="Split: two views at once"
+          aria-label="Split"
+          aria-pressed=${this.split ? 'true' : 'false'}
+          data-menu="split"
+          @click=${() => this._toggle('split')}
+        >
+          ${SPLIT_GLYPH}
+        </button>
+        ${this._open === 'split' ? this._splitMenu() : nothing}
       </div>
       <label class="field" title="Viewpoint of the open view"
         ><span class="field-name">Viewpoint</span>

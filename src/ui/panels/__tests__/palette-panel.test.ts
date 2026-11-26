@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { PaletteDefinition, ViewpointInfo } from '../../../metamodel-manager/interfaces.js';
+import type { PaletteDefinition, ViewpointInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import { PalettePanel, type PaletteDragDetail } from '../palette-panel.js';
 
 function testPalette(): PaletteDefinition {

@@ -33,7 +33,7 @@ Re-verified for the gate:
 - Typecheck is clean.
 - Three full test runs passed (76 files, 1342 tests).
 - `npm run build:web` and `npm run build` both succeed.
-- HEAD is unchanged at `36f0a448`, and nothing is staged.
+- HEAD is unchanged at `7f0282a5`, and nothing is staged.
 - `assets/`, `bundled-assets.ts` and its test are untouched.
 - No Basic or bundled ArchiMate relationship descriptor states a colour, so connections draw `#000000`.
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import type { ElementTypeInfo, RelationshipTypeInfo } from '../../../metamodel-manager/interfaces.js';
+import type { ElementTypeInfo, RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import {
   RdfAppendMenuProvider,
   RdfAppendRelationshipMenuProvider,

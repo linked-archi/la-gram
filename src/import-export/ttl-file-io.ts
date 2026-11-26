@@ -8,10 +8,10 @@
  */
 
 import type { Quad } from '@rdfjs/types';
-import type { TtlParser, TtlSerializer, RdfStore, PrefixMap, ParseError } from '../rdf-engine/interfaces.js';
+import type { TtlParser, TtlSerializer, RdfStore, PrefixMap, ParseError } from '@linked-archi/kernel/rdf-engine/interfaces.js';
 import type { PlatformService, FileFilter } from '../platform/interfaces.js';
-import { PREFIXES } from '../rdf-engine/namespaces.js';
-import { modelQuads } from '../model-manager/model-queries.js';
+import { PREFIXES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { modelQuads } from '@linked-archi/kernel/model-manager/model-queries.js';
 
 /** TTL file dialog filter. */
 const TTL_FILTERS: FileFilter[] = [

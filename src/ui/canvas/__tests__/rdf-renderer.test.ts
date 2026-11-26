@@ -14,9 +14,9 @@ import type {
   LineStyle,
   ShapeType,
   VisualStyle,
-} from '../../../metamodel-manager/notation.js';
-import type { ElementTypeInfo } from '../../../metamodel-manager/interfaces.js';
-import { effectiveRenderingMode } from '../../../metamodel-manager/notation.js';
+} from '@linked-archi/kernel/metamodel-manager/notation.js';
+import type { ElementTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { effectiveRenderingMode } from '@linked-archi/kernel/metamodel-manager/notation.js';
 import {
   DECORATIONS,
   ICON_PLACEMENTS,

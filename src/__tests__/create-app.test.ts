@@ -10,7 +10,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import { createApp } from '../app.js';
-import { configureAssetRoot } from '../metamodel-manager/bundled-assets.js';
+import { configureAssetRoot } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 
 describe('createApp', () => {
   afterEach(() => {

@@ -47,11 +47,11 @@
 
 import { DataFactory } from 'n3';
 import type { Term } from '@rdfjs/types';
-import type { ElementManager, Point, RelationshipManager, ViewManager } from '../model-manager/interfaces.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { ensureNamespace, pathSegment } from '../rdf-engine/iri.js';
-import { appearanceOrNone, fontStyleOf, withAlpha, type Appearance } from '../model-manager/appearance.js';
-import { derivedNamespace } from '../model-manager/model-namespace.js';
+import type { ElementManager, Point, RelationshipManager, ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { ensureNamespace, pathSegment } from '@linked-archi/kernel/rdf-engine/iri.js';
+import { appearanceOrNone, fontStyleOf, withAlpha, type Appearance } from '@linked-archi/kernel/model-manager/appearance.js';
+import { derivedNamespace } from '@linked-archi/kernel/model-manager/model-namespace.js';
 
 /** The ArchiMate 3.2 ontology namespace exchange types map into. */
 export const ARCHIMATE_NS = 'https://meta.linked.archi/archimate3/onto#';
@@ -602,10 +602,39 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
 
     // Nested nodes: inside their nearest ancestor that is drawn — an element or a figure.
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
-    for (const [nodeId, drawn] of nodeElement) {
+    const drawnAncestor = (nodeId: string) => {
       let ancestor = byId.get(nodeId)?.parentId;
       while (ancestor && !nodeElement.has(ancestor)) ancestor = byId.get(ancestor)?.parentId;
+      return ancestor;
+    };
+    for (const [nodeId, drawn] of nodeElement) {
+      const ancestor = drawnAncestor(nodeId);
       if (ancestor) deps.views.setNodeParent?.(viewIri, drawn, nodeElement.get(ancestor));
+    }
+
+    // Drawing order (core-vis 0.10; la-gram's DO-5): the file draws the nodes in one place in the order it lists
+    // them, the later above. Where any of them overlap, that order is kept as their zOrder — the first none, 0;
+    // where none overlap, nothing need be written.
+    const places = new Map<string, string[]>();
+    for (const node of view.nodes) {
+      if (!nodeElement.has(node.id)) continue;
+      const place = drawnAncestor(node.id) ?? '';
+      if (!places.has(place)) places.set(place, []);
+      places.get(place)!.push(node.id);
+    }
+    const box = (id: string) => {
+      const n = byId.get(id)!;
+      return { x: n.x, y: n.y, w: n.w || 120, h: n.h || 55 };
+    };
+    const overlap = (a: string, b: string) => {
+      const [p, q] = [box(a), box(b)];
+      return p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+    };
+    for (const ids of places.values()) {
+      if (!ids.some((a, i) => ids.slice(i + 1).some((b) => overlap(a, b)))) continue;
+      ids.forEach((id, i) => {
+        if (i > 0) deps.views.setNodeZOrder?.(viewIri, nodeElement.get(id)!, i);
+      });
     }
 
     // A connection may end on another connection — a relationship whose source

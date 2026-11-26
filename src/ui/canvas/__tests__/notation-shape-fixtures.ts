@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Parser, Store } from 'n3';
-import { readCustomShape, type CustomShape } from '../../../metamodel-manager/notation.js';
+import { readCustomShape, type CustomShape } from '@linked-archi/kernel/metamodel-manager/notation.js';
 
 const stores = new Map<string, Store>();
 
@@ -17,7 +17,7 @@ const stores = new Map<string, Store>();
 function bundled(path: string): Store {
   let store = stores.get(path);
   if (!store) {
-    store = new Store(new Parser().parse(readFileSync(join(process.cwd(), 'assets', path), 'utf8')));
+    store = new Store(new Parser().parse(readFileSync(join(process.cwd(), 'node_modules/@linked-archi/kernel/assets', path), 'utf8')));
     stores.set(path, store);
   }
   return store;

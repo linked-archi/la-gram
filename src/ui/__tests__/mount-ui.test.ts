@@ -18,7 +18,7 @@ import type {
   TtlSerializer,
   ValidationReport,
   ValidationResult,
-} from '../../rdf-engine/interfaces.js';
+} from '@linked-archi/kernel/rdf-engine/interfaces.js';
 import type {
   LoadedMetamodel,
   MetamodelLoader,
@@ -26,30 +26,30 @@ import type {
   PaletteDefinition,
   PaletteGenerator,
   ViewpointManager,
-} from '../../metamodel-manager/interfaces.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import type {
   Bounds,
   ElementManager,
   RelationshipManager,
   ViewInfo,
   ViewManager,
-} from '../../model-manager/interfaces.js';
+} from '@linked-archi/kernel/model-manager/interfaces.js';
 import type { PlatformService } from '../../platform/interfaces.js';
-import { ModelOperations } from '../../model-manager/model-operations.js';
+import { ModelOperations } from '@linked-archi/kernel/model-manager/model-operations.js';
 import { TtlFileIO } from '../../import-export/ttl-file-io.js';
 import { EventBus } from '../event-bus.js';
 import { App, type AppComponents } from '../../app.js';
 import { mountUi, modelTitle, DEFAULT_MODEL_IRI, type MountedUi } from '../mount-ui.js';
 import type { Dialogs } from '../dialogs.js';
 import { RELATIONSHIP_REPLACE_MENU_ID } from '../canvas/rdf-replace-menu-provider.js';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import {
   ARCH_ELEMENT,
   ARCH_QUALIFIED_RELATIONSHIP,
   BUBBLE_ELEMENT_STYLE,
   BUBBLE_SET,
   GENERIC_RELATIONSHIP_STYLE,
-} from '../../metamodel-manager/__tests__/basic-fixture.js';
+} from '../../__tests__/kernel/basic-fixture.js';
 import { installJsdomSvgSupport } from './jsdom-svg-support.js';
 
 // mountUi constructs a real diagram-js Diagram for the canvas slot, which needs
@@ -707,10 +707,14 @@ describe('mountUi', () => {
       ).toThrow();
 
       expect(ui.canvasToolbar).toBeDefined();
-      // Mounted ahead of the diagram host, inside the canvas slot.
-      const area = ui.canvasHost.parentElement!;
+      // Mounted ahead of the panes, inside the canvas slot; the diagram host in the first pane, after its header
+      // (shown only while split, Req 24).
+      const area = ui.canvasHost.closest('.la-canvas-area')!;
       expect(Array.from(area.children).indexOf(ui.canvasToolbar)).toBe(0);
-      expect(Array.from(area.children).indexOf(ui.canvasHost)).toBe(1);
+      expect(area.children[1]!.className).toBe('la-panes');
+      const pane = ui.canvasHost.parentElement!;
+      expect(pane.className).toBe('la-pane');
+      expect(Array.from(pane.children).indexOf(ui.canvasHost)).toBe(1);
     });
   });
 

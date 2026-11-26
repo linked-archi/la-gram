@@ -101,12 +101,105 @@
         #fff;
     }
 
-    .la-canvas-area > catalog-view,
-    .la-canvas-area > matrix-view {
+    .la-pane > catalog-view,
+    .la-pane > matrix-view {
       border: none;
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
+    }
+
+    /* The panes (Req 24): one, or two side by side or one above the other, a divider between them. A pane is a
+       column: its header while split, then its diagram, catalog or matrix. */
+    .la-panes {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: row;
+    }
+    .la-panes[data-split='stacked'] {
+      flex-direction: column;
+    }
+    .la-pane {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    .la-pane-header {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      flex: none;
+      height: 24px;
+      padding: 0 4px 0 10px;
+      font-size: 12px;
+      color: #5f6368;
+      background: #f8f9fa;
+      border-bottom: 1px solid #dadce0;
+    }
+    .la-panes:not([data-split='none']) .la-pane-header {
+      display: flex;
+    }
+    .la-pane-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .la-pane-close {
+      flex: none;
+      border: 0;
+      background: none;
+      font: inherit;
+      font-size: 15px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: inherit;
+      cursor: pointer;
+    }
+    .la-pane-close:hover {
+      background: #e8eaed;
+    }
+    /* The pane in use: its header and an outline in the accent colour, over the pane, never taking a click. */
+    .la-pane.la-pane-in-use .la-pane-header {
+      color: #1a73e8;
+      background: #e8f0fe;
+      font-weight: 600;
+    }
+    .la-pane.la-pane-in-use::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px solid #1a73e8;
+      pointer-events: none;
+      z-index: 30;
+    }
+    .la-pane-divider {
+      flex: none;
+      background: #dadce0;
+      touch-action: none;
+      position: relative;
+    }
+    .la-panes[data-split='side-by-side'] > .la-pane-divider {
+      width: 6px;
+    }
+    .la-panes[data-split='stacked'] > .la-pane-divider {
+      height: 6px;
+    }
+    .la-pane-divider:hover,
+    .la-pane-divider:focus-visible,
+    .la-panes-resizing > .la-pane-divider {
+      background: #1a73e8;
+      outline: none;
+    }
+    /* While the divider is dragged, nothing under the pointer takes it. */
+    .la-panes-resizing > .la-pane {
+      pointer-events: none;
+      user-select: none;
     }
 
     /* ── diagram-js inside .la-diagram-host ────────────────────────────
@@ -374,6 +467,35 @@
     }
     .la-diagram-host .djs-element.la-locked {
       cursor: not-allowed;
+    }
+
+    /* Selected in the other pane (Req 24, Sync selection): outlined here, dashed, without selecting it. */
+    .la-diagram-host .djs-element.la-selected-elsewhere .djs-outline {
+      visibility: visible;
+      stroke: #1a73e8;
+      stroke-width: 2px;
+      stroke-dasharray: 5 3;
+    }
+
+    /* Search on the canvas (Req 23.3): every match outlined, the current one more strongly — over the selection's
+       outline, which the current one also has. Exports leave every outline out. */
+    .la-diagram-host .djs-element.la-search-match .djs-outline {
+      visibility: visible;
+      stroke: #f9ab00;
+      stroke-width: 2px;
+      stroke-dasharray: none;
+    }
+    .la-diagram-host .djs-element.la-search-current .djs-outline {
+      stroke: #e37400;
+      stroke-width: 3px;
+    }
+    /* The canvas's find bar, over the diagram's top right. */
+    .la-diagram-host > find-bar {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 20;
+      max-width: calc(100% - 16px);
     }
 
     app-toolbar {
@@ -736,6 +858,55 @@
       font-size: 12px;
       color: #80868b;
     }
+    /* The loader while something large opens (Req 11.13, busy.ts): under the dialogs and the messages. It fades in
+       after a quarter of a second and its spinner turns by transform: both run off the main thread, so they go on
+       while opening holds it. */
+    .la-busy {
+      position: fixed;
+      inset: 0;
+      z-index: 1990;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.55);
+      cursor: progress;
+      animation: la-busy-in 0.2s ease-out 0.25s both;
+      will-change: opacity;
+    }
+    .la-busy-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: 440px;
+      padding: 14px 18px;
+      font: 13px system-ui, -apple-system, 'Segoe UI', sans-serif;
+      color: #202124;
+      background: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    }
+    .la-busy-spinner {
+      flex: none;
+      width: 22px;
+      height: 22px;
+      box-sizing: border-box;
+      border: 3px solid #d2e3fc;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: la-busy-spin 0.8s linear infinite;
+      will-change: transform;
+    }
+    @keyframes la-busy-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes la-busy-spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .la-busy-spinner { animation-duration: 2.4s; }
+    }
     .la-toasts {
       position: fixed;
       right: 16px;
@@ -744,8 +915,11 @@
       flex-direction: column;
       gap: 8px;
       z-index: 2100;
+      /* The gaps between messages pass clicks through: only a message covers what is under it. */
+      pointer-events: none;
     }
     .la-toast {
+      pointer-events: auto;
       background: #323232;
       color: #fff;
       padding: 10px 14px;
@@ -759,6 +933,41 @@
     }
     .la-toast.error {
       background: #c5221f;
+    }
+    /* Kept until closed (Req 18.31): its × on the right; its text can be selected and copied. */
+    .la-toast.sticky {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      user-select: text;
+    }
+    .la-toast .la-toast-text {
+      flex: 1 1 auto;
+      overflow-wrap: anywhere;
+    }
+    .la-toast a {
+      color: inherit;
+      text-decoration: underline;
+    }
+    .la-toast-close {
+      flex: none;
+      margin: -2px -4px 0 0;
+      padding: 0 4px;
+      font: inherit;
+      font-size: 16px;
+      line-height: 1.2;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      border-radius: 3px;
+      cursor: pointer;
+      opacity: 0.85;
+    }
+    .la-toast-close:hover,
+    .la-toast-close:focus-visible {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.2);
+      outline: none;
     }
 
     /* Bottom bar: validation results next to the SPARQL editor. */

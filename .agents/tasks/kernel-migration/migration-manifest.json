@@ -1,0 +1,2871 @@
+{
+  "imports": [
+    {
+      "file": "src/__tests__/app.test.ts",
+      "count": 5,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/bench-model.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/converter-models.test.ts",
+      "count": 5,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/create-app.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/drawn-extensions.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/workbench.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/app.ts",
+      "count": 32,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/cli/check.ts",
+      "count": 5,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/cli/diff.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/cli/main.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/cli/merge.ts",
+      "count": 4,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/cli/models.ts",
+      "count": 8,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/collab/__tests__/rdf-yjs-binding.test.ts",
+      "count": 7,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/collab/rdf-yjs-binding.ts",
+      "count": 4,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/collab/start.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/__tests__/conflicts-panel.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/__tests__/git-auto-commit.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/__tests__/git-merge.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/__tests__/git-pull.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/__tests__/git-sync.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/conflicts-panel.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-auto-commit.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-history.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-merge.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-model-settings.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-observation.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-open.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-pull.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-review.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-save.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/git-sync.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/merge-support.ts",
+      "count": 5,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/git/providers/provider.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/import-export/__tests__/archimate-importer.test.ts",
+      "count": 8,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/import-export/__tests__/model-io.test.ts",
+      "count": 12,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/import-export/__tests__/ttl-file-io.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/import-export/__tests__/ttl-fileio.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/import-export/archimate-importer.ts",
+      "count": 5,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/import-export/index.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/import-export/ttl-file-io.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/index.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/__tests__/bands.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/__tests__/layout.test.ts",
+      "count": 7,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/__tests__/reroute.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/bands.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/elk-result.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/grid-layout.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/layout-types.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/reroute.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/layout/view-layout.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/basic-metamodel.test.ts",
+      "count": 4,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/catalogue.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/palette-snapshot.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/folders.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/iri-conformance.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/model-contents-index.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/property-catalog.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/provenance.test.ts",
+      "count": 6,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/questions.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/rdf-scope.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/relationship-ranking.test.ts",
+      "count": 7,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/relationship-validity.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/__tests__/kernel/validation-engine.test.ts",
+      "count": 5,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/__tests__/mount-ui.test.ts",
+      "count": 5,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/appearance-selection.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/arrange-view.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/appearance-render.test.ts",
+      "count": 4,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/append-interaction.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/canvas-arrange.test.ts",
+      "count": 12,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/canvas-clipboard.test.ts",
+      "count": 8,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/connect-integration.test.ts",
+      "count": 9,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/connect-interaction.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/connection-docking.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/custom-shapes.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/decoration-symbols.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/diagram-canvas.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/keyboard-guard.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/nesting.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/notation-fallback-integration.test.ts",
+      "count": 6,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/notation-integration.test.ts",
+      "count": 6,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/notation-shape-fixtures.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/notation-shapes.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/notation-styles.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/rdf-append-menu-provider.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/rdf-context-pad-provider.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/rdf-element-retype.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/rdf-label-editing.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/rdf-modeling.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/rdf-renderer.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/rdf-replace-menu.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/rdf-rule-provider.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/relationship-resolution.test.ts",
+      "count": 4,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/render-harness.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/__tests__/view-canvas.test.ts",
+      "count": 12,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/canvas-clipboard.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/diagram-canvas.ts",
+      "count": 8,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/nesting.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/notation-shapes.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/notation-styles.ts",
+      "count": 4,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-append-menu-provider.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-context-pad-provider.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-element-replace-menu-provider.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-element-retype.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-label-editing.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-link-label.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-modeling.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-pair-connect-menu-provider.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-renderer.ts",
+      "count": 4,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-replace-menu-provider.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/rdf-rule-provider.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/relationship-resolution.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/reuse-relationship.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/view-reference.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/canvas/zoom-in.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/figure-bar.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/mount-ui.ts",
+      "count": 25,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/graph-panel.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/history-panel.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/model-explorer.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/palette-panel.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/property-panel.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/property-picker.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/sparql-editor.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/type-guide-panel.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/__tests__/validation-panel.test.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/app-toolbar.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/graph-panel.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/graph-view.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/history-panel.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/model-diff-view.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/model-explorer.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/palette-panel.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/property-panel.ts",
+      "count": 13,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/property-picker.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/rdf-panel.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/sparql-editor.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/type-guide-panel.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/panels/validation-panel.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/views/__tests__/catalog-view.test.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/views/__tests__/matrix-view.test.ts",
+      "count": 2,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/views/__tests__/view-membership.test.ts",
+      "count": 6,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/views/catalog-view.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/views/matrix-view.ts",
+      "count": 3,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    },
+    {
+      "file": "src/ui/views/view-members.ts",
+      "count": 1,
+      "reason": "Use the same RDF implementation as the workspace; import paths only."
+    }
+  ],
+  "retainedTests": [
+    {
+      "from": "src/metamodel-manager/__tests__/basic-metamodel.test.ts",
+      "to": "src/__tests__/kernel/basic-metamodel.test.ts"
+    },
+    {
+      "from": "src/metamodel-manager/__tests__/catalogue.test.ts",
+      "to": "src/__tests__/kernel/catalogue.test.ts"
+    },
+    {
+      "from": "src/metamodel-manager/__tests__/palette-snapshot.test.ts",
+      "to": "src/__tests__/kernel/palette-snapshot.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/folders.test.ts",
+      "to": "src/__tests__/kernel/folders.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/iri-conformance.test.ts",
+      "to": "src/__tests__/kernel/iri-conformance.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/model-contents-index.test.ts",
+      "to": "src/__tests__/kernel/model-contents-index.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/property-catalog.test.ts",
+      "to": "src/__tests__/kernel/property-catalog.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/provenance.test.ts",
+      "to": "src/__tests__/kernel/provenance.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/questions.test.ts",
+      "to": "src/__tests__/kernel/questions.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/rdf-scope.test.ts",
+      "to": "src/__tests__/kernel/rdf-scope.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/relationship-lookup-memo.test.ts",
+      "to": "src/__tests__/kernel/relationship-lookup-memo.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/relationship-ranking.test.ts",
+      "to": "src/__tests__/kernel/relationship-ranking.test.ts"
+    },
+    {
+      "from": "src/model-manager/__tests__/relationship-validity.test.ts",
+      "to": "src/__tests__/kernel/relationship-validity.test.ts"
+    },
+    {
+      "from": "src/rdf-engine/__tests__/validation-engine.test.ts",
+      "to": "src/__tests__/kernel/validation-engine.test.ts"
+    },
+    {
+      "from": "src/metamodel-manager/__tests__/basic-fixture.ts",
+      "to": "src/__tests__/kernel/basic-fixture.ts"
+    }
+  ],
+  "removed": [
+    {
+      "file": "src/rdf-engine/__tests__/graph-scope.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/graph-scope.test.ts",
+      "sha256": "c1d9f6800d04c44daba59b6d767d35c5045ca64f0a7613455d989f2e10c37737"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/namespaces.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/namespaces.test.ts",
+      "sha256": "39c23c5ea98ec9ddcbfbe23b01948781e661e439b79fda887e90b390ed4bac1a"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/rdf-store.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/rdf-store.test.ts",
+      "sha256": "148057ae479ec406ffe4da7ec2b7e11d04baefa8fe84bd9c44e9636a8f4d54c4"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/shacl-validator.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/shacl-validator.test.ts",
+      "sha256": "b136cc63123bef43a5acf85928b2dd7c4bbff051005440239832007e534d84ae"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/shape-reach.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/shape-reach.test.ts",
+      "sha256": "62485b02c16ca3082593219f874f1d7b1260511857c275a455c22130d6addea1"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/single-valued.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/single-valued.test.ts",
+      "sha256": "96bddf2a64a68d60b87e769941ee48472eb7934e37d81e274a351a53874c1a85"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/sparql-constraints.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/sparql-constraints.test.ts",
+      "sha256": "2ae0d0e1f0a953f6926cbea22ab7b209fc1b62843bbc0843405103d02d2faffa"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/ttl-parser.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/ttl-parser.test.ts",
+      "sha256": "ef34403ce95a814e3ade50a3876bb436d331f40c4745d2b37b5ab5868cdf751a"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/ttl-serializer.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/ttl-serializer.test.ts",
+      "sha256": "7eab276160debe2a17c743863b69032b8a83de3d23b46c689c199ae02fbe40b4"
+    },
+    {
+      "file": "src/rdf-engine/__tests__/turtle-writer.test.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/__tests__/turtle-writer.test.ts",
+      "sha256": "1ad564a167c81aacb1c11cbc51a765b8e72c7e2c7b640f143b3b6b957868135a"
+    },
+    {
+      "file": "src/rdf-engine/finding-shape.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/finding-shape.ts",
+      "sha256": "ef84bd7388b835767bd1c728dcb813afd9e643994afa47ae6585b1840c57a494"
+    },
+    {
+      "file": "src/rdf-engine/graph-scope.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/graph-scope.ts",
+      "sha256": "a0d00ee04b4e941154757428505915e3771ffcff5682b7051e9676fb4138bd86"
+    },
+    {
+      "file": "src/rdf-engine/index.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/index.ts",
+      "sha256": "88212c31c0118aff5c02f802c85d854bfcc9df393ced1e673ff83e43fc31a12f"
+    },
+    {
+      "file": "src/rdf-engine/interfaces.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/interfaces.ts",
+      "sha256": "8135c28bdc6714d35e99a7b90d6eac451254d00478b324f3a7a8a3cbdc25dad1"
+    },
+    {
+      "file": "src/rdf-engine/iri.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/iri.ts",
+      "sha256": "081609df0cbbd02b908eda2d634f1ab8486b8bfb32886e4726b0bcbdfb98a018"
+    },
+    {
+      "file": "src/rdf-engine/namespaces.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/namespaces.ts",
+      "sha256": "9e3e6ce98a106b062e565ce5fb91f27ae18679fbce453e0886f48207a48b0d0b"
+    },
+    {
+      "file": "src/rdf-engine/observable-store.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/observable-store.ts",
+      "sha256": "acd72a433e491e5598ec51fd7502ad754e2dd88e53bc8b26129c13204fe736f1"
+    },
+    {
+      "file": "src/rdf-engine/rdf-store.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/rdf-store.ts",
+      "sha256": "6c33eeacec8148273c986a62cbeeaa2a12ad22e0362c9f8a78ef25a89987e163"
+    },
+    {
+      "file": "src/rdf-engine/shacl-validator.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/shacl-validator.ts",
+      "sha256": "0925b12fdd31c02a25733945509b847a8cd422e857c1ca75f6278636682525ae"
+    },
+    {
+      "file": "src/rdf-engine/shape-reach.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/shape-reach.ts",
+      "sha256": "6fc13ccfce45b3f08359ce06496d156ea193e551c528d55e79a5be9316c05408"
+    },
+    {
+      "file": "src/rdf-engine/single-valued.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/single-valued.ts",
+      "sha256": "80f226f69e619f85bfc08948c4ba227911077d8db7bd6bbaac046e99dbf90549"
+    },
+    {
+      "file": "src/rdf-engine/sparql-constraints.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/sparql-constraints.ts",
+      "sha256": "c2ab7191de459af900438b5ef9454a0356bf1c0896fabedaa36e277c8a00a968"
+    },
+    {
+      "file": "src/rdf-engine/term-codec.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/term-codec.ts",
+      "sha256": "4ce16a994ae6722b1294c13759fe59988aeb3b296e17a89ad29e1d5d7463a639"
+    },
+    {
+      "file": "src/rdf-engine/ttl-parser.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/ttl-parser.ts",
+      "sha256": "43d875b81aaf7a76b151d6b320e3bb49d7a6005d6561f2fe52faec88ef2302b2"
+    },
+    {
+      "file": "src/rdf-engine/ttl-serializer.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/ttl-serializer.ts",
+      "sha256": "9af781067f35cc1729bedb33dc0f507b4f51713608f07a709210cf7c66f7123f"
+    },
+    {
+      "file": "src/rdf-engine/turtle-writer.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/turtle-writer.ts",
+      "sha256": "97e2c314cb18e994f2051ab670cbbf7f6b3111472c0f72bd1bf7178fbb50e0ea"
+    },
+    {
+      "file": "src/rdf-engine/validation-engine.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/validation-engine.ts",
+      "sha256": "b4af6087c8b35d51cdd4a9be45054678305865ed10fdeb46ad409fb9e850ff3f"
+    },
+    {
+      "file": "src/rdf-engine/validation-service.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/validation-service.ts",
+      "sha256": "d25cde6af4ac5e145c5131441844f9692f0379cbc23ced3d456db19fa34c46a0"
+    },
+    {
+      "file": "src/rdf-engine/validation.worker.ts",
+      "destination": "@linked-archi/kernel/src/rdf-engine/validation.worker.ts",
+      "sha256": "d7e99c9d133decdfee0366ed4bff65930587a3bcfaf4f16eaa3162a7a4b48181"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/archimate-glyphs.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/archimate-glyphs.test.ts",
+      "sha256": "7f6005e5ec83485886ebeb0142b5c3344edd88952e15c6016e618f50e244e162"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/archimate-pictures.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/archimate-pictures.test.ts",
+      "sha256": "9863d279dd80796543e8acdf25f8c5a1ab0bc2f2f507398a85723222f59ac9b0"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/asset-sources.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/asset-sources.test.ts",
+      "sha256": "3c87761c8cd260a06fc1af26b7af5fb522401f0c5c662f7eab815e0b5cfb15bd"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/bundled-assets.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/bundled-assets.test.ts",
+      "sha256": "3a21eeb2dbbb693864eb68a1acfefc2d931e046d05d03d9e368298235244474c"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/class-hierarchy.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/class-hierarchy.test.ts",
+      "sha256": "1926a829742885953b97c9860a1ecafaf1593e3cbd03963443aebc7bca04a02b"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/metamodel-completeness.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/metamodel-completeness.test.ts",
+      "sha256": "dfa751ee2231fc9d29bbe016d703488d6886f9299a63ff5d471e8b690d7f29ee"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/metamodel-loader.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/metamodel-loader.test.ts",
+      "sha256": "7c42e31d67bfcafa01f9fa0f9298a82d8d0a8ed61f0847b7d5e49d44adabcfc0"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/notation-resolver.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/notation-resolver.test.ts",
+      "sha256": "fc59be615871dda86d7cc0c4d885ef55c5a8ca2b738663ef92a164348f5f1541"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/notation.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/notation.test.ts",
+      "sha256": "2e7a7137f061719d9336698442609ed7bb3c7e059fb5a1b71cd695ba9cf04ff7"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/palette-generator.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/palette-generator.test.ts",
+      "sha256": "76405eb12c26c6cdc8af500072ebfbfed32e8d06d2fc7f89928ca23b7705139a"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/taxonomy.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/taxonomy.test.ts",
+      "sha256": "c038a95f580f01d33512b1a441f50c31e26e03a929f3b3b4a8e4ffd2eaf78b58"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/type-guide.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/type-guide.test.ts",
+      "sha256": "7c988f06e96d050a332fd8c05f36dca9f9ec35cc7b35a528743e0247b164ec85"
+    },
+    {
+      "file": "src/metamodel-manager/__tests__/viewpoint-manager.test.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/__tests__/viewpoint-manager.test.ts",
+      "sha256": "eff91fce33308814609e54e5bda4c8907cd53a5568c9cf77d5bf9a59a7d32e97"
+    },
+    {
+      "file": "src/metamodel-manager/asset-sources.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/asset-sources.ts",
+      "sha256": "6eb4938ba55e7b4f0ef2583f2947eaf5c11c30b815f39ba36ebd6816044e4d0f"
+    },
+    {
+      "file": "src/metamodel-manager/bundled-assets.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/bundled-assets.ts",
+      "sha256": "5d01e61d933f430d9be91a0ae37710f1e4f21be8c406cfb6e4dfc2110b612192"
+    },
+    {
+      "file": "src/metamodel-manager/catalogue.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/catalogue.ts",
+      "sha256": "2bf445602226bef240ce3429a6421367028d90a0a44d8ad7386edf9ba3f98b25"
+    },
+    {
+      "file": "src/metamodel-manager/class-hierarchy.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/class-hierarchy.ts",
+      "sha256": "fda13e3dd77ccfd9f60366d457e66d02a7a6ee9c4791cb3bae8675407328c61e"
+    },
+    {
+      "file": "src/metamodel-manager/index.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/index.ts",
+      "sha256": "66f0b496d56d956eca823144570375e6805a6e60095a5b09aca5dfac44d61374"
+    },
+    {
+      "file": "src/metamodel-manager/interfaces.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/interfaces.ts",
+      "sha256": "cba8623c4a20a0b6cfe48b08bc49c635eed29c454196266db4af93eb63761ba9"
+    },
+    {
+      "file": "src/metamodel-manager/metamodel-completeness.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/metamodel-completeness.ts",
+      "sha256": "35ea7fefeaa57cd90ae63ebda13cb6d99de28bcab06bd0ff5e4ab213d1b310d7"
+    },
+    {
+      "file": "src/metamodel-manager/metamodel-loader.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/metamodel-loader.ts",
+      "sha256": "bbc11d8e6246a6d6738f5b626f5dde042840e135c052bc926aabc834d2fb117c"
+    },
+    {
+      "file": "src/metamodel-manager/notation-resolver.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/notation-resolver.ts",
+      "sha256": "dd4948a9a4835c9a167360904a6ef058fa81f8468d9f60c0f7084c7e3b8c14d4"
+    },
+    {
+      "file": "src/metamodel-manager/notation.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/notation.ts",
+      "sha256": "acc123d97c7c80d359fbc9ff5e2e9eaac5fa80944fe9f92d9a5edd7bc5f4e194"
+    },
+    {
+      "file": "src/metamodel-manager/palette-generator.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/palette-generator.ts",
+      "sha256": "1ad3fccc21e174d46d09508b5de07addcd3d80b9873e349927167f79af05f560"
+    },
+    {
+      "file": "src/metamodel-manager/taxonomy.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/taxonomy.ts",
+      "sha256": "d2e999e020e45f8c1ae414637ef76a58bbd9da1bd06e64f93f871ef6423bc907"
+    },
+    {
+      "file": "src/metamodel-manager/type-guide.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/type-guide.ts",
+      "sha256": "4026026d58e45949a3283c01bd487441c98f62955ab7b1f702b69eafbbc2cc8e"
+    },
+    {
+      "file": "src/metamodel-manager/viewpoint-manager.ts",
+      "destination": "@linked-archi/kernel/src/metamodel-manager/viewpoint-manager.ts",
+      "sha256": "7408806bc1a4b160e6f8644911eabaeca39958ed392e4984fc27a887f9588cff"
+    },
+    {
+      "file": "src/model-manager/__tests__/appearance.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/appearance.test.ts",
+      "sha256": "2d29d0aa128d2be7fd439e123c72597da8ca933b586bb36984376f849359dd8b"
+    },
+    {
+      "file": "src/model-manager/__tests__/clipboard.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/clipboard.test.ts",
+      "sha256": "a66ad56c832d3df035c4079ce73e0d81e1db7370d2d611683a4aea2bd9dd8fb2"
+    },
+    {
+      "file": "src/model-manager/__tests__/context-names.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/context-names.test.ts",
+      "sha256": "fc7d04f2f11dc6dd07ea041d66930fd644162aaea37ac2589e13c929ead3187a"
+    },
+    {
+      "file": "src/model-manager/__tests__/cross-language-relationships.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/cross-language-relationships.test.ts",
+      "sha256": "3b99a6053e62ade3291f555649b4efc3eeda80873c28f9ace752e04d3c4b3600"
+    },
+    {
+      "file": "src/model-manager/__tests__/direct-permissions.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/direct-permissions.test.ts",
+      "sha256": "f35d26a10cbb7adb739fb8b6a83234d983a62b6ee13b8e785e8b6c64d620d96a"
+    },
+    {
+      "file": "src/model-manager/__tests__/element-manager.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/element-manager.test.ts",
+      "sha256": "b045a1b6e2daa9525bd6d13bd099527888da92b2c3a2c6b7400ae9f9c3ef6858"
+    },
+    {
+      "file": "src/model-manager/__tests__/element-pictures.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/element-pictures.test.ts",
+      "sha256": "d98105eda4d52901469aa0b2586d7626b67d773a7cbe171e725aad1afb7ae83e"
+    },
+    {
+      "file": "src/model-manager/__tests__/iri-layout.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/iri-layout.test.ts",
+      "sha256": "98d66b06442f82cdca316e7f2389ad4a742a7140f5d8d2fc1fd007ee4c56c179"
+    },
+    {
+      "file": "src/model-manager/__tests__/label-expression.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/label-expression.test.ts",
+      "sha256": "1e9eabd4fb5a37a9eec233934ecd4b3169ace7e0d9b7acdb2677704abac0469f"
+    },
+    {
+      "file": "src/model-manager/__tests__/missing-references.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/missing-references.test.ts",
+      "sha256": "4aab928ff669b4013c5cf44e7e00e9846834a4f4aa7d4bb69a5a64fd2f474dad"
+    },
+    {
+      "file": "src/model-manager/__tests__/model-diff.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/model-diff.test.ts",
+      "sha256": "c9ce3700e118bee22e2e95379c3aebc9eac6ca97781c49a5e4239d79a7e3d6c0"
+    },
+    {
+      "file": "src/model-manager/__tests__/model-merge-bench.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/model-merge-bench.test.ts",
+      "sha256": "6d9cb2cdd95fabaecdcaadd6f9cac8abdbcc09d8276c010527baab28c1970c34"
+    },
+    {
+      "file": "src/model-manager/__tests__/model-merge.property.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/model-merge.property.test.ts",
+      "sha256": "7c37ed739ead34ec7b18796a8773bcce53e1ef4bde241b9812a0aa30e3841bb5"
+    },
+    {
+      "file": "src/model-manager/__tests__/model-merge.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/model-merge.test.ts",
+      "sha256": "6bc480ed7304a391172435e40c5d87665ba58ae8d5275804b99287481d8424f1"
+    },
+    {
+      "file": "src/model-manager/__tests__/model-namespace.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/model-namespace.test.ts",
+      "sha256": "897c2ce95f6514c050e589652fc960cae9e8c26771f889024d2751ae06ec6154"
+    },
+    {
+      "file": "src/model-manager/__tests__/model-operations.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/model-operations.test.ts",
+      "sha256": "10be008585864bce4ec54775d5d77136a5d3bedc4319012b9e3d1a90ba4e7b17"
+    },
+    {
+      "file": "src/model-manager/__tests__/model-session.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/model-session.test.ts",
+      "sha256": "4f2bc70daf25bf5fc76e436c19c8b138b263cc534f8a94428676fb739a0f4da5"
+    },
+    {
+      "file": "src/model-manager/__tests__/questions-bench.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/questions-bench.test.ts",
+      "sha256": "79e9a45c559bcdfc063003127f73076112060c30779f2d0aa958cfc3946d4ea2"
+    },
+    {
+      "file": "src/model-manager/__tests__/relationship-graph.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/relationship-graph.test.ts",
+      "sha256": "e7fbd19127e2fbe4f61650721328b69ad2e2faccef70364630ffa68930bf78bd"
+    },
+    {
+      "file": "src/model-manager/__tests__/relationship-manager.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/relationship-manager.test.ts",
+      "sha256": "e0da4ed82ead2db914efc7df75f536c83771a9b3bf737a0e434b9d4f769e2f26"
+    },
+    {
+      "file": "src/model-manager/__tests__/relationship-table.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/relationship-table.test.ts",
+      "sha256": "6c8aef70f139da43d8f53a69dcc1d6d5598ff15e2addbfc2f425df461b4bc549"
+    },
+    {
+      "file": "src/model-manager/__tests__/short-hash.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/short-hash.test.ts",
+      "sha256": "68d0ffe7bc04413a24f817f514b740acfb43bf3eb984baa9f3eb0fdadab8a633"
+    },
+    {
+      "file": "src/model-manager/__tests__/version-history.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/version-history.test.ts",
+      "sha256": "e66bcaeefb9f8f9098ae90b3a67b7d92b63922aaf758f29f984d8fe539c30035"
+    },
+    {
+      "file": "src/model-manager/__tests__/view-from-results.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/view-from-results.test.ts",
+      "sha256": "4ba348ed298b9254554b9dbf9741561508456bc900571238ef812a38db78783f"
+    },
+    {
+      "file": "src/model-manager/__tests__/view-manager.test.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/__tests__/view-manager.test.ts",
+      "sha256": "ca9a41fb9f68f48335e6af5b5ed0a07a04b1d09460a5015dd24520848abfcd16"
+    },
+    {
+      "file": "src/model-manager/appearance.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/appearance.ts",
+      "sha256": "b2c093ab86a996fa3e0a14579a73860aa1841d4323a29075da4e2d554fe8a291"
+    },
+    {
+      "file": "src/model-manager/cascade.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/cascade.ts",
+      "sha256": "0e0266f133f6ac989583947a89ebad358e48c728e0c7b2801a4151f1eb395ab0"
+    },
+    {
+      "file": "src/model-manager/clipboard.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/clipboard.ts",
+      "sha256": "ab0fcf7e91e655d0d364f1ae08e5bc04bf84d32bb2f81b42a9a9700c04a6c4c2"
+    },
+    {
+      "file": "src/model-manager/context-names.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/context-names.ts",
+      "sha256": "a4fb5f63e220ba110b9d269924ef58f16e2b51b51a3c2ecf3407bf9863ea7d78"
+    },
+    {
+      "file": "src/model-manager/derivations.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/derivations.ts",
+      "sha256": "4a63d8cbcff9ecac32eace4be41c85d2ed1fe3b789c26ae8191465458e1e1785"
+    },
+    {
+      "file": "src/model-manager/direct-permissions.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/direct-permissions.ts",
+      "sha256": "3eabe682727a7f31c4ba8ac63560510bf25cbff6dc40bffc0381d12b4358e2d8"
+    },
+    {
+      "file": "src/model-manager/element-manager.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/element-manager.ts",
+      "sha256": "2bd32c2d506feaacbe4812707fc00b0945452510e381b3d3e5bc26a254d8efeb"
+    },
+    {
+      "file": "src/model-manager/element-pictures.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/element-pictures.ts",
+      "sha256": "a1c2249bcc286696bf2acd0104c05ffa8262e9f4d9bc7dec7c3ae619adac2de6"
+    },
+    {
+      "file": "src/model-manager/field-names.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/field-names.ts",
+      "sha256": "87919e10e06a9126a3476bf2fe4c97ac6cea7b4e74a9a0401f9f4c4294a31ee6"
+    },
+    {
+      "file": "src/model-manager/folders.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/folders.ts",
+      "sha256": "41f04c667244fa3015e848bad7a83165417d4f1d4bf672fb812e14ce9e0730c8"
+    },
+    {
+      "file": "src/model-manager/grid.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/grid.ts",
+      "sha256": "2f3d87182ec271388f71339eb2bfb1acd7345946dbb6a33206dc758f80640f81"
+    },
+    {
+      "file": "src/model-manager/index.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/index.ts",
+      "sha256": "5e955c4dbc4128ac9aab3896cb48c55ce51910f50865fd57c050e76c4830af8d"
+    },
+    {
+      "file": "src/model-manager/interfaces.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/interfaces.ts",
+      "sha256": "806556f0855d2066f31d806f439afe80711c4dd697a6fe4f7f9c2b33e43398c3"
+    },
+    {
+      "file": "src/model-manager/iri-conformance.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/iri-conformance.ts",
+      "sha256": "13496f32c3f80aa6fc1cbfb8151928b94aa860b290f6af4a6f6b456da7333f1a"
+    },
+    {
+      "file": "src/model-manager/label-expression.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/label-expression.ts",
+      "sha256": "1e4a798b79903ac7cf7768652527da901d10008f6835986664a48c76f07e0bb1"
+    },
+    {
+      "file": "src/model-manager/legacy-migration.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/legacy-migration.ts",
+      "sha256": "264886dad427d2377fb95095146ae007ab7f5b732007748dc9ca5380725a990d"
+    },
+    {
+      "file": "src/model-manager/missing-references.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/missing-references.ts",
+      "sha256": "197871c278b887f59b8ba0056ce5688c12231ed797b1d91ec3b6a130e5912fc6"
+    },
+    {
+      "file": "src/model-manager/model-diff-text.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/model-diff-text.ts",
+      "sha256": "863a48298825497383a61be23ff8808486a58c905af6a9b03ec26dc0202626a3"
+    },
+    {
+      "file": "src/model-manager/model-diff.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/model-diff.ts",
+      "sha256": "e2465a892b315f635fc17a830aae653e74ff6e9cd16183fee47c6716dfa315ff"
+    },
+    {
+      "file": "src/model-manager/model-merge.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/model-merge.ts",
+      "sha256": "4a73f150074860f38798e47bcd0ad715462a236d494881401fb161a2c585add1"
+    },
+    {
+      "file": "src/model-manager/model-namespace.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/model-namespace.ts",
+      "sha256": "412bb881859a1a004131ef2258f77280e8610ac8a0a889f9e8d87dd6617bf1dc"
+    },
+    {
+      "file": "src/model-manager/model-operations.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/model-operations.ts",
+      "sha256": "ccb0ba4b9d6ab8df498e2a3312a8cf5c5a241ff1122d7c87dbe44b49f28c3eb5"
+    },
+    {
+      "file": "src/model-manager/model-queries.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/model-queries.ts",
+      "sha256": "3d918c278be007bc2fecf3b816f79786258528947df1f490f24b87dc5a1ee923"
+    },
+    {
+      "file": "src/model-manager/model-session.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/model-session.ts",
+      "sha256": "ba6c352a7fb1e4aa197702df40a0390925c5e2b89042df023ad290bf512b9a36"
+    },
+    {
+      "file": "src/model-manager/own-metamodel.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/own-metamodel.ts",
+      "sha256": "a39daf278d5f9a181ee73e2bf8e73a8fe19ac9d88610c9ab423d79195937fb23"
+    },
+    {
+      "file": "src/model-manager/placement-copy.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/placement-copy.ts",
+      "sha256": "787dae0c98d4946c737549d25ae91f43a8a3f6f9f9a8b316c0ff3797b2ca8ed6"
+    },
+    {
+      "file": "src/model-manager/property-catalog.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/property-catalog.ts",
+      "sha256": "d66813c4bdfc10fc928175c78971f5fed25d2a3eae1a89fb096f69244e9225f5"
+    },
+    {
+      "file": "src/model-manager/proposal-order.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/proposal-order.ts",
+      "sha256": "b02b89a1f1f8c777ee30f6ab842c375347eece4694d624c09520538092aed5dc"
+    },
+    {
+      "file": "src/model-manager/provenance.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/provenance.ts",
+      "sha256": "594021a17cba4850b16a4f82b54d9d60574cbc16a6aebe79cc151173ba0cb7bb"
+    },
+    {
+      "file": "src/model-manager/questions.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/questions.ts",
+      "sha256": "98449b0d7c8846f3430caee57f58abf2710499f8477103e4aff444b2b78bb82c"
+    },
+    {
+      "file": "src/model-manager/rdf-scope.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/rdf-scope.ts",
+      "sha256": "b3e8e98bd09b559fff9460e9fd37dc20c4f89f006f13cb09bcbbabaa4dbbf723"
+    },
+    {
+      "file": "src/model-manager/relationship-graph.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/relationship-graph.ts",
+      "sha256": "1d5f62fd8583dde4eb02021a73b28acb510bfb7a39107aaeb681e7827237ce7f"
+    },
+    {
+      "file": "src/model-manager/relationship-manager.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/relationship-manager.ts",
+      "sha256": "db03acd3042cfc8b1f0365adcd49d9ed754e2c7ae329365734ea1988ef8b217a"
+    },
+    {
+      "file": "src/model-manager/relationship-table.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/relationship-table.ts",
+      "sha256": "5e23b91fc0a549c3727992dfe62fe06e5a40b6e33bdebed7716ebda795903584"
+    },
+    {
+      "file": "src/model-manager/relationship-validity.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/relationship-validity.ts",
+      "sha256": "42dc0dd3165888db82d0d0455d8ba0174c5dcd97a1098fb7d21a0d919f265918"
+    },
+    {
+      "file": "src/model-manager/short-hash.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/short-hash.ts",
+      "sha256": "63f8699b56705161ab6ff29ee6fba0c22d676548769bc46e034f86a78c619b89"
+    },
+    {
+      "file": "src/model-manager/snapshot-lines.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/snapshot-lines.ts",
+      "sha256": "6f249fcf3bf41fd626487dd348be83301bfde1febb0bf6c43da2ee2bdd7eac80"
+    },
+    {
+      "file": "src/model-manager/version-history.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/version-history.ts",
+      "sha256": "d9b32977e0ff5e54a898e0f5470a0805cdf9563890ec45f2f189f1a7b5098104"
+    },
+    {
+      "file": "src/model-manager/view-from-results.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/view-from-results.ts",
+      "sha256": "815e988038c94a12e117f69f13771bff13014e347969202e1ecf0f6db6fccc63"
+    },
+    {
+      "file": "src/model-manager/view-manager.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/view-manager.ts",
+      "sha256": "3b2c7a201112a9339e84020cdf5b5e09d59bdeedd1808755f1246b172d6647cb"
+    },
+    {
+      "file": "src/model-manager/vocabulary.ts",
+      "destination": "@linked-archi/kernel/src/model-manager/vocabulary.ts",
+      "sha256": "99136f0e8658be3d217d347a80f8b9da5412e9fb7612136d5a5fa5a09919ef2d"
+    },
+    {
+      "file": "src/import-export/model-io.ts",
+      "destination": "@linked-archi/kernel/src/import-export/model-io.ts",
+      "sha256": "918ffe5885f9308dfa656b7eb880c2d261931b1986e3dbdfde879759509f2a18"
+    },
+    {
+      "file": "assets/arch-decision/arch-decision-metamodel.ttl",
+      "destination": "@linked-archi/kernel/assets/arch-decision/arch-decision-metamodel.ttl",
+      "sha256": "5d18f2192dde8434643fe46b642916d1ebde94a68ccc8937b27eeaff8bb7927d"
+    },
+    {
+      "file": "assets/arch-decision/arch-decision-onto.ttl",
+      "destination": "@linked-archi/kernel/assets/arch-decision/arch-decision-onto.ttl",
+      "sha256": "79951d3b3d31d6eaead48c12cdb13180ed27669294a0d5fecdc8d879095cf2fe"
+    },
+    {
+      "file": "assets/arch-decision/arch-decision-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/arch-decision/arch-decision-shapes.ttl",
+      "sha256": "88ff0d4ffc1e56d999e30ea372881ad17d70ad0f83fa2418d17380fd658d77a0"
+    },
+    {
+      "file": "assets/arch-decision/arch-decision-tax.ttl",
+      "destination": "@linked-archi/kernel/assets/arch-decision/arch-decision-tax.ttl",
+      "sha256": "95e4e7bc4a21ee29d4f74258aa4e00da2fc9a434654715f8fd73ea5dfb557bf1"
+    },
+    {
+      "file": "assets/arch-processes/arch-processes-metamodel.ttl",
+      "destination": "@linked-archi/kernel/assets/arch-processes/arch-processes-metamodel.ttl",
+      "sha256": "c8ba144f18377dcd936fa256b5ccd8da98abc0013e0d9443179d49984ba65e09"
+    },
+    {
+      "file": "assets/arch-processes/arch-processes-tax.ttl",
+      "destination": "@linked-archi/kernel/assets/arch-processes/arch-processes-tax.ttl",
+      "sha256": "aaf2951994849c0aa589a36c5ab5f062386ee0da69b5cadd6e25b1e573f4f2bf"
+    },
+    {
+      "file": "assets/arch-processes/archProcesses-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/arch-processes/archProcesses-shapes.ttl",
+      "sha256": "ac89e1b4b8bbcd91996b361584fcfadb4a30a6eecf7801dfc07588dab2ac6542"
+    },
+    {
+      "file": "assets/arch-processes/archProcesses.ttl",
+      "destination": "@linked-archi/kernel/assets/arch-processes/archProcesses.ttl",
+      "sha256": "82866eb427d36adaed2b763c4078dcc3ce1c6c802a9edddf67cd8b3432139dad"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-element-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-element-shapes.ttl",
+      "sha256": "c4f55d4a4706a661f88da908802a60526bced399034e4dca20cc13bed681a7ff"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-metamodel.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-metamodel.ttl",
+      "sha256": "dad7894d9fe3c1d828e423b5c6ead34fb2f0411c2cdef51f1c9b541419b30d76"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-notation.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-notation.ttl",
+      "sha256": "8e1ba4f0d5f7df8e0d8af6a04c01f8797c886568d15025c1c6161c14bb80e10e"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-onto.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-onto.ttl",
+      "sha256": "182fe4e4a797c05611272fb30d88e3e8c42592430290fdac2b4e42a558e2302b"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-presentation-contexts.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-presentation-contexts.ttl",
+      "sha256": "2ab0dd91a5084c58833af2bf2b5b9605d545b6bb16b1ea01807c93aa594d1364"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-principle-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-principle-shapes.ttl",
+      "sha256": "c266614b2441323f5dc5e900fb0577d4f5816de4ecd5d50e001489cc9d58ca97"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-questions.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-questions.ttl",
+      "sha256": "12174d905b0be520869228e717166a23a1b909302e081bbd728edba882e76e6d"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-reference-data.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-reference-data.ttl",
+      "sha256": "8f5bb12ac28a97b11be3eaea1616cf81536697b7e57b267471fa91065ca2671d"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-relationship-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-relationship-shapes.ttl",
+      "sha256": "bf649e7adf8f6584e8663de9aea01fba2e73c3ed0299eccae9cbda8dd8c5d081"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-relationship-tables.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-relationship-tables.ttl",
+      "sha256": "4f64e0191c66739afd3af19ee27dc99a038138270f88a22cda4faa49e1e5e05d"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-tax.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-tax.ttl",
+      "sha256": "fc20dc9a0646ab07eb999a680491a94f29c427dce066aba627209d2fa061fb69"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-viewpoint-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-viewpoint-shapes.ttl",
+      "sha256": "b507a293e79c083144f1554d321d9d363be11d5ebb93dd5fecaf3ecad4f99512"
+    },
+    {
+      "file": "assets/archimate3/archimate3.2-viewpoints.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate3/archimate3.2-viewpoints.ttl",
+      "sha256": "bd7b8d36b91efe518b781ad57ab1cf40552c7bee132017a866ca4b462f6f5a91"
+    },
+    {
+      "file": "assets/archimate3/icons/and-junction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/and-junction.svg",
+      "sha256": "9e3e999701354ca86a0ecc1ddb07cc870dc315c90d7b5feecfd04cca7798c598"
+    },
+    {
+      "file": "assets/archimate3/icons/application-collaboration.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/application-collaboration.svg",
+      "sha256": "b60c3d69189b824794c2dfb6bdc28719bfd61bb7d5112051a160306126b02aee"
+    },
+    {
+      "file": "assets/archimate3/icons/application-component.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/application-component.svg",
+      "sha256": "99ac9e426829a01070aa767a0fcacc5e88d97d95e834ddd1259f8792bbaeb63d"
+    },
+    {
+      "file": "assets/archimate3/icons/application-event.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/application-event.svg",
+      "sha256": "a16e610460741d6b3625770f00dddd4313fd958a3a7805697e02de2526fda1bf"
+    },
+    {
+      "file": "assets/archimate3/icons/application-function.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/application-function.svg",
+      "sha256": "23478909e63a53b20523b3c5eb0448e76e80dbba9bf148627410dff1a67af4ab"
+    },
+    {
+      "file": "assets/archimate3/icons/application-interaction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/application-interaction.svg",
+      "sha256": "04d9e9e64fe174ffd58be6f40c89fc6f5d3ae29d86166a71a5dc5be97026ccb8"
+    },
+    {
+      "file": "assets/archimate3/icons/application-interface.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/application-interface.svg",
+      "sha256": "68502868777ec68f1d690c2422d32b0f4ddeb995f9372651487beb568b3177c6"
+    },
+    {
+      "file": "assets/archimate3/icons/application-process.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/application-process.svg",
+      "sha256": "217005ed631c312a4037225998e3381720dfeee4a4410d83bb487906973b050f"
+    },
+    {
+      "file": "assets/archimate3/icons/application-service.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/application-service.svg",
+      "sha256": "42cb45fe837223e730b5d6fa764451f4d019534753c8281d3a50636e5cc4607c"
+    },
+    {
+      "file": "assets/archimate3/icons/artifact.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/artifact.svg",
+      "sha256": "12a0fbb3567178595409a174436b0de015e20a2e8f7618ffff5bd843c6cdf455"
+    },
+    {
+      "file": "assets/archimate3/icons/assessment.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/assessment.svg",
+      "sha256": "833d19c88d558891f46e67d817f08070b04f9a4538a15887a54fe235d07a371a"
+    },
+    {
+      "file": "assets/archimate3/icons/business-actor.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-actor.svg",
+      "sha256": "a503ae0173136dd807c69cc1f9f4e7804f3acc1ea7f9b65450c961f5baedbf20"
+    },
+    {
+      "file": "assets/archimate3/icons/business-collaboration.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-collaboration.svg",
+      "sha256": "654e0686307097aeac5cb07b3caad77643bf13a1320db0f450e7860fa099b1ac"
+    },
+    {
+      "file": "assets/archimate3/icons/business-event.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-event.svg",
+      "sha256": "b0a54c11b7b966329a7e92faa3a2d52703b86f2e02b0eff70f9c59e077e32f78"
+    },
+    {
+      "file": "assets/archimate3/icons/business-function.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-function.svg",
+      "sha256": "7b7e560d6e9f58ae8c5852ab96f3dbba09a3ad23539b86560f990d911965d560"
+    },
+    {
+      "file": "assets/archimate3/icons/business-interaction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-interaction.svg",
+      "sha256": "0d0955da8ef3a005cc40d3bbd638fa04803ad00dc53c18c3c8ca8a5b77e7b0fe"
+    },
+    {
+      "file": "assets/archimate3/icons/business-interface.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-interface.svg",
+      "sha256": "9133629b9c40f35c428cc23abcdd970d748af13663a6f5e9f2733b02c2068103"
+    },
+    {
+      "file": "assets/archimate3/icons/business-object.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-object.svg",
+      "sha256": "8ec54a0b2b6e2bb2c8d77f562b06ec5c110b0b4ba59005d8ada4c04a62f30a38"
+    },
+    {
+      "file": "assets/archimate3/icons/business-process.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-process.svg",
+      "sha256": "1158561f26192b5d822798bdc8986b9b95749701aa96e979d8190fbca1a05fd8"
+    },
+    {
+      "file": "assets/archimate3/icons/business-role.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-role.svg",
+      "sha256": "95e658f4b7c0c86970f32d32cc67125b24443f201da0e442d47541e1171f7876"
+    },
+    {
+      "file": "assets/archimate3/icons/business-service.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/business-service.svg",
+      "sha256": "2605d55e14bb8e9cd7f9a3f818224a0355be14e8b0c55713e4a9e9b52d48b9a7"
+    },
+    {
+      "file": "assets/archimate3/icons/capability.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/capability.svg",
+      "sha256": "6911119bda454405cf3c0d14d7e7890e332dedbb9bdf8e9abb42f37e5b80d6fd"
+    },
+    {
+      "file": "assets/archimate3/icons/communication-network.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/communication-network.svg",
+      "sha256": "8d259bdd7937a9016daa7c9d34ff04d1e998c5493472852342892747ea2203c0"
+    },
+    {
+      "file": "assets/archimate3/icons/constraint.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/constraint.svg",
+      "sha256": "f81e717020c1643800698b15060ed3134c0a42719fba9aebc2a9d527af8abaff"
+    },
+    {
+      "file": "assets/archimate3/icons/contract.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/contract.svg",
+      "sha256": "934487024a56950de199a686452dda37df51652739f9a63e7f786d313dcc2a9a"
+    },
+    {
+      "file": "assets/archimate3/icons/course-of-action.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/course-of-action.svg",
+      "sha256": "430b81d90bd20e364dd5164288b1283b137e0f2a19b3eef2321ae7220bd7a9c8"
+    },
+    {
+      "file": "assets/archimate3/icons/data-object.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/data-object.svg",
+      "sha256": "77fbcf11e338f21f67fa08d028301f5d6553945db698894f271b5685c1b9879a"
+    },
+    {
+      "file": "assets/archimate3/icons/deliverable.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/deliverable.svg",
+      "sha256": "4b2bbdbe0f36dfab835104fc6100f9f738bad12dc0174852a0914eee88887d7f"
+    },
+    {
+      "file": "assets/archimate3/icons/device.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/device.svg",
+      "sha256": "8fef5c9ef5c87e0c99df9858b40f408cd2a9f1889c18794911543f7819cf9b51"
+    },
+    {
+      "file": "assets/archimate3/icons/distribution-network.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/distribution-network.svg",
+      "sha256": "33b8484b31d2f46c434eb22c8dbbe1f168492b1a882ac275fe6e8af946859047"
+    },
+    {
+      "file": "assets/archimate3/icons/driver.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/driver.svg",
+      "sha256": "ee0f7e89ffa1d14663bdba1ca9194ce8cfaec5170dd8470760d16e697ec4a5d4"
+    },
+    {
+      "file": "assets/archimate3/icons/equipment.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/equipment.svg",
+      "sha256": "177020b3fd81e704b611ed31785c38df96cc83c964a8a3fba9318097e937272e"
+    },
+    {
+      "file": "assets/archimate3/icons/facility.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/facility.svg",
+      "sha256": "f37d9564f4641b9318539efb77eee10179abbb56df997e395e0d091f6c414d7e"
+    },
+    {
+      "file": "assets/archimate3/icons/gap.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/gap.svg",
+      "sha256": "11d20da76cd9e2a3b348876bbd1193f938c458bce06e417075513eaf6e8c5989"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/activity.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/activity.svg",
+      "sha256": "41c0b502e354a579f0401c8aabec16c9bf099c3edf6794bf3f8eb5bf7df31c08"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/actor.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/actor.svg",
+      "sha256": "f05f02fa4e2577b43985c2e18308eee45c3e289929017090b788ae067d4634b0"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/application-component.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/application-component.svg",
+      "sha256": "330a43f8e3c150af4ffcf744ae5ea7492b0471678c3012a116ab7b14f01a4b0d"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/artifact.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/artifact.svg",
+      "sha256": "35b001c5fedcc329dc01e48f4dd6bf3b632c7c99f97f86328a7ee2075200c84c"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/assessment.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/assessment.svg",
+      "sha256": "3b7d314d10e1f0e938026eeab366a1d2597466615501418d68a1bd25cde116e7"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/capability.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/capability.svg",
+      "sha256": "b14fb1f7e40d44896bc953a412bb86934ac569b739928eb8817e01e3963d23be"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/cloud-gear.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/cloud-gear.svg",
+      "sha256": "ebaa4253dbee84cc05fedd08ca46baebc15d3c0d5db5fb4ffab19cec8b5e96ee"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/collaboration.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/collaboration.svg",
+      "sha256": "8f8c3e121ca70a964b22c19d8bf7d8e95120adde731aee7552d2aa154cc87396"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/communication-network.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/communication-network.svg",
+      "sha256": "dee10c4be48b1151b1ceda3f40cfcca985607058dd091dc9126e1e25a65c5806"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/constraint.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/constraint.svg",
+      "sha256": "719b047813764e6460db6853c53d43233d6d951870020589880eefd02d606f68"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/contract.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/contract.svg",
+      "sha256": "49314cff79e7ce352e2895c51138e015bd09c0aaa2ff94600b02b87936f02b18"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/course-of-action.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/course-of-action.svg",
+      "sha256": "7e70996617a8b202b8ab89ddb2cfc15ce9074e6c2a55c68195bb1a23b87a5886"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/data-object.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/data-object.svg",
+      "sha256": "7651b6c7ba9c422f499ba38023840047903ef55512adaaa32d2d5ca4f0f74e63"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/deliverable.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/deliverable.svg",
+      "sha256": "7d8fb07988bbf6b3a6d736e221eea02ea3666e3240ae9e98ed2c017bd045c035"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/device.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/device.svg",
+      "sha256": "eea9fe45f9d5a3ee1627f1c4422ce7ffc98abb78880832338727d3e8ec0085db"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/distribution-network.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/distribution-network.svg",
+      "sha256": "d3611a628887dbc6b3f21e9c8c018e0e9315d3521f820fcba8606d566ac502fe"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/driver.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/driver.svg",
+      "sha256": "22073870b99329e9ed65b175ea17995a258036200b1b0d83b3820ab03554d0d8"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/equipment.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/equipment.svg",
+      "sha256": "811fb0539cad77242ebc157bbeb9fc2c2110936db13f6d6e752822daca575462"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/event.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/event.svg",
+      "sha256": "ba860d5b17ba6482a52fc55562451e4f9f226e89bc1961426d85d9158423b2e3"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/facility.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/facility.svg",
+      "sha256": "980c725bc50ecbee745ce60ee7956daa8c06e9a2e055e1d6ebb7a58557f033bd"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/function.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/function.svg",
+      "sha256": "b93d16e4ebf6b97e19069ddbcce60f66ec7d1369d8080fb6847599efb1d59911"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/gap.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/gap.svg",
+      "sha256": "7a19eb3b579b76eb10890383cfe3b6b15c5cec5c99597509092f2205662b5a99"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/goal.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/goal.svg",
+      "sha256": "fea06225fb474c2fed4a6d289092c665b537db02c7de0b345ddf85a17931ff5b"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/grouping.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/grouping.svg",
+      "sha256": "c8556a5fa5a8818019328ac0855a4e446b33d0ad53a91d42815e3ae4e2a1e421"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/interaction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/interaction.svg",
+      "sha256": "e9214c298a7e8ba2f164e419540edb8a47d26ae94fc876bcac253fbfec5ac872"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/interface.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/interface.svg",
+      "sha256": "86390b24d33062e92a3203073ed38705fe30808ac0ac407ef4a7a99b885cd826"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/location.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/location.svg",
+      "sha256": "7f68e60d145e58059f4f981b4a7ac015c30bbb74a4647df592b1d94545cc979c"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/material.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/material.svg",
+      "sha256": "529babd327c3ea86d9dcb6f2022265f81f2c64947c083bc5066766d7b1932f7e"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/meaning.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/meaning.svg",
+      "sha256": "464d4635ae7378f1f92b0fbf960f548808f9f3ce82347e9c36f3569c7e74d235"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/node.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/node.svg",
+      "sha256": "d14179221d4e1a412a6709c1edd6403f4d71afb4088a5db3871d10a23179a56a"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/object.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/object.svg",
+      "sha256": "7651b6c7ba9c422f499ba38023840047903ef55512adaaa32d2d5ca4f0f74e63"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/outcome.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/outcome.svg",
+      "sha256": "49c6f0713f417f05bd184a608a685965eee3b68122e3a72a63c230b71fc84f1d"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/path.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/path.svg",
+      "sha256": "316fb5a761e0f89ebd700267348cac9fb2b21f4a4ccdfc1854d0c7984111056f"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/person-silhouette.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/person-silhouette.svg",
+      "sha256": "afc6e44ced00a801c04eed9d1e188db5844c507f0b2bd53fd1fe758b3d7dd24f"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/plateau.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/plateau.svg",
+      "sha256": "daa91019a12cea5d6d8422b817288d4fedd9b546031e0d78178c29e941b59d33"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/principle.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/principle.svg",
+      "sha256": "89786f6eec3a69bbeaf7160b9727e943fd1c79937d084dfd0d4ccba374c007cd"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/process.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/process.svg",
+      "sha256": "933fc038e6ee5a8053a4e08e72c4b639c375158fbab439aac8fddb26b6ed7664"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/product.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/product.svg",
+      "sha256": "b2cca8edd5ccc6c0165e14638cce84d79bb269f9e40054dcfa8ee5c958492627"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/representation.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/representation.svg",
+      "sha256": "34ff0a6cf390a380f2dfbd0f0543830d0bcb3dce04ec5366de33648ea84d609e"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/requirement.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/requirement.svg",
+      "sha256": "0a5e4d2896ddf4425dc773c126a56275a7d20311da3e86f6bec3828967c23e80"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/resource.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/resource.svg",
+      "sha256": "5c6546af6387b7c35e72e9fd42dc08c12f284df70722c6d0d823b88573d30d40"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/role.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/role.svg",
+      "sha256": "98153bf3a76db9f9cb79cb5ebd144e58a6355425bd1b3b483b29c288ccf296fd"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/service.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/service.svg",
+      "sha256": "5155718d47103713e49e1d02c78ace5523854001c20691dfd8ca1fa847803b35"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/stakeholder.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/stakeholder.svg",
+      "sha256": "98153bf3a76db9f9cb79cb5ebd144e58a6355425bd1b3b483b29c288ccf296fd"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/system-software.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/system-software.svg",
+      "sha256": "ca425d6f40eac71322e528c8e77d7542bb72645d2a3fd01eea13a1b451df873d"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/value-stream.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/value-stream.svg",
+      "sha256": "a13c50dbbe56e468c8dead63cbaeb82639b90c5feef4a6ae876d3d77725af989"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/value.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/value.svg",
+      "sha256": "e480e8a6e52e01f9bb36d85c0ad547948fdc9550d5e9805d186c5dfa1063acc3"
+    },
+    {
+      "file": "assets/archimate3/icons/glyphs/work-package.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/glyphs/work-package.svg",
+      "sha256": "5f524b0357f79ab589e9951c5522c353a698486acc1bc2c823ae4a27f92391da"
+    },
+    {
+      "file": "assets/archimate3/icons/goal.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/goal.svg",
+      "sha256": "b87a0071a80207549d35a9af5a7960df9027456b1affe203426a9ff000d999c8"
+    },
+    {
+      "file": "assets/archimate3/icons/grouping.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/grouping.svg",
+      "sha256": "87c3a9768c0eb4f4526a516f710502ba89f5d86a20e197674202bf70b0421963"
+    },
+    {
+      "file": "assets/archimate3/icons/implementation-event.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/implementation-event.svg",
+      "sha256": "4eab03bf4e729fcf2759681f48d503c412cedbcc6f253df3187789b68431a304"
+    },
+    {
+      "file": "assets/archimate3/icons/location.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/location.svg",
+      "sha256": "27ac772d5d9a1ce8b4509989b025fc35fa8f6309ebb44b05195b65586b01b48a"
+    },
+    {
+      "file": "assets/archimate3/icons/material.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/material.svg",
+      "sha256": "251d4827662f79d73816e8b11d069148839b9c27a037c16d6ac01b69888c2ec3"
+    },
+    {
+      "file": "assets/archimate3/icons/meaning.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/meaning.svg",
+      "sha256": "cff752b306aaff5ba81c5fafb725745c5a060f09f147e92731275426671cae14"
+    },
+    {
+      "file": "assets/archimate3/icons/node.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/node.svg",
+      "sha256": "d7194908149e7a15285092f0b4e9a9e5271362be861797ee05c75864b27b2e7c"
+    },
+    {
+      "file": "assets/archimate3/icons/or-junction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/or-junction.svg",
+      "sha256": "3bb69abc95d954cee417f775db72ae74d5cba409942a01253ba68bac0cf1beef"
+    },
+    {
+      "file": "assets/archimate3/icons/outcome.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/outcome.svg",
+      "sha256": "5938da67fec17da46b5a1a9811c15cfe1ee27ea6b5014770aa63e1fe880957c7"
+    },
+    {
+      "file": "assets/archimate3/icons/path.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/path.svg",
+      "sha256": "5643597ddbfb62e0b5c3b07983068b29d85cf028411a811d95808d833aa91d9f"
+    },
+    {
+      "file": "assets/archimate3/icons/plateau.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/plateau.svg",
+      "sha256": "0204173051961e4d32e5ab0f746cf9f0308383c8e23143de3021783c87cbec07"
+    },
+    {
+      "file": "assets/archimate3/icons/principle.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/principle.svg",
+      "sha256": "7bb7ae1d38412a23dadd631999eae9fdd36c025586b1b0fe9b717e0497a023a9"
+    },
+    {
+      "file": "assets/archimate3/icons/product.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/product.svg",
+      "sha256": "363e5b3a8ccb049f372cd75601e266b730561875a0d9788d9d05638f0b918976"
+    },
+    {
+      "file": "assets/archimate3/icons/representation.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/representation.svg",
+      "sha256": "32b00f427f59ecd9ec99dd838b83cb899d4c319826746bf8331c1a116df7844d"
+    },
+    {
+      "file": "assets/archimate3/icons/requirement.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/requirement.svg",
+      "sha256": "e67265bda41cc5d1672e7d4632f266addb6818f39797bb2b9511aaa72db56a01"
+    },
+    {
+      "file": "assets/archimate3/icons/resource.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/resource.svg",
+      "sha256": "69dcfd89d8fa03ec8488f1f3f94dcc5e09842c4e8716e365b721ceebf2610748"
+    },
+    {
+      "file": "assets/archimate3/icons/stakeholder.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/stakeholder.svg",
+      "sha256": "6dbe456f75f4d589d58a0f3a5521dac71c9066c4bd776b0876f2a973e4c14458"
+    },
+    {
+      "file": "assets/archimate3/icons/system-software.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/system-software.svg",
+      "sha256": "2529c0a18f2293d8cfbc40e309a1c6b8352423674ad362f0e8369df5d7009584"
+    },
+    {
+      "file": "assets/archimate3/icons/technology-collaboration.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/technology-collaboration.svg",
+      "sha256": "0c17dae2eed081a9aae2630f25dc8cc4b25ad96fd9be19096ff0378c0277658f"
+    },
+    {
+      "file": "assets/archimate3/icons/technology-event.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/technology-event.svg",
+      "sha256": "e0648f46d2456d617c0686b736a9381097ba3ad9ea2d1ba2a986ffa2c9e835dd"
+    },
+    {
+      "file": "assets/archimate3/icons/technology-function.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/technology-function.svg",
+      "sha256": "3ef0010b25f03587adb9841640c22fb8999f1d45f87c306ab3ebb6bac0e2abcd"
+    },
+    {
+      "file": "assets/archimate3/icons/technology-interaction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/technology-interaction.svg",
+      "sha256": "073c60a52c13d155b745e2247f1ee3d4445df63388bdc42f82f4d23e148fd01b"
+    },
+    {
+      "file": "assets/archimate3/icons/technology-interface.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/technology-interface.svg",
+      "sha256": "75d209f611528f66ecfa46fe9ed71d0ac8eb144a04c78820cbc8b32fde9864c1"
+    },
+    {
+      "file": "assets/archimate3/icons/technology-process.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/technology-process.svg",
+      "sha256": "dcdef5c553a19c68fb319166a35712fdb3df115cdaa1fe2c795cef37d9ee5560"
+    },
+    {
+      "file": "assets/archimate3/icons/technology-service.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/technology-service.svg",
+      "sha256": "9b6d6e4b7ef67b2247263655f57769dbdfad9643847dfe311569751467d74d86"
+    },
+    {
+      "file": "assets/archimate3/icons/value-stream.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/value-stream.svg",
+      "sha256": "ec728caae733473e270a934c39077c3860c6273def843564fb050fa38c7aeaf9"
+    },
+    {
+      "file": "assets/archimate3/icons/value.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/value.svg",
+      "sha256": "51c6ea7cf7a2d7062fdf47129ff63fa51276cc5e6a5d04b8a179255dffb761ce"
+    },
+    {
+      "file": "assets/archimate3/icons/work-package.svg",
+      "destination": "@linked-archi/kernel/assets/archimate3/icons/work-package.svg",
+      "sha256": "024ae7faa5c442cc2a968c29b347de1fad77b7edf50d08162cfea44d63e6cf5e"
+    },
+    {
+      "file": "assets/archimate4/archimate4-element-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-element-shapes.ttl",
+      "sha256": "f2a55cf24504fb71600f4dd19880d66f4674fd055f694e020ea308b77c1b3896"
+    },
+    {
+      "file": "assets/archimate4/archimate4-metamodel.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-metamodel.ttl",
+      "sha256": "b9bc813ea1ea9a28a9a61d9658e9518c5abae71e7fe455dea6cb2160a17c5fa5"
+    },
+    {
+      "file": "assets/archimate4/archimate4-notation.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-notation.ttl",
+      "sha256": "0af180a29be6bf368ba4991846dbb788722a926399af57cf58f6f44bbe3b4e4b"
+    },
+    {
+      "file": "assets/archimate4/archimate4-onto.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-onto.ttl",
+      "sha256": "cb04a44b884a7cd0584e2839b022dbbe89626dd760848882c5301e9c0d9a680f"
+    },
+    {
+      "file": "assets/archimate4/archimate4-presentation-contexts.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-presentation-contexts.ttl",
+      "sha256": "773db56dd00a1e847d936a49f55a8f658dd9589092e325966062d036f6af41a0"
+    },
+    {
+      "file": "assets/archimate4/archimate4-principle-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-principle-shapes.ttl",
+      "sha256": "ff498a03bc30004a9bc7c434dd05916e8b2bace973d09f9b9f4f806959074ffe"
+    },
+    {
+      "file": "assets/archimate4/archimate4-questions.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-questions.ttl",
+      "sha256": "0873382a540b317400307c75244665c195eeeddde115b1da3500254ce1000fab"
+    },
+    {
+      "file": "assets/archimate4/archimate4-reference-data.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-reference-data.ttl",
+      "sha256": "682c54d75dc24f0e405ed05773e5c71f8accedcb84a9c2548c806eec91b5392f"
+    },
+    {
+      "file": "assets/archimate4/archimate4-relationship-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-relationship-shapes.ttl",
+      "sha256": "c1714633031831114f7027b15aa7d80f1ee5850ce9607066ea9cfc8af875a6d0"
+    },
+    {
+      "file": "assets/archimate4/archimate4-relationship-tables.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-relationship-tables.ttl",
+      "sha256": "882133f3c967d08c6b28cee28a95fe2c5d870471dfa2e37f1f59da158676b0f6"
+    },
+    {
+      "file": "assets/archimate4/archimate4-tax.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-tax.ttl",
+      "sha256": "786fa3871fe90116e9efbbf293ec10bef09e5df6dce8ff89cdd65744bff655d7"
+    },
+    {
+      "file": "assets/archimate4/archimate4-viewpoint-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-viewpoint-shapes.ttl",
+      "sha256": "eabca940453b28d0e1d59f750a81053975fd27480b729bbe3c1b163507adc588"
+    },
+    {
+      "file": "assets/archimate4/archimate4-viewpoints.ttl",
+      "destination": "@linked-archi/kernel/assets/archimate4/archimate4-viewpoints.ttl",
+      "sha256": "90855da30f55a21d453bcb372cc30f82c794f169ea4ecb0c0ec898665d7efef9"
+    },
+    {
+      "file": "assets/archimate4/icons/and-junction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/and-junction.svg",
+      "sha256": "d159dfc0aab615680be13206296066d8c4d65ebaa37e34b3081ccb34ac04b5cd"
+    },
+    {
+      "file": "assets/archimate4/icons/application-component.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/application-component.svg",
+      "sha256": "e591ba65618429fa06539df20641df330ac6b483764f9399a80711946db08ef7"
+    },
+    {
+      "file": "assets/archimate4/icons/application-interface.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/application-interface.svg",
+      "sha256": "cc22b9ea85f1b09392198cf4f5779f12e172baab125643ac5b80da3cfbe6a758"
+    },
+    {
+      "file": "assets/archimate4/icons/artifact.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/artifact.svg",
+      "sha256": "4f99a55608c61e024db7a9cd2e141cecada67ee32fd5fdfa74a14bbfa2bdc8a8"
+    },
+    {
+      "file": "assets/archimate4/icons/assessment.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/assessment.svg",
+      "sha256": "5c7b162d8c898292fb7c6999ba1b9a5f7434edafe595f03567851af9e2f02dd5"
+    },
+    {
+      "file": "assets/archimate4/icons/business-actor.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/business-actor.svg",
+      "sha256": "3f1a6db49573f7d56befbab30b69d2583c553aa6bafb7c50b5a7d0837f77d475"
+    },
+    {
+      "file": "assets/archimate4/icons/business-interface.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/business-interface.svg",
+      "sha256": "33acdcac7e04c63f41758238c2ec98815f22a261a4d9d1dc7ee3a7eeacf45f47"
+    },
+    {
+      "file": "assets/archimate4/icons/business-object.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/business-object.svg",
+      "sha256": "8ec54a0b2b6e2bb2c8d77f562b06ec5c110b0b4ba59005d8ada4c04a62f30a38"
+    },
+    {
+      "file": "assets/archimate4/icons/capability.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/capability.svg",
+      "sha256": "14317218eb27eb38ee280ffcebc2ffd4fbad28fb5744f7adde0720c0e70c16ec"
+    },
+    {
+      "file": "assets/archimate4/icons/collaboration.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/collaboration.svg",
+      "sha256": "dc2ec4fcb39fc164a43a2244ab2137822a75fb9b8ab5a966a422273b5ea1bd4a"
+    },
+    {
+      "file": "assets/archimate4/icons/communication-network.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/communication-network.svg",
+      "sha256": "778e6ca4bc725983b74c1a6d124a5ff8ed1e6270710ca8f5311bb26a41904844"
+    },
+    {
+      "file": "assets/archimate4/icons/course-of-action.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/course-of-action.svg",
+      "sha256": "99a66ee1cb965b157e365797262a8e71ce19ec383a435349f9da925df73c5109"
+    },
+    {
+      "file": "assets/archimate4/icons/data-object.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/data-object.svg",
+      "sha256": "77fbcf11e338f21f67fa08d028301f5d6553945db698894f271b5685c1b9879a"
+    },
+    {
+      "file": "assets/archimate4/icons/deliverable.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/deliverable.svg",
+      "sha256": "4b2bbdbe0f36dfab835104fc6100f9f738bad12dc0174852a0914eee88887d7f"
+    },
+    {
+      "file": "assets/archimate4/icons/device.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/device.svg",
+      "sha256": "5a1815e4b1f3d1d35580d923adbb6c7dc8906e7691fde0da6dfa140a19bbce20"
+    },
+    {
+      "file": "assets/archimate4/icons/distribution-network.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/distribution-network.svg",
+      "sha256": "fb92c55614cc8f0ebdf842bd510cea1f0e87d71247cb78714ea264b3219a7aa2"
+    },
+    {
+      "file": "assets/archimate4/icons/driver.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/driver.svg",
+      "sha256": "e6dae7a775b4dcbc250b10586472a99b0eb52dacf422c329a606e58882521698"
+    },
+    {
+      "file": "assets/archimate4/icons/equipment.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/equipment.svg",
+      "sha256": "e96d61a0e9f16b8dbdf243514b00ec5bc9a3a0d7b9114a4138561e40e7a9ced9"
+    },
+    {
+      "file": "assets/archimate4/icons/event.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/event.svg",
+      "sha256": "8711dab2126909cb2e39a33b4dc41d7034408af7bc0aff1e56123df18a01fb2b"
+    },
+    {
+      "file": "assets/archimate4/icons/facility.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/facility.svg",
+      "sha256": "3eb8119b59df73ecb4fc4272425c32a776bb1b90e3aa17d090554ce76b687d68"
+    },
+    {
+      "file": "assets/archimate4/icons/function.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/function.svg",
+      "sha256": "be7ef0c041681d8c778fd0510a9dcb183072286cd52756cda490cd83a0c102f0"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/activity.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/activity.svg",
+      "sha256": "41c0b502e354a579f0401c8aabec16c9bf099c3edf6794bf3f8eb5bf7df31c08"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/actor.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/actor.svg",
+      "sha256": "f05f02fa4e2577b43985c2e18308eee45c3e289929017090b788ae067d4634b0"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/application-component.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/application-component.svg",
+      "sha256": "330a43f8e3c150af4ffcf744ae5ea7492b0471678c3012a116ab7b14f01a4b0d"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/artifact.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/artifact.svg",
+      "sha256": "35b001c5fedcc329dc01e48f4dd6bf3b632c7c99f97f86328a7ee2075200c84c"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/assessment.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/assessment.svg",
+      "sha256": "3b7d314d10e1f0e938026eeab366a1d2597466615501418d68a1bd25cde116e7"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/capability.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/capability.svg",
+      "sha256": "b14fb1f7e40d44896bc953a412bb86934ac569b739928eb8817e01e3963d23be"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/cloud-gear.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/cloud-gear.svg",
+      "sha256": "ebaa4253dbee84cc05fedd08ca46baebc15d3c0d5db5fb4ffab19cec8b5e96ee"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/collaboration.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/collaboration.svg",
+      "sha256": "8f8c3e121ca70a964b22c19d8bf7d8e95120adde731aee7552d2aa154cc87396"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/communication-network.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/communication-network.svg",
+      "sha256": "dee10c4be48b1151b1ceda3f40cfcca985607058dd091dc9126e1e25a65c5806"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/constraint.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/constraint.svg",
+      "sha256": "719b047813764e6460db6853c53d43233d6d951870020589880eefd02d606f68"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/contract.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/contract.svg",
+      "sha256": "49314cff79e7ce352e2895c51138e015bd09c0aaa2ff94600b02b87936f02b18"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/course-of-action.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/course-of-action.svg",
+      "sha256": "7e70996617a8b202b8ab89ddb2cfc15ce9074e6c2a55c68195bb1a23b87a5886"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/data-object.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/data-object.svg",
+      "sha256": "7651b6c7ba9c422f499ba38023840047903ef55512adaaa32d2d5ca4f0f74e63"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/deliverable.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/deliverable.svg",
+      "sha256": "7d8fb07988bbf6b3a6d736e221eea02ea3666e3240ae9e98ed2c017bd045c035"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/device.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/device.svg",
+      "sha256": "eea9fe45f9d5a3ee1627f1c4422ce7ffc98abb78880832338727d3e8ec0085db"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/distribution-network.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/distribution-network.svg",
+      "sha256": "d3611a628887dbc6b3f21e9c8c018e0e9315d3521f820fcba8606d566ac502fe"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/driver.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/driver.svg",
+      "sha256": "22073870b99329e9ed65b175ea17995a258036200b1b0d83b3820ab03554d0d8"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/equipment.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/equipment.svg",
+      "sha256": "811fb0539cad77242ebc157bbeb9fc2c2110936db13f6d6e752822daca575462"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/event.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/event.svg",
+      "sha256": "ba860d5b17ba6482a52fc55562451e4f9f226e89bc1961426d85d9158423b2e3"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/facility.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/facility.svg",
+      "sha256": "980c725bc50ecbee745ce60ee7956daa8c06e9a2e055e1d6ebb7a58557f033bd"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/function.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/function.svg",
+      "sha256": "b93d16e4ebf6b97e19069ddbcce60f66ec7d1369d8080fb6847599efb1d59911"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/gap.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/gap.svg",
+      "sha256": "7a19eb3b579b76eb10890383cfe3b6b15c5cec5c99597509092f2205662b5a99"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/goal.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/goal.svg",
+      "sha256": "fea06225fb474c2fed4a6d289092c665b537db02c7de0b345ddf85a17931ff5b"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/grouping.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/grouping.svg",
+      "sha256": "c8556a5fa5a8818019328ac0855a4e446b33d0ad53a91d42815e3ae4e2a1e421"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/interaction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/interaction.svg",
+      "sha256": "e9214c298a7e8ba2f164e419540edb8a47d26ae94fc876bcac253fbfec5ac872"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/interface.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/interface.svg",
+      "sha256": "86390b24d33062e92a3203073ed38705fe30808ac0ac407ef4a7a99b885cd826"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/location.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/location.svg",
+      "sha256": "7f68e60d145e58059f4f981b4a7ac015c30bbb74a4647df592b1d94545cc979c"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/material.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/material.svg",
+      "sha256": "529babd327c3ea86d9dcb6f2022265f81f2c64947c083bc5066766d7b1932f7e"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/meaning.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/meaning.svg",
+      "sha256": "464d4635ae7378f1f92b0fbf960f548808f9f3ce82347e9c36f3569c7e74d235"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/node.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/node.svg",
+      "sha256": "d14179221d4e1a412a6709c1edd6403f4d71afb4088a5db3871d10a23179a56a"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/object.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/object.svg",
+      "sha256": "7651b6c7ba9c422f499ba38023840047903ef55512adaaa32d2d5ca4f0f74e63"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/outcome.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/outcome.svg",
+      "sha256": "49c6f0713f417f05bd184a608a685965eee3b68122e3a72a63c230b71fc84f1d"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/path.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/path.svg",
+      "sha256": "316fb5a761e0f89ebd700267348cac9fb2b21f4a4ccdfc1854d0c7984111056f"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/person-silhouette.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/person-silhouette.svg",
+      "sha256": "afc6e44ced00a801c04eed9d1e188db5844c507f0b2bd53fd1fe758b3d7dd24f"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/plateau.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/plateau.svg",
+      "sha256": "daa91019a12cea5d6d8422b817288d4fedd9b546031e0d78178c29e941b59d33"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/principle.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/principle.svg",
+      "sha256": "89786f6eec3a69bbeaf7160b9727e943fd1c79937d084dfd0d4ccba374c007cd"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/process.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/process.svg",
+      "sha256": "933fc038e6ee5a8053a4e08e72c4b639c375158fbab439aac8fddb26b6ed7664"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/product.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/product.svg",
+      "sha256": "b2cca8edd5ccc6c0165e14638cce84d79bb269f9e40054dcfa8ee5c958492627"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/representation.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/representation.svg",
+      "sha256": "34ff0a6cf390a380f2dfbd0f0543830d0bcb3dce04ec5366de33648ea84d609e"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/requirement.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/requirement.svg",
+      "sha256": "0a5e4d2896ddf4425dc773c126a56275a7d20311da3e86f6bec3828967c23e80"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/resource.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/resource.svg",
+      "sha256": "5c6546af6387b7c35e72e9fd42dc08c12f284df70722c6d0d823b88573d30d40"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/role.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/role.svg",
+      "sha256": "98153bf3a76db9f9cb79cb5ebd144e58a6355425bd1b3b483b29c288ccf296fd"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/service.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/service.svg",
+      "sha256": "5155718d47103713e49e1d02c78ace5523854001c20691dfd8ca1fa847803b35"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/stakeholder.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/stakeholder.svg",
+      "sha256": "98153bf3a76db9f9cb79cb5ebd144e58a6355425bd1b3b483b29c288ccf296fd"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/system-software.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/system-software.svg",
+      "sha256": "ca425d6f40eac71322e528c8e77d7542bb72645d2a3fd01eea13a1b451df873d"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/value-stream.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/value-stream.svg",
+      "sha256": "a13c50dbbe56e468c8dead63cbaeb82639b90c5feef4a6ae876d3d77725af989"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/value.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/value.svg",
+      "sha256": "e480e8a6e52e01f9bb36d85c0ad547948fdc9550d5e9805d186c5dfa1063acc3"
+    },
+    {
+      "file": "assets/archimate4/icons/glyphs/work-package.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/glyphs/work-package.svg",
+      "sha256": "5f524b0357f79ab589e9951c5522c353a698486acc1bc2c823ae4a27f92391da"
+    },
+    {
+      "file": "assets/archimate4/icons/goal.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/goal.svg",
+      "sha256": "55792005bd60668bcb234ab6e0bb7f0eb1197de77c5c3b667bbc80db0c1ed32b"
+    },
+    {
+      "file": "assets/archimate4/icons/grouping.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/grouping.svg",
+      "sha256": "87c3a9768c0eb4f4526a516f710502ba89f5d86a20e197674202bf70b0421963"
+    },
+    {
+      "file": "assets/archimate4/icons/location.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/location.svg",
+      "sha256": "f4e7b859a6d9a157673ab6185f3136779b44c1181019ca0ccb2476df4066b948"
+    },
+    {
+      "file": "assets/archimate4/icons/material.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/material.svg",
+      "sha256": "581cf7f0aa82fa27f732694244693c76d20dc441c0fbb634844d145fb0024af0"
+    },
+    {
+      "file": "assets/archimate4/icons/meaning.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/meaning.svg",
+      "sha256": "cff752b306aaff5ba81c5fafb725745c5a060f09f147e92731275426671cae14"
+    },
+    {
+      "file": "assets/archimate4/icons/node.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/node.svg",
+      "sha256": "80e391e652d6a44e9d447ff785048736acff460525a1d7a495d188e2352d21de"
+    },
+    {
+      "file": "assets/archimate4/icons/or-junction.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/or-junction.svg",
+      "sha256": "15efe57572aa1f0961eca7479e5371a9cd6664ad3c3c6d8cf34cd0164bd06819"
+    },
+    {
+      "file": "assets/archimate4/icons/outcome.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/outcome.svg",
+      "sha256": "e066eefe2e373a58a0d526df55c8ae76993db521f1bf15f3d1ce5f149bfe80af"
+    },
+    {
+      "file": "assets/archimate4/icons/path.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/path.svg",
+      "sha256": "192541b71c2c83ad137e29b592f9d335f479956e6535471fdc1ed7ac2977d94e"
+    },
+    {
+      "file": "assets/archimate4/icons/plateau.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/plateau.svg",
+      "sha256": "0204173051961e4d32e5ab0f746cf9f0308383c8e23143de3021783c87cbec07"
+    },
+    {
+      "file": "assets/archimate4/icons/principle.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/principle.svg",
+      "sha256": "71ac2785cd60b6b0d2c617fd8f1262bce21796f6bfe2fab5a750e67bdb196aa0"
+    },
+    {
+      "file": "assets/archimate4/icons/process.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/process.svg",
+      "sha256": "9132340fd76dd8e8b3dc406cd5751821585847ddefdb428bd2a8bff6a428a191"
+    },
+    {
+      "file": "assets/archimate4/icons/product.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/product.svg",
+      "sha256": "363e5b3a8ccb049f372cd75601e266b730561875a0d9788d9d05638f0b918976"
+    },
+    {
+      "file": "assets/archimate4/icons/requirement.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/requirement.svg",
+      "sha256": "df2df12f72edd71f2ace6deb7204d89819f426c4d8ff0f2adb4b39ecf11893a6"
+    },
+    {
+      "file": "assets/archimate4/icons/resource.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/resource.svg",
+      "sha256": "c0245cf94a429183361c81135028775fe46ecd2e3b49e6fd7df333c7e0f7bd54"
+    },
+    {
+      "file": "assets/archimate4/icons/role.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/role.svg",
+      "sha256": "3a79da5c0b40c7c7e81ebf49e55ed98b3aac34ced106eb53ad926e194ba34917"
+    },
+    {
+      "file": "assets/archimate4/icons/service.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/service.svg",
+      "sha256": "e92e128af5742dce39e270430ccfb9969122d86320dcf4c14fb469a17278eca9"
+    },
+    {
+      "file": "assets/archimate4/icons/stakeholder.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/stakeholder.svg",
+      "sha256": "4715a977c70832fcba66dd4c76652bc4a3cd044446546db94d1ee9770a8f2358"
+    },
+    {
+      "file": "assets/archimate4/icons/system-software.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/system-software.svg",
+      "sha256": "63bf6a8281285acdce70d2338b5ee9ca0c24f1a608be81d31506099bc6871ddd"
+    },
+    {
+      "file": "assets/archimate4/icons/technology-interface.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/technology-interface.svg",
+      "sha256": "254354254e867ef97db48a68af0d24508516288c6855538fd751babec48d8e1e"
+    },
+    {
+      "file": "assets/archimate4/icons/value-stream.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/value-stream.svg",
+      "sha256": "ec728caae733473e270a934c39077c3860c6273def843564fb050fa38c7aeaf9"
+    },
+    {
+      "file": "assets/archimate4/icons/value.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/value.svg",
+      "sha256": "51c6ea7cf7a2d7062fdf47129ff63fa51276cc5e6a5d04b8a179255dffb761ce"
+    },
+    {
+      "file": "assets/archimate4/icons/work-package.svg",
+      "destination": "@linked-archi/kernel/assets/archimate4/icons/work-package.svg",
+      "sha256": "024ae7faa5c442cc2a968c29b347de1fad77b7edf50d08162cfea44d63e6cf5e"
+    },
+    {
+      "file": "assets/basic/basic-metamodel.ttl",
+      "destination": "@linked-archi/kernel/assets/basic/basic-metamodel.ttl",
+      "sha256": "da8b9f2308165f4868073ebd01fd4064c2e05b21ddbaee293390692d19684410"
+    },
+    {
+      "file": "assets/basic/basic-notation-bubble.ttl",
+      "destination": "@linked-archi/kernel/assets/basic/basic-notation-bubble.ttl",
+      "sha256": "aeed54ede0590e21cdc17280476564f4f9dd74a9dfaf4f303903cd4201ae2d6b"
+    },
+    {
+      "file": "assets/basic/basic-notation.ttl",
+      "destination": "@linked-archi/kernel/assets/basic/basic-notation.ttl",
+      "sha256": "aeecab5a71564dbb06d880b5e3b85a9dd41e5b7589cacff58041b1999115ef00"
+    },
+    {
+      "file": "assets/basic/basic-onto.ttl",
+      "destination": "@linked-archi/kernel/assets/basic/basic-onto.ttl",
+      "sha256": "b4c7fdf18caa73e64d76b246a23a5d31eff2270f99063ec40cc4e5f6e323a2e1"
+    },
+    {
+      "file": "assets/basic/basic-presentation-contexts.ttl",
+      "destination": "@linked-archi/kernel/assets/basic/basic-presentation-contexts.ttl",
+      "sha256": "90eacabad457209c4b8e094a64dd6e716efa4f7ba2ae5200f7bfec2511a55248"
+    },
+    {
+      "file": "assets/basic/basic-tax.ttl",
+      "destination": "@linked-archi/kernel/assets/basic/basic-tax.ttl",
+      "sha256": "12a704418144324325e871fe4007bca67897aeef938329c313d6acfeea54d7e6"
+    },
+    {
+      "file": "assets/basic/icons/aggregation.svg",
+      "destination": "@linked-archi/kernel/assets/basic/icons/aggregation.svg",
+      "sha256": "64c12b823f58960840ba85b9b94d35d67666d84ba798c82b3fcca17426cabdc7"
+    },
+    {
+      "file": "assets/basic/icons/association.svg",
+      "destination": "@linked-archi/kernel/assets/basic/icons/association.svg",
+      "sha256": "9f01cf66d24d4443458160f4d1332b15ea93c84d1c8ef07b910804fdf8f32732"
+    },
+    {
+      "file": "assets/basic/icons/element.svg",
+      "destination": "@linked-archi/kernel/assets/basic/icons/element.svg",
+      "sha256": "5e3ee7492f3495c47c42716a047f792a5d96a89697fa4d30a1fd67363edd6cbc"
+    },
+    {
+      "file": "assets/basic/icons/glyphs/aggregation.svg",
+      "destination": "@linked-archi/kernel/assets/basic/icons/glyphs/aggregation.svg",
+      "sha256": "99f86c812c46ab922b5c136b33fa577658a504f964654e82c310a227a280aee1"
+    },
+    {
+      "file": "assets/basic/icons/glyphs/association.svg",
+      "destination": "@linked-archi/kernel/assets/basic/icons/glyphs/association.svg",
+      "sha256": "f1e716b92a48f676655a3a5f6dda30de727d5488d725c273eb566f486d57d9b6"
+    },
+    {
+      "file": "assets/basic/icons/glyphs/element.svg",
+      "destination": "@linked-archi/kernel/assets/basic/icons/glyphs/element.svg",
+      "sha256": "ca1a5f5279b14f271dbe51adcfbaa6768f57c37aa2f15d5720e8f8b30aff0280"
+    },
+    {
+      "file": "assets/basic/icons/glyphs/relationship.svg",
+      "destination": "@linked-archi/kernel/assets/basic/icons/glyphs/relationship.svg",
+      "sha256": "c667fa361273d28d375902527da9eea5a8a9eef57b35006c2a48a404755462f7"
+    },
+    {
+      "file": "assets/basic/icons/relationship.svg",
+      "destination": "@linked-archi/kernel/assets/basic/icons/relationship.svg",
+      "sha256": "fd5b4af21eee02b34ff9d535e4e16725b05307155591d3e099fbc4ed1a1484b7"
+    },
+    {
+      "file": "assets/basic/notation-bubble/icons/aggregation.svg",
+      "destination": "@linked-archi/kernel/assets/basic/notation-bubble/icons/aggregation.svg",
+      "sha256": "5c25aeb3b474f7d0d6471086e49c435fca676aed55dfb404767b85fe4bf52d9b"
+    },
+    {
+      "file": "assets/basic/notation-bubble/icons/association.svg",
+      "destination": "@linked-archi/kernel/assets/basic/notation-bubble/icons/association.svg",
+      "sha256": "685dbec11a0d64009270766070b4bb12d8bfa1a1d657ef1ad783ec199b36b5be"
+    },
+    {
+      "file": "assets/basic/notation-bubble/icons/element.svg",
+      "destination": "@linked-archi/kernel/assets/basic/notation-bubble/icons/element.svg",
+      "sha256": "381037da315751160a95253a4ec04e24bf85e3e9d734600870b16fef707a010b"
+    },
+    {
+      "file": "assets/basic/notation-bubble/icons/glyphs/aggregation.svg",
+      "destination": "@linked-archi/kernel/assets/basic/notation-bubble/icons/glyphs/aggregation.svg",
+      "sha256": "5094aa6109cb071c77df81d52188dee7d2420dc6271ba71238dea670bb146029"
+    },
+    {
+      "file": "assets/basic/notation-bubble/icons/glyphs/association.svg",
+      "destination": "@linked-archi/kernel/assets/basic/notation-bubble/icons/glyphs/association.svg",
+      "sha256": "471a37b906b10750010ae4b64d458026e035294d688ee7d8123c6d7fc6e964d2"
+    },
+    {
+      "file": "assets/basic/notation-bubble/icons/glyphs/element.svg",
+      "destination": "@linked-archi/kernel/assets/basic/notation-bubble/icons/glyphs/element.svg",
+      "sha256": "8676b405b7b2d3ce1cb3e446823f9545f7ae73f511c8c1aa3d191b279a4b6716"
+    },
+    {
+      "file": "assets/basic/notation-bubble/icons/glyphs/relationship.svg",
+      "destination": "@linked-archi/kernel/assets/basic/notation-bubble/icons/glyphs/relationship.svg",
+      "sha256": "428c6caf627798e47df5aaefea41f86387f4053320ce80b573118dc3a8637eb2"
+    },
+    {
+      "file": "assets/basic/notation-bubble/icons/relationship.svg",
+      "destination": "@linked-archi/kernel/assets/basic/notation-bubble/icons/relationship.svg",
+      "sha256": "82a8341164f3a176c45266729bd106c685a4730d015967e17dcec7267d1bcb92"
+    },
+    {
+      "file": "assets/catalog.ttl",
+      "destination": "@linked-archi/kernel/assets/catalog.ttl",
+      "sha256": "a880ef55c339aef8e456383639db96b7eb1d96699d2c828cce44ae9064081bad"
+    },
+    {
+      "file": "assets/core/core-notation.ttl",
+      "destination": "@linked-archi/kernel/assets/core/core-notation.ttl",
+      "sha256": "72094ad66cb1fc18f558e4402595860afae677bbf11cf8f46ffe49bf801129ad"
+    },
+    {
+      "file": "assets/core/core-onto.ttl",
+      "destination": "@linked-archi/kernel/assets/core/core-onto.ttl",
+      "sha256": "599eacb111ed1b742ae141588677385d1c1837c678623acdf07694ec990d1f99"
+    },
+    {
+      "file": "assets/core/core-questions.ttl",
+      "destination": "@linked-archi/kernel/assets/core/core-questions.ttl",
+      "sha256": "563ad3515747cd91cce1125d678c0d0089814d6bb57d9b0d3493adc998a5ee89"
+    },
+    {
+      "file": "assets/core/core-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/core/core-shapes.ttl",
+      "sha256": "4570d2c2d79f62a9bc3fdae61e7045420f41f89f095dc6bb6358f28ba336552a"
+    },
+    {
+      "file": "assets/core/core-vis-onto.ttl",
+      "destination": "@linked-archi/kernel/assets/core/core-vis-onto.ttl",
+      "sha256": "fb75e816880d3c5cb52483974b7e1998558c8ea50fd1f541509eb4a7937b211b"
+    },
+    {
+      "file": "assets/core/core-vis-shapes.ttl",
+      "destination": "@linked-archi/kernel/assets/core/core-vis-shapes.ttl",
+      "sha256": "df0c5c517f7e597a138558b5b6f90fa3d5ee216872cb7fc3f7b2712b038604b6"
+    },
+    {
+      "file": "assets/core-vis/markers/circle-dot.svg",
+      "destination": "@linked-archi/kernel/assets/core-vis/markers/circle-dot.svg",
+      "sha256": "024d7bc6a657b1cbd5d882fbc778d5afebe60c7de56058aa4ed74f44594c8f6a"
+    },
+    {
+      "file": "assets/core-vis/markers/closed-arrowhead.svg",
+      "destination": "@linked-archi/kernel/assets/core-vis/markers/closed-arrowhead.svg",
+      "sha256": "df24be5767f91271ce4b8025eb81437f1b9adee1989436cd2da66518b2a1461f"
+    },
+    {
+      "file": "assets/core-vis/markers/filled-diamond.svg",
+      "destination": "@linked-archi/kernel/assets/core-vis/markers/filled-diamond.svg",
+      "sha256": "62f99c098d6dcca24e19ae2b89b675eb68c37a66a390303930cfc23fe234ad71"
+    },
+    {
+      "file": "assets/core-vis/markers/half-arrowhead.svg",
+      "destination": "@linked-archi/kernel/assets/core-vis/markers/half-arrowhead.svg",
+      "sha256": "0a4b7a64c37be01a72dc59e6599da66c3a7e653672d77bd79898caba024024cf"
+    },
+    {
+      "file": "assets/core-vis/markers/hollow-arrowhead.svg",
+      "destination": "@linked-archi/kernel/assets/core-vis/markers/hollow-arrowhead.svg",
+      "sha256": "fa9840e6846acae2063eef039cd3d88cb6dca90bd646c6184fc8ff8e1e72b3f2"
+    },
+    {
+      "file": "assets/core-vis/markers/hollow-diamond.svg",
+      "destination": "@linked-archi/kernel/assets/core-vis/markers/hollow-diamond.svg",
+      "sha256": "71fcc801c752b787100dae93e68aa222c052c796c41c77362ddb5ea206b0b5f8"
+    },
+    {
+      "file": "assets/core-vis/markers/open-arrowhead.svg",
+      "destination": "@linked-archi/kernel/assets/core-vis/markers/open-arrowhead.svg",
+      "sha256": "c77d14733e56dd535fd06cb876564a881c9811798a2464705810516fef673c92"
+    },
+    {
+      "file": "scripts/sync-assets.mjs",
+      "destination": "@linked-archi/kernel/scripts/sync-assets.mjs",
+      "sha256": "4a4ebc492ce5fa798a2ef47e03bdeeb50abb3232ab0bdd45a554d260d52cc908"
+    },
+    {
+      "file": "src/__tests__/sync-assets.test.ts",
+      "destination": "@linked-archi/kernel/src/__tests__/sync-assets.test.ts",
+      "sha256": "07120e082d1d625fbe84757aa8e7722c88b4ce11b822bb70a0e488e0c4099f23"
+    }
+  ],
+  "ownedByKernelAfterVerification": [
+    {
+      "file": "src/import-export/__tests__/model-io.test.ts",
+      "sha256BeforeRemoval": "5f551fe23f5cb8e1cc0e27f91d68100422b5becaebd79ca3dba102c1258a1498",
+      "kernelFile": "src/import-export/__tests__/model-io.test.ts",
+      "comparison": "identical except package imports"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/bounds.trig",
+      "sha256BeforeRemoval": "e138eac248c3985c0ab2d685a0a8744118ef252fbab5ee204b5da296eac47f1b",
+      "kernelFile": "src/__tests__/fixtures/merge/bounds.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/clean.trig",
+      "sha256BeforeRemoval": "b0e1cea24cc19b74339f8e31faada81c126b6d58e931c2f042574764b87da9c4",
+      "kernelFile": "src/__tests__/fixtures/merge/clean.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/count.trig",
+      "sha256BeforeRemoval": "7f414fedf1583336b1ecb12f94ded0e6a5a453a5ccb9e0c023d121fb65e97516",
+      "kernelFile": "src/__tests__/fixtures/merge/count.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-agreed.trig",
+      "sha256BeforeRemoval": "3f4dafcfa84cbd1de7a30688e2927021c801cdc5a638981c265e973bda6c4a92",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-agreed.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-filed.trig",
+      "sha256BeforeRemoval": "00f5af719eac751958b9e51ba718196705b3aca83b8b1940c07c839ae0592389",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-filed.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-placed.trig",
+      "sha256BeforeRemoval": "709e16588648339622bdadd146c11fab5f044deef166f402370d4bdf4e40f7bd",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-placed.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-related.trig",
+      "sha256BeforeRemoval": "2b3b046da157ad53f9ea47120964c3aca506a6196f50a929dc73224f38b185d5",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-related.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-renamed.trig",
+      "sha256BeforeRemoval": "4822fc9c36b1f3327ea16d724be72a47c61fea30ee9dd5d59699e29cddb4cf68",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-renamed.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/ends.trig",
+      "sha256BeforeRemoval": "5942fdedff0eb126cff95924266bb36fd28f4891c23c7b0f4d4adbe81d916f4c",
+      "kernelFile": "src/__tests__/fixtures/merge/ends.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/model.trig",
+      "sha256BeforeRemoval": "14bd314c995b44790f25b86bc28f9ce7a323b8840e0bd280b9ba9ccdfbaded98",
+      "kernelFile": "src/__tests__/fixtures/merge/model.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/modified.trig",
+      "sha256BeforeRemoval": "6fa366aebb359f75075c737a420e470b97442e5d18c585f9553b2e111abe0e06",
+      "kernelFile": "src/__tests__/fixtures/merge/modified.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/placement.trig",
+      "sha256BeforeRemoval": "99a121e63ed757f8e4746b374b0821ef3bdd41c730ce26246a04fbb19c7df2cd",
+      "kernelFile": "src/__tests__/fixtures/merge/placement.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/route.trig",
+      "sha256BeforeRemoval": "179ac21f8aee4ead7a0814383fb58cbece98cd37bf0f07247e81fe486baebc04",
+      "kernelFile": "src/__tests__/fixtures/merge/route.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/value.trig",
+      "sha256BeforeRemoval": "97b5fa82b160d04d9390e629578818cb8000d0fa1024f7d65aefa51017fade63",
+      "kernelFile": "src/__tests__/fixtures/merge/value.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/diff/changes.trig",
+      "sha256BeforeRemoval": "1dc2209bd591f6f556db053ab2df142acb8f77eb9125b084a887cfb5c56a0b81",
+      "kernelFile": "src/__tests__/fixtures/diff/changes.trig",
+      "comparison": "byte-identical"
+    }
+  ]
+}

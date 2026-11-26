@@ -79,7 +79,7 @@ la-gram-git's own image (below).
 
   ```yaml
   la-gram-git:
-    image: registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
+    image: ghcr.io/linked-archi/la-gram-git:0
     rules:
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     variables:
@@ -97,7 +97,7 @@ la-gram-git's own image (below).
   jobs:
     models:
       runs-on: ubuntu-latest
-      container: registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
+      container: ghcr.io/linked-archi/la-gram-git:0
       steps:
         - uses: actions/checkout@v4
           with:
@@ -114,7 +114,7 @@ la-gram-git's own image (below).
   Tags: each version (`0.1.0`), its major version (`0`) and `latest`, each for `linux/amd64` and
   `linux/arm64`, so x86 and ARM runners take the image for their platform. Its tags, platforms, local use
   and copying it into your own registry are described in
-  [the package's README](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/packages/la-gram-git/README.md#the-container-image).
+  [the package's README](https://github.com/linked-archi/la-gram/blob/main/packages/la-gram-git/README.md#the-container-image).
 
 ## Merging, not only checking
 
@@ -123,4 +123,4 @@ file can conflict as text even when they changed different elements. la-gram its
 when it saves to Git, so most teams need nothing more. For people who merge with `git` on the command line,
 `la-gram-git init merge-driver` sets up la-gram's merge in their clone. GitHub and gitlab.com cannot run a
 merge driver when they merge a request; a self-managed GitLab can, configured by its administrator:
-see [la-gram's merge driver on Gitaly](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/packages/la-gram-git/docs/gitaly.md).
+see [la-gram's merge driver on Gitaly](https://github.com/linked-archi/la-gram/blob/main/packages/la-gram-git/docs/gitaly.md).

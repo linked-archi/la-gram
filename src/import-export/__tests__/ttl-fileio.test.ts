@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
-import type { TtlParser, TtlSerializer, RdfStore } from '../../rdf-engine/interfaces.js';
+import type { TtlParser, TtlSerializer, RdfStore } from '@linked-archi/kernel/rdf-engine/interfaces.js';
 import type { PlatformService } from '../../platform/interfaces.js';
 import { TtlFileIO } from '../ttl-file-io.js';
-import { PREFIXES } from '../../rdf-engine/namespaces.js';
+import { PREFIXES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 const { namedNode, literal, quad } = DataFactory;
 

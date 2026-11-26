@@ -24,10 +24,10 @@ import {
   type ClosureSource,
   type RelationshipShapes,
 } from '../relationship-resolution.js';
-import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 const { namedNode, quad } = DataFactory;
 

@@ -25,7 +25,7 @@
  * commit's diff is the change (Req 9.12).
  */
 import type { Dialogs, FormValues } from '../ui/dialogs.js';
-import { MODEL_FORMATS, formatOfPath, type ModelFormat } from '../import-export/model-io.js';
+import { MODEL_FORMATS, formatOfPath, type ModelFormat } from '@linked-archi/kernel/import-export/model-io.js';
 import type { GitBinding, GitBindings } from './bindings.js';
 import type { TokenStore } from './credentials.js';
 import { GitError } from './errors.js';
@@ -34,7 +34,7 @@ import type { GitConfig } from '../config.js';
 import { learnKind, readLink, type HostKinds } from './host-kinds.js';
 import type { CommitResult, FileChange, GitHostProvider } from './providers/provider.js';
 import { commitUpdate, mergeWithNewer, type MergeSupport } from './git-merge.js';
-import type { DiffWords } from '../model-manager/model-diff-text.js';
+import type { DiffWords } from '@linked-archi/kernel/model-manager/model-diff-text.js';
 
 /** What the Save flow needs from la-gram, injected so it is tested without the UI. */
 export interface GitSaveContext {
@@ -46,7 +46,11 @@ export interface GitSaveContext {
   /** The model is saved: clears the unsaved-changes marker (`model-saved`). */
   saved(fileName: string): void;
   dialogs: Dialogs;
-  report(message: string, level?: 'info' | 'warning' | 'error'): void;
+  /**
+   * Say what a Git action did — kept on screen until closed (Req 18.31). `progress`: a step on the way, which goes by
+   * itself, as the result that follows stays.
+   */
+  report(message: string, level?: 'info' | 'warning' | 'error', options?: { progress?: boolean }): void;
   tokens: TokenStore;
   bindings: GitBindings;
   /** A provider for a repository, with a token. */

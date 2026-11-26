@@ -1,6 +1,6 @@
 # la-gram's documentation: docs-site/ built into dist/web/docs/, which the web
-# app's release puts at https://app.linked.archi/la-gram/docs/ (.gitlab-ci.yml,
-# docs and web-deploy). How to write and build it:
+# app's release puts at https://app.linked.archi/la-gram/docs/ (the workflow's
+# docs and release jobs). How to write and build it:
 # docs-site/developing/documentation.md.
 site_name: la-gram
 site_url: https://app.linked.archi/la-gram/docs/
@@ -20,8 +20,8 @@ use_directory_urls: true
 exclude_docs: |
   *.d2
 
-# No repo_url: with it, Material's script asks gitlab.com for the project's
-# stars and forks from every reader's browser. The footer links to GitLab.
+# No repo_url: with it, Material's script asks GitHub's API for the project's
+# stars and forks from every reader's browser. The footer links to GitHub.
 
 theme:
   name: material
@@ -115,9 +115,9 @@ watch:
 
 extra:
   social:
-    - icon: fontawesome/brands/gitlab
-      link: https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram
-      name: la-gram on GitLab
+    - icon: fontawesome/brands/github
+      link: https://github.com/linked-archi/la-gram
+      name: la-gram on GitHub
     - icon: fontawesome/solid/globe
       link: https://meta.linked.archi/
       name: Linked.Archi metamodels

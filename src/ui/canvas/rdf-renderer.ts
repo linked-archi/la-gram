@@ -71,15 +71,15 @@
 // `.js` specifier resolves to `BaseRenderer.d.ts` for types.
 import BaseRenderer from 'diagram-js/lib/draw/BaseRenderer.js';
 
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import type {
   Decoration,
   RelationshipVisualStyle,
   RenderingMode,
   ShapeType,
   VisualStyle,
-} from '../../metamodel-manager/notation.js';
-import type { FigureInfo } from '../../model-manager/interfaces.js';
+} from '@linked-archi/kernel/metamodel-manager/notation.js';
+import type { FigureInfo } from '@linked-archi/kernel/model-manager/interfaces.js';
 import {
   hasFontStyle,
   imageUri,
@@ -90,7 +90,7 @@ import {
   type LabelAnchor,
   type TextAlignment,
   type TextPosition,
-} from '../../model-manager/appearance.js';
+} from '@linked-archi/kernel/model-manager/appearance.js';
 import { figureColours } from '../figure-bar.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import {
@@ -328,6 +328,11 @@ export interface RdfBusinessObject {
   kind?: 'element' | 'relationship' | 'figure' | 'connector';
   /** A figure — a group, a shape, a note — standing for no model element: its node is its `iri`. */
   figure?: FigureInfo;
+  /**
+   * Its node's drawing order among the shapes in the same place (`arch-vis:zOrder`, core-vis 0.10): drawn above
+   * those with a lower one; absent, 0 — the same, by its node's IRI (`rdf-ordering.ts`).
+   */
+  zOrder?: number;
   /** How this placement or line looks in the view, from its own style; a figure's is in its {@link figure}. */
   appearance?: Appearance;
   /**

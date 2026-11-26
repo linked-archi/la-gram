@@ -10,11 +10,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
-import type { RdfStore, SparqlResult, TtlParser, TtlSerializer, ShaclValidator, PrefixMap, ValidationReport } from '../rdf-engine/interfaces.js';
-import type { LoadedMetamodel, MetamodelLoader, PaletteGenerator, ViewpointManager, MetamodelInfo, PaletteDefinition } from '../metamodel-manager/interfaces.js';
-import type { ElementManager, RelationshipManager, ViewManager, Bounds, ViewInfo } from '../model-manager/interfaces.js';
-import type { RelationshipTypeInfo } from '../metamodel-manager/interfaces.js';
-import { ModelOperations } from '../model-manager/model-operations.js';
+import type { RdfStore, SparqlResult, TtlParser, TtlSerializer, ShaclValidator, PrefixMap, ValidationReport } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import type { LoadedMetamodel, MetamodelLoader, PaletteGenerator, ViewpointManager, MetamodelInfo, PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { ElementManager, RelationshipManager, ViewManager, Bounds, ViewInfo } from '@linked-archi/kernel/model-manager/interfaces.js';
+import type { RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { ModelOperations } from '@linked-archi/kernel/model-manager/model-operations.js';
 import { TtlFileIO } from '../import-export/ttl-file-io.js';
 import type { PlatformService } from '../platform/interfaces.js';
 import { EventBus } from '../ui/event-bus.js';

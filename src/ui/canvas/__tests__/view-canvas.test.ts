@@ -19,23 +19,23 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
-import { N3TtlParser } from '../../../rdf-engine/ttl-parser.js';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
-import { N3MetamodelLoader } from '../../../metamodel-manager/metamodel-loader.js';
-import { SparqlPaletteGenerator } from '../../../metamodel-manager/palette-generator.js';
-import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
-import { OxigraphElementManager } from '../../../model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
-import { OxigraphViewManager } from '../../../model-manager/view-manager.js';
-import { ModelSession } from '../../../model-manager/model-session.js';
-import { labelOf, modelNameOf, modelQuads } from '../../../model-manager/model-queries.js';
+import { N3TtlParser } from '@linked-archi/kernel/rdf-engine/ttl-parser.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { N3MetamodelLoader } from '@linked-archi/kernel/metamodel-manager/metamodel-loader.js';
+import { SparqlPaletteGenerator } from '@linked-archi/kernel/metamodel-manager/palette-generator.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { ModelSession } from '@linked-archi/kernel/model-manager/model-session.js';
+import { labelOf, modelNameOf, modelQuads } from '@linked-archi/kernel/model-manager/model-queries.js';
 import { EventBus } from '../../event-bus.js';
 import { DiagramCanvas, OUTSIDE_VIEWPOINT_MARKER } from '../diagram-canvas.js';
 import { MOVE_LINK_LABEL_COMMAND } from '../rdf-link-label.js';
 import { buildClassClosure } from '../relationship-resolution.js';
 import { installJsdomSvgSupport } from '../../__tests__/jsdom-svg-support.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 installJsdomSvgSupport();
 
@@ -1589,10 +1589,14 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     (pad['open-view']!.action as () => void)();
     const menu = f.canvas.contextMenuProvider.getPopupMenuEntries(reference) as Record<string, { label: string; action: () => void }>;
     // Its menu renames its view, too (VC-2).
-    expect(Object.keys(menu)).toEqual(['open-view', 'rename', 'delete']);
+    expect(Object.keys(menu)).toEqual(['open-view', 'open-view-beside', 'rename', 'delete']);
     expect(menu['open-view']!.label).toBe('Open view');
     menu['open-view']!.action();
     expect(asked).toHaveLength(3);
+    // *Open beside*: in the canvas's other pane (Req 24).
+    expect(menu['open-view-beside']!.label).toBe('Open beside');
+    menu['open-view-beside']!.action();
+    expect(asked[3]).toEqual({ nodeIri: node, viewIri: payments, beside: true });
     // A note has no Open view.
     const note = f.views.addFigure(f.viewIri, { kind: 'note', text: 'n', bounds: { x: 0, y: 700, width: 185, height: 80 } });
     f.canvas.syncFromStore();
@@ -1999,5 +2003,49 @@ describe('a relationship drawn more than once in a view', () => {
     expect(f.service<{ get(): El[] }>('selection').get().filter((e) => e.waypoints)).toHaveLength(2);
     f.service<{ execute(c: string, ctx: unknown): void }>('commandStack').execute('rdf.element.relabel', { element: linesOf(f, serving)[0], label: 'Calls' });
     expect(linesOf(f, serving).map((l) => l.businessObject?.label)).toEqual(['Calls', 'Calls']);
+  });
+});
+
+describe('the canvas of the pane not in use (Req 24; split view SV-DD-2)', () => {
+  it('takes no keys, follows none of the events about the open view, says nothing of its selection — and does again in use', () => {
+    const bus = new EventBus();
+    const said: unknown[] = [];
+    bus.on('selection-changed', (event) => void said.push(event.detail));
+    const f = mount({ eventBus: bus });
+    const keyboard = f.service<{ getBinding(): unknown }>('keyboard');
+    expect(keyboard.getBinding()).toBe(document);
+    const drawn = f.elements.createElement(COMPONENT, f.modelIri, { label: 'Drawn' }).value;
+    f.views.addElementToView(f.viewIri, drawn, { x: 0, y: 0, width: 120, height: 55 });
+    f.canvas.syncFromStore();
+    said.length = 0;
+
+    f.canvas.setInUse(false);
+    expect(f.canvas.isInUse()).toBe(false);
+    expect(keyboard.getBinding()).toBeFalsy();
+    // Another view's palette drop, a delete from another view: not this canvas's.
+    bus.emit('element-created', { iri: 'urn:x:elsewhere', typeIri: COMPONENT, bounds: { x: 300, y: 0, width: 120, height: 55 } });
+    bus.emit('element-deleted', { iri: drawn });
+    expect(f.canvas.getElement('urn:x:elsewhere')).toBeUndefined();
+    expect(f.canvas.getElement(drawn)).toBeDefined();
+    f.canvas.selectIris([drawn]);
+    expect(said).toEqual([]);
+
+    f.canvas.setInUse(true);
+    expect(keyboard.getBinding()).toBe(document);
+    f.canvas.selectIris([]);
+    expect(said).toHaveLength(1);
+  });
+
+  it('takes its listeners off the app event bus when destroyed: a pane closed leaves nothing behind', () => {
+    const bus = new EventBus();
+    const f = mount({ eventBus: bus });
+    const listening = () =>
+      (['element-created', 'element-deleted', 'element-updated', 'relationship-created', 'relationship-deleted'] as const).map(
+        (type) => (bus as unknown as { listeners: Map<string, Set<unknown>> }).listeners.get(type)?.size ?? 0,
+      );
+    expect(listening()).toEqual([1, 1, 1, 1, 1]);
+    f.canvas.destroy();
+    mounted = undefined;
+    expect(listening()).toEqual([0, 0, 0, 0, 0]);
   });
 });

@@ -27,18 +27,18 @@ import { DataFactory } from 'n3';
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 
 import type { App } from '../app.js';
-import type { PaletteDefinition, ViewpointInfo } from '../metamodel-manager/interfaces.js';
-import type { ValidationResult } from '../rdf-engine/interfaces.js';
-import { ObservableRdfStore } from '../rdf-engine/observable-store.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/iri.js';
-import type { ViewKind } from '../model-manager/interfaces.js';
-import { VersionHistory } from '../model-manager/version-history.js';
+import type { PaletteDefinition, ViewpointInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { ValidationResult } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '@linked-archi/kernel/rdf-engine/iri.js';
+import type { ViewKind } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { VersionHistory } from '@linked-archi/kernel/model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
-import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
-import { contextNameChange, contextNameOf } from '../model-manager/context-names.js';
-import { pictureChange, pictureOf } from '../model-manager/element-pictures.js';
-import type { AppearanceChanges } from '../model-manager/appearance.js';
+import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { contextNameChange, contextNameOf } from '@linked-archi/kernel/model-manager/context-names.js';
+import { pictureChange, pictureOf } from '@linked-archi/kernel/model-manager/element-pictures.js';
+import type { AppearanceChanges } from '@linked-archi/kernel/model-manager/appearance.js';
 import { contextChoices } from './presentation-contexts.js';
 import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
 import { notationOnly, rememberNotationOnly } from './notation-only.js';
@@ -57,10 +57,10 @@ import {
   renameFolder,
   type FolderChange,
   type FolderKind,
-} from '../model-manager/folders.js';
-import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
-import { humanize, localName as localNameOf } from '../model-manager/vocabulary.js';
-import { accountText } from '../model-manager/provenance.js';
+} from '@linked-archi/kernel/model-manager/folders.js';
+import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '@linked-archi/kernel/model-manager/derivations.js';
+import { humanize, localName as localNameOf } from '@linked-archi/kernel/model-manager/vocabulary.js';
+import { accountText } from '@linked-archi/kernel/model-manager/provenance.js';
 import { fromTextField } from './canvas/canvas-clipboard.js';
 import {
   arrangeSettings,
@@ -80,35 +80,43 @@ import { gridNote, layoutView, loadedBands, type ArrangeDeps } from './arrange-v
 import { applyViewLayout } from '../layout/view-layout.js';
 import { layout as layOut } from '../layout/layout-service.js';
 import { withRouterRoutes, withViewRouterRoutes } from '../layout/reroute.js';
+import type { LineShape } from '../layout/line-shapes.js';
+import type { DrawingOrderChange } from '@linked-archi/kernel/model-manager';
+import { unchangedMessage } from './canvas/drawing-order-actions.js';
 import { withNeighbourBands } from '../layout/bands.js';
 import { workerEngine } from '../layout/elk-engine.js';
 import { DEFAULT_LAYOUT_OPTIONS, type LayoutDirection, type LayoutInput, type LayoutSpacing } from '../layout/layout-types.js';
-import { relationshipClassOf as relationshipClassIn } from '../model-manager/cascade.js';
+import { relationshipClassOf as relationshipClassIn } from '@linked-archi/kernel/model-manager/cascade.js';
 import {
   listQuestions,
   offeredQuestions,
   runModelChecks,
   type ModelQuestion,
   type QuestionBindings,
-} from '../model-manager/questions.js';
-import { PropertyCatalog, curieOf } from '../model-manager/property-catalog.js';
-import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
-import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
+} from '@linked-archi/kernel/model-manager/questions.js';
+import { PropertyCatalog, curieOf } from '@linked-archi/kernel/model-manager/property-catalog.js';
+import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '@linked-archi/kernel/import-export/model-io.js';
+import { conceptStatements, viewMembers, viewStatements } from '@linked-archi/kernel/model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
 import { copyPicture } from '../import-export/image-clipboard.js';
 import { aboutBlocks, BUILD, downloadBlocks, isMacPlatform, runtimeOf, shortcutBlocks, systemOf, versionText, type AboutContext } from './help.js';
 import { isElectronEnvironment } from '../platform/platform-factory.js';
 import type { ModelEventHandler } from './event-bus.js';
-import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues } from './dialogs.js';
+import { BusyIndicator } from './busy.js';
+import { SplitLayout, rememberSyncSelection, rememberedOrientation, syncSelectionOn, type SplitOrientation } from './split-view.js';
+import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues, type ToastOptions } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
-import { CATALOGUE_KIND_LABELS } from '../metamodel-manager/catalogue.js';
+import { CATALOGUE_KIND_LABELS } from '@linked-archi/kernel/metamodel-manager/catalogue.js';
 
 // Side-effect imports: register the custom elements.
 import './app-shell.js';
 import './panels/app-toolbar.js';
 import './panels/palette-panel.js';
 import './panels/canvas-toolbar.js';
+import './panels/find-bar.js';
+import type { FindQueryDetail, FindStepDetail } from './panels/find-bar.js';
+import { textsMatch, type CanvasSearchState } from './canvas/canvas-search.js';
 import './panels/property-panel.js';
 import { fieldName } from './panels/property-panel.js';
 import { hasFolders } from './panels/model-explorer.js';
@@ -158,10 +166,10 @@ import type { MatrixView } from './views/matrix-view.js';
 import type { RdfPanel, RdfDownloadDetail, RdfPanelContent, RdfPanelRequest, RdfSelectDetail } from './panels/rdf-panel.js';
 import type { GraphPanel, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail, GraphTypeLook, GraphTypeOption } from './panels/graph-panel.js';
 import type { ResultsViewRequestDetail, SparqlSelectDetail } from './panels/sparql-editor.js';
-import { mostSpecificType, relationshipGraph } from '../model-manager/relationship-graph.js';
-import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
-import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
-import { ASSETS_VERSION, assetUrl } from '../metamodel-manager/bundled-assets.js';
+import { mostSpecificType, relationshipGraph } from '@linked-archi/kernel/model-manager/relationship-graph.js';
+import { planView, placeNodes, type ConceptKinds } from '@linked-archi/kernel/model-manager/view-from-results.js';
+import { readTypeGuide, type TypeGuide } from '@linked-archi/kernel/metamodel-manager/type-guide.js';
+import { ASSETS_VERSION, assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref, NOTATION_DEFAULTS, withElementIcons, withRelationshipIcons } from './canvas/notation-shapes.js';
 import { NotationStyleRegistry } from './canvas/notation-styles.js';
 
@@ -175,6 +183,7 @@ import {
   type RetypeElementRequest,
 } from './canvas/diagram-canvas.js';
 import { buildClassClosure, type ClassClosure } from './canvas/relationship-resolution.js';
+import type { ShapedLines } from './canvas/canvas-arrange.js';
 
 const { namedNode } = DataFactory;
 
@@ -239,9 +248,29 @@ export interface MountedUi {
   setRdfPanelOpen(open: boolean): void;
   /** Whether the RDF panel is shown. */
   isRdfPanelOpen(): boolean;
-  /** Host element handed to diagram-js / the DiagramCanvas renderer. */
+  /** Host element handed to diagram-js / the DiagramCanvas renderer — the pane in use's (Req 24). */
   canvasHost: HTMLElement;
+  /** The pane in use's canvas. */
   diagramCanvas: DiagramCanvas;
+  /**
+   * Split the canvas (Req 24): a second pane showing `viewIri` — the view in use unless said — put in use; split
+   * already, the panes turned.
+   */
+  split(orientation: SplitOrientation, viewIri?: string): Promise<void>;
+  /** *Open beside*: the view in the pane not in use, put in use — split first if need be. */
+  openBeside(viewIri: string): Promise<void>;
+  /** Close the pane not in use. */
+  closeSplit(): void;
+  /** Put a pane in use, by its place: 0 the first (left or above), 1 the second. */
+  usePane(index: number): void;
+  /** The panes, first to last: what each shows, and which is in use. */
+  panes(): Array<{ element: HTMLElement; canvas: DiagramCanvas; kind: CanvasViewKind; viewIri?: string; inUse: boolean }>;
+  /** How the canvas is split; nothing with one pane. */
+  splitOrientation(): SplitOrientation | undefined;
+  /** Put a marker on these concepts in every pane, and in a pane opened later: what collaborators hold. */
+  setCanvasMarkers(marker: string, iris: ReadonlySet<string>): void;
+  /** Lock these concepts in every pane, and in a pane opened later: what collaborators hold. */
+  setLockedIris(iris: ReadonlySet<string>): void;
   /** Switch the centre area between the diagram, catalog and matrix views. */
   setActiveCanvasView(kind: CanvasViewKind): void;
   /** Currently visible centre view. */
@@ -258,8 +287,8 @@ export interface MountedUi {
   runCommand(detail: ToolbarCommandDetail): Promise<void>;
   /** The dialogs the UI asks with (scripted in tests): for modules. */
   dialogs: Dialogs;
-  /** Say something: a toast, and `notify` on the event bus. */
-  report(message: string, level?: 'info' | 'warning' | 'error'): void;
+  /** Say something: a toast — kept until closed, `sticky` — and `notify` on the event bus. */
+  report(message: string, level?: 'info' | 'warning' | 'error', options?: ToastOptions): void;
   /**
    * Ask before the model is replaced, as File › Open does: when it has unsaved
    * changes, or is shared in a room. `false` when the user says no.
@@ -267,6 +296,8 @@ export interface MountedUi {
   confirmReplace(what: string): Promise<boolean>;
   /** Open a model file's text as File › Open does — the model replaced — and say what it did. */
   openModelText(text: string, fileName: string): Promise<void>;
+  /** Run work under the loader, saying what is opening (Req 11.13): shown and painted first, gone after. */
+  busy<T>(message: string, work: () => T | Promise<T>): Promise<T>;
   /**
    * A module's entries in the File menu. `items` is asked each time the menu
    * opens, so an entry can name the model's state; `run` runs one, its failure
@@ -495,9 +526,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // ── Top: app toolbar ─────────────────────────────────────────────────
   const appToolbar = document.createElement('app-toolbar');
   appToolbar.slot = 'toolbar';
-  // la-gram's documentation: the web app's own, served beside it; the desktop app has no site, so the published one.
+  // la-gram's documentation: the published one, the release's or the alpha's, wherever la-gram runs. The
+  // licences file is the build's own, beside the web app; the desktop app has no site, so the published one.
+  appToolbar.channel = BUILD.channel ?? '';
   const appBase = isElectronEnvironment() ? undefined : document.baseURI;
-  appToolbar.appBase = appBase ?? '';
   // The bundled catalogue, then the published one (App.loadCatalogue).
   appToolbar.catalogue = [];
   void app.loadCatalogue((entries) => {
@@ -533,30 +565,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     ];
   };
 
-  // ── Centre: diagram host + alternative catalog/matrix views ──────────
+  // ── Centre: the panes — one, or two side by side or one above the other (Req 24) ──
   const canvasArea = document.createElement('div');
   canvasArea.slot = 'canvas';
   canvasArea.className = 'la-canvas-area';
 
   // The global tools (connect / lasso / hand) live in this strip rather than
   // in diagram-js's own in-canvas palette, which would duplicate the sidebar.
+  // One strip over both panes: it acts on the pane in use.
   const canvasToolbar = document.createElement('canvas-toolbar');
-
-  const canvasHost = document.createElement('div');
-  canvasHost.className = 'la-diagram-host';
-
-  const catalogView = document.createElement('catalog-view');
-  catalogView.rdfStore = store;
-  catalogView.elementManager = elementManager;
-  catalogView.viewManager = viewManager;
-  catalogView.hidden = true;
-
-  const matrixView = document.createElement('matrix-view');
-  matrixView.rdfStore = store;
-  matrixView.viewManager = viewManager;
-  matrixView.hidden = true;
-
-  canvasArea.append(canvasToolbar, canvasHost, catalogView, matrixView);
 
   // The palette drives the closure-aware domain/range matching on the context
   // pad, so it has to be readable as it changes.
@@ -567,60 +584,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const lookStyles = new NotationStyleRegistry(currentPalette);
   // A type's label in the catalog and matrix views, as the palette shows it.
   const typeLabelOf = (typeIri: string): string => lookStyles.labelFor(typeIri) ?? labelOf(store, typeIri);
-  catalogView.typeLabelOf = typeLabelOf;
-  matrixView.typeLabelOf = typeLabelOf;
   // Their membership changed (an element added to or taken out of the view).
   const onViewMembersChange = (e: Event): void => {
     eventBus.emit('views-changed', { viewIri: (e as CustomEvent<{ viewIri: string }>).detail.viewIri });
   };
-  catalogView.addEventListener('view-members-change', onViewMembersChange);
-  matrixView.addEventListener('view-members-change', onViewMembersChange);
-
-  const diagramCanvas = new DiagramCanvas({
-    container: canvasHost,
-    eventBus,
-    elementManager,
-    relationshipManager,
-    paletteDefinition: currentPalette,
-    modelIri: session.modelIri ?? DEFAULT_MODEL_IRI,
-    classClosure: closureLookup,
-    rdfStore: store,
-    viewManager,
-    ...(store instanceof ObservableRdfStore ? { changeStore: store } : {}),
-    describeElement: describe,
-    confirmDeleteFromModel: (request: DeleteFromModelRequest) => confirmModelDelete(request),
-    confirmRetypeElement: (request: RetypeElementRequest) =>
-      dialogs.confirm(
-        `Change ${request.label} to ${request.toLabel}?`,
-        request.notPermitted.length === 1
-          ? `One of its relationships is not permitted between a ${request.toLabel} and the other end. It is kept, and validation will flag it until it is changed or deleted.`
-          : `${request.notPermitted.length} of its relationships are not permitted between a ${request.toLabel} and the other end. They are kept, and validation will flag them until they are changed or deleted.`,
-        { confirmLabel: 'Change type', details: request.notPermitted },
-      ),
-    onContextAction: (action, iri) => onCanvasContextAction(action, iri),
-    canMoveToFolder: () => hasFolders(modelContents()),
-    onToolChanged: (tool) => {
-      canvasToolbar.activeTool = tool ?? undefined;
-    },
-    onNotice: (message, level) => dialogs.toast(message, level),
-    // Copy and paste on the canvas: where a copy comes from, its Turtle's prefixes, and what to do with
-    // elements of types no loaded metamodel defines, pasted from another model.
-    clipboard: {
-      source: () => {
-        const own = session.namespace();
-        return { ...(own ? { namespace: own.namespace } : {}), metamodelIris: session.metamodelIris(), ...(BUILD.version ? { version: BUILD.version } : {}) };
-      },
-      prefixes: () => app.modelIO.collectPrefixes(session.modelIri),
-      chooseUnknownTypes: async (typeIris) => {
-        const names = typeIris.map((iri) => typeLabelOf(iri) || localNameOf(iri)).join(', ');
-        const answer = await dialogs.choose(`Paste elements of types this model does not define?`, [
-          { value: 'keep', label: 'Paste them, unclassified', detail: `No loaded metamodel defines ${names}.` },
-          { value: 'skip', label: 'Leave them out', detail: 'With the relationships that end on them.' },
-        ]);
-        return answer === 'keep' || answer === 'skip' ? answer : null;
-      },
-    },
-  });
 
   // What label expressions read (core-vis 0.7's arch-vis:labelExpression): the model's
   // statements, names, type names, and the prefixes the vocabularies in use declare —
@@ -629,7 +596,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const forgetLabelPrefixes = (): void => {
     labelPrefixes = undefined;
   };
-  diagramCanvas.labelSource = {
+  const labelSource: NonNullable<DiagramCanvas['labelSource']> = {
     values: (subject, predicate) =>
       statementsOf(store, namedNode(subject) as unknown as NamedNode, namedNode(predicate) as unknown as NamedNode).map((q) =>
         q.object.termType === 'Literal'
@@ -652,6 +619,172 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   eventBus.on('model-changed', forgetLabelPrefixes);
   eventBus.on('metamodel-loaded', forgetLabelPrefixes);
+
+
+  /**
+   * A pane of the canvas (Req 24): the view it shows — a diagram on its own canvas, a catalogue, a matrix — with its
+   * header, shown while split, and its own history of views. The second is made when split and destroyed when closed
+   * (split view's SV-DD-4).
+   */
+  interface Pane {
+    element: HTMLElement;
+    title: HTMLElement;
+    /** The diagram's host, handed to diagram-js. */
+    host: HTMLElement;
+    canvas: DiagramCanvas;
+    catalog: CatalogView;
+    matrix: MatrixView;
+    kind: CanvasViewKind;
+    /** The view it shows. */
+    viewIri: string | undefined;
+    /** Its visits, for Back and Forward: each opening is one, and the view it leaves keeps where it was. */
+    history: ViewHistory;
+    dispose(): void;
+  }
+
+  const makePane = (): Pane => {
+    const element = document.createElement('div');
+    element.className = 'la-pane';
+    const header = document.createElement('div');
+    header.className = 'la-pane-header';
+    const title = document.createElement('span');
+    title.className = 'la-pane-title';
+    const close = document.createElement('button');
+    close.className = 'la-pane-close';
+    close.type = 'button';
+    close.textContent = '×';
+    close.title = 'Close this pane';
+    close.setAttribute('aria-label', 'Close this pane');
+    header.append(title, close);
+
+    const host = document.createElement('div');
+    host.className = 'la-diagram-host';
+
+    const catalog = document.createElement('catalog-view');
+    catalog.rdfStore = store;
+    catalog.elementManager = elementManager;
+    catalog.viewManager = viewManager;
+    catalog.typeLabelOf = typeLabelOf;
+    catalog.hidden = true;
+    catalog.addEventListener('view-members-change', onViewMembersChange);
+    catalog.addEventListener('catalog-select', (e) => onCatalogSelect(e));
+
+    const matrix = document.createElement('matrix-view');
+    matrix.rdfStore = store;
+    matrix.viewManager = viewManager;
+    matrix.typeLabelOf = typeLabelOf;
+    matrix.hidden = true;
+    matrix.addEventListener('view-members-change', onViewMembersChange);
+
+    element.append(header, host, catalog, matrix);
+
+    const canvas: DiagramCanvas = new DiagramCanvas({
+      container: host,
+      eventBus,
+      // The diagram changed under an open search: the find bar's count anew (Req 23.5).
+      onSearchUpdated: (state) => {
+        if (canvas === diagramCanvas) showCanvasSearch(state);
+      },
+      elementManager,
+      relationshipManager,
+      paletteDefinition: currentPalette,
+      modelIri: session.modelIri ?? DEFAULT_MODEL_IRI,
+      classClosure: closureLookup,
+      rdfStore: store,
+      viewManager,
+      ...(store instanceof ObservableRdfStore ? { changeStore: store } : {}),
+      describeElement: describe,
+      confirmDeleteFromModel: (request: DeleteFromModelRequest) => confirmModelDelete(request),
+      confirmRetypeElement: (request: RetypeElementRequest) =>
+        dialogs.confirm(
+          `Change ${request.label} to ${request.toLabel}?`,
+          request.notPermitted.length === 1
+            ? `One of its relationships is not permitted between a ${request.toLabel} and the other end. It is kept, and validation will flag it until it is changed or deleted.`
+            : `${request.notPermitted.length} of its relationships are not permitted between a ${request.toLabel} and the other end. They are kept, and validation will flag them until they are changed or deleted.`,
+          { confirmLabel: 'Change type', details: request.notPermitted },
+        ),
+      onContextAction: (action, iri) => onCanvasContextAction(action, iri),
+      canMoveToFolder: () => hasFolders(modelContents()),
+      onToolChanged: (tool) => {
+        if (canvas === diagramCanvas) canvasToolbar.activeTool = tool ?? undefined;
+      },
+      onNotice: (message, level) => dialogs.toast(message, level),
+      // Copy and paste on the canvas: where a copy comes from, its Turtle's prefixes, and what to do with
+      // elements of types no loaded metamodel defines, pasted from another model.
+      clipboard: {
+        source: () => {
+          const own = session.namespace();
+          return { ...(own ? { namespace: own.namespace } : {}), metamodelIris: session.metamodelIris(), ...(BUILD.version ? { version: BUILD.version } : {}) };
+        },
+        prefixes: () => app.modelIO.collectPrefixes(session.modelIri),
+        chooseUnknownTypes: async (typeIris) => {
+          const names = typeIris.map((iri) => typeLabelOf(iri) || localNameOf(iri)).join(', ');
+          const answer = await dialogs.choose(`Paste elements of types this model does not define?`, [
+            { value: 'keep', label: 'Paste them, unclassified', detail: `No loaded metamodel defines ${names}.` },
+            { value: 'skip', label: 'Leave them out', detail: 'With the relationships that end on them.' },
+          ]);
+          return answer === 'keep' || answer === 'skip' ? answer : null;
+        },
+      },
+
+    });
+    canvas.labelSource = labelSource;
+
+    // Showing, hiding or resizing a side panel, or the divider moved, resizes the canvas; diagram-js caches the
+    // viewbox size (zoom-to-fit, scrolling) until told.
+    const resize =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => (canvas.getDiagram()?.get('canvas') as { resized(): void } | undefined)?.resized())
+        : undefined;
+    resize?.observe(host);
+
+    const pane: Pane = {
+      element,
+      title,
+      host,
+      canvas,
+      catalog,
+      matrix,
+      kind: 'diagram',
+      viewIri: undefined,
+      history: new ViewHistory((iri) => Boolean(viewManager.getView?.(iri))),
+      dispose: () => {
+        resize?.disconnect();
+        element.removeEventListener('pointerdown', onPress, true);
+        element.removeEventListener('focusin', onPress);
+        catalog.removeEventListener('view-members-change', onViewMembersChange);
+        matrix.removeEventListener('view-members-change', onViewMembersChange);
+        canvas.destroy();
+        element.remove();
+      },
+    };
+    // Pressed or focused, the pane is the one in use (SV-3) — before diagram-js sees the press.
+    const onPress = (): void => usePane(pane);
+    element.addEventListener('pointerdown', onPress, true);
+    element.addEventListener('focusin', onPress);
+    // Closing it does not first put it in use.
+    close.addEventListener('pointerdown', (e) => e.stopPropagation(), true);
+    close.addEventListener('click', () => closePane(pane));
+    return pane;
+  };
+
+  const firstPane = makePane();
+  /** The panes, first (left or above) to last; one unless split. */
+  const panes: Pane[] = [firstPane];
+  /** The pane in use (SV-3): what everything that acts on the open view acts on. */
+  let pane = firstPane;
+  // The pane in use's parts, under the names the rest of this file has always used.
+  let canvasHost = firstPane.host;
+  let catalogView = firstPane.catalog;
+  let matrixView = firstPane.matrix;
+  let diagramCanvas = firstPane.canvas;
+  let viewHistory = firstPane.history;
+  const layout = new SplitLayout(firstPane.element);
+  canvasArea.append(canvasToolbar, layout.element);
+  /** Each pane's canvas: what is said to every canvas — the palette, the switches, markers — is said to both. */
+  const eachCanvas = (act: (canvas: DiagramCanvas) => void): void => {
+    for (const p of panes) act(p.canvas);
+  };
 
   // ── Bottom, "Validation" and "SPARQL Query" tabs ─────────────────────
   const validationPanel = document.createElement('validation-panel');
@@ -989,6 +1122,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       if (iri && !options.fromGraph && isElement(iri)) graphPanel.rootIri = iri;
       if (iri && !options.fromCanvas) diagramCanvas.reveal(iri);
       if (!options.fromCanvas) eventBus.emit('selection-changed', { iri });
+      syncSelectionMarks();
     } finally {
       selecting = false;
     }
@@ -1022,8 +1156,31 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   modelExplorer.addEventListener('explorer-select', onExplorerSelect);
-  catalogView.addEventListener('catalog-select', onCatalogSelect);
   validationPanel.addEventListener('validation-navigate', onValidationNavigate);
+
+  // ── The loader while something large opens (Req 11.13, busy.ts) ─────────
+  const busy = new BusyIndicator();
+  /**
+   * Shapes and lines from which opening a diagram shows the loader first: a view of 3 000 takes about half a second to
+   * draw. Below, a view opens at once, as before — no frame waited for.
+   */
+  const LOADER_FROM_SHAPES = 500;
+  /**
+   * Open a view as the tree, the toolbar and the panels do: a large diagram under the loader, painted before the view
+   * is drawn, which holds the page until it is. Await it before acting on the view opened.
+   */
+  const openView = async (viewIri: string): Promise<void> => {
+    const info = viewManager.getView?.(viewIri);
+    const shapes =
+      info?.type === 'Diagram' && viewIri !== pane.viewIri
+        ? viewManager.getNodes(viewIri).length + viewManager.getLinks(viewIri).length
+        : 0;
+    if (shapes < LOADER_FROM_SHAPES) {
+      session.openView(viewIri);
+      return;
+    }
+    await busy.while(`Opening ${info?.label || 'the view'} (${shapes.toLocaleString('en')} shapes)…`, () => session.openView(viewIri));
+  };
 
   /**
    * Show a concept: select it on the canvas when the open view has it,
@@ -1037,7 +1194,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const views = typeof viewManager.viewsContaining === 'function' ? viewManager.viewsContaining(iri) : [];
     const diagram = views.find((v) => viewManager.getView?.(v)?.type === 'Diagram');
     if (diagram) {
-      session.openView(diagram);
+      await openView(diagram);
       diagramCanvas.reveal(iri);
     }
     selectConcept(iri, { fromCanvas: true });
@@ -1170,6 +1327,22 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'sizes':
         void sizesDialog();
         return;
+      // Line shape (Req 22.9), from a line's right-click menu: the line, or the lines selected with it.
+      case 'line-straight':
+      case 'line-right-angles':
+      case 'line-horizontal-first':
+      case 'line-vertical-first':
+        sayShaped(diagramCanvas.shapeLines(action.slice('line-'.length) as LineShape));
+        return;
+      // Drawing order (DO-3), from an element's or a figure's right-click menu, or its keys.
+      case 'order-front':
+      case 'order-forward':
+      case 'order-backward':
+      case 'order-back': {
+        const change = action.slice('order-'.length) as DrawingOrderChange;
+        sayReordered(change, diagramCanvas.reorderSelection(change));
+        return;
+      }
       case 'move-to-folder': {
         // The one right-clicked and the others selected of its kind.
         const kind = kindOfConcept(iri);
@@ -1249,22 +1422,27 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onPanelNavigate = (e: Event): void => {
     void revealAnywhere((e as CustomEvent<{ iri: string }>).detail.iri);
   };
-  const onPanelOpenView = (e: Event): void => {
+  const onPanelOpenView = async (e: Event): Promise<void> => {
     const { viewIri, iri } = (e as CustomEvent<{ viewIri: string; iri?: string }>).detail;
-    session.openView(viewIri);
+    await openView(viewIri);
     if (iri) diagramCanvas.reveal(iri);
   };
 
   /** Open the view a reference opens — or, not in the model, say so (Req 3.23): the canvas's double-click, pad and menu, and the panel's *Open*. */
   const openReferencedView = (viewIri: string | undefined): void => {
-    if (viewIri && viewManager.getView?.(viewIri)) session.openView(viewIri);
+    if (viewIri && viewManager.getView?.(viewIri)) void openView(viewIri);
     else dialogs.toast('The view this reference opens is not in the model.', 'warning');
   };
-  const onOpenReferencedView: ModelEventHandler = (event) => openReferencedView(event.detail?.viewIri as string | undefined);
+  const onOpenReferencedView: ModelEventHandler = (event) => {
+    const viewIri = event.detail?.viewIri as string | undefined;
+    // *Open beside* (SV-5): in the other pane.
+    if (event.detail?.beside === true && viewIri && viewManager.getView?.(viewIri)) void openBeside(viewIri);
+    else openReferencedView(viewIri);
+  };
   /** Zoomed into from an element or a relationship it refines (VC-6): the view opens, and Back comes back. */
   const onOpenView: ModelEventHandler = (event) => {
     const viewIri = event.detail?.viewIri as string | undefined;
-    if (viewIri && viewManager.getView?.(viewIri)) session.openView(viewIri);
+    if (viewIri && viewManager.getView?.(viewIri)) void openView(viewIri);
   };
   eventBus.on('open-view', onOpenView);
   const onReferenceOpen = (e: Event): void => openReferencedView((e as CustomEvent<{ viewIri?: string }>).detail.viewIri);
@@ -1342,7 +1520,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   const onExplorerActivate = (e: Event): void => {
     const { iri, kind } = (e as CustomEvent<ExplorerSelectDetail>).detail;
-    if (kind === 'view') session.openView(iri);
+    if (kind === 'view') void openView(iri);
     else if (kind === 'model') void runCommand({ command: 'model-settings' });
     else void revealAnywhere(iri);
   };
@@ -1389,7 +1567,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'new-element':
         return newElement(detail.iri || undefined, detail.typeIri);
       case 'open-view':
-        session.openView(iri);
+        await openView(iri);
+        return;
+      case 'open-view-beside':
+        await openBeside(iri);
         return;
       case 'reference-in-view':
         // A reference to it at the centre of the open diagram, selected (VR-2); offered only when one can be made.
@@ -1403,7 +1584,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         return;
       }
       case 'duplicate-view':
-        session.openView(session.duplicateView(iri));
+        await openView(session.duplicateView(iri));
         return;
       case 'delete-view': {
         const view = viewManager.getView?.(iri);
@@ -1712,7 +1893,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // Relationships' names on their lines: off unless switched on, remembered per browser.
   const showRelationshipNames = (shown: boolean): void => {
     canvasToolbar.relationshipNames = shown;
-    diagramCanvas.setRelationshipNamesShown(shown);
+    eachCanvas((canvas) => canvas.setRelationshipNamesShown(shown));
   };
   showRelationshipNames(relationshipNamesShown());
   const onRelationshipNames = (event: Event): void => {
@@ -1727,7 +1908,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.notationOnly = on;
     // The Appearance tab says so: what is set there is not drawn meanwhile.
     propertyPanel.notationOnly = on;
-    diagramCanvas.setNotationOnly(on);
+    eachCanvas((canvas) => canvas.setNotationOnly(on));
   };
   showNotationOnly(notationOnly());
   const onNotationOnly = (event: Event): void => {
@@ -1746,7 +1927,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   canvasToolbar.sizeReference = sizeSettings().reference;
   canvasToolbar.grid = gridSettings();
   const onArrangeSelection = (): void => {
-    canvasToolbar.arrangeSelected = diagramCanvas.arrangeAvailability().selected;
+    const available = diagramCanvas.arrangeAvailability();
+    canvasToolbar.arrangeSelected = available.selected;
+    canvasToolbar.linesSelected = available.lines;
   };
   eventBus.on('selection-changed', onArrangeSelection);
   eventBus.on('view-opened', onArrangeSelection);
@@ -1776,6 +1959,18 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     }
   };
   canvasToolbar.addEventListener('arrange-quick', onArrangeQuick);
+  // Line shape (Req 22.9): the selected lines given the shape picked in the toolbar's menu.
+  const onLineShape = (event: Event): void => {
+    const shape = (event as CustomEvent<{ shape: LineShape }>).detail?.shape;
+    if (shape && diagramOpen()) sayShaped(diagramCanvas.shapeLines(shape));
+  };
+  canvasToolbar.addEventListener('line-shape', onLineShape);
+  // Drawing order (DO-2, DO-3): the selected elements and figures, from the toolbar's Order menu.
+  const onDrawingOrder = (event: Event): void => {
+    const change = (event as CustomEvent<{ change: DrawingOrderChange }>).detail?.change;
+    if (change && diagramOpen()) sayReordered(change, diagramCanvas.reorderSelection(change));
+  };
+  canvasToolbar.addEventListener('drawing-order', onDrawingOrder);
   const onFormatPainterChanged: ModelEventHandler = (event) => {
     canvasToolbar.formatPainter = (event.detail?.state as 'off' | 'pick' | 'paint' | undefined) ?? 'off';
   };
@@ -1819,7 +2014,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     // empties the presentation's own look (Remove image, a picture given up for its element's) does not switch them
     // to every presentation.
     if (diagramCanvas.presentationContextInUse) lookScope = detail.context ? 'context' : 'every';
-    diagramCanvas.refreshLabels();
+    eachCanvas((canvas) => canvas.refreshLabels());
     propertyPanel.appearance = selectedLook();
   };
   propertyPanel.addEventListener('appearance-change', onAppearanceChange);
@@ -1851,7 +2046,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         } else write(viewIri, target.iri, context, detail.expression);
       }
     });
-    diagramCanvas.refreshLabels();
+    eachCanvas((canvas) => canvas.refreshLabels());
     propertyPanel.appearance = selectedLook();
   };
   propertyPanel.addEventListener('label-expression-change', onLabelExpressionChange);
@@ -1865,7 +2060,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       if (remove.length > 0) store.removeQuads(remove);
       if (add.length > 0) store.addQuads(add);
     });
-    diagramCanvas.refreshLabels();
+    eachCanvas((canvas) => canvas.refreshLabels());
     propertyPanel.reload();
   };
   propertyPanel.addEventListener('context-name-change', onContextNameChange);
@@ -1879,7 +2074,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       if (remove.length > 0) store.removeQuads(remove);
       if (add.length > 0) store.addQuads(add);
     });
-    diagramCanvas.refreshLabels();
+    eachCanvas((canvas) => canvas.refreshLabels());
     propertyPanel.reload();
     modelExplorer.requestUpdate();
   };
@@ -1909,7 +2104,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         iconRepair = undefined;
         currentPalette = withElementIcons(withRelationshipIcons(currentPalette, isBroken), isBroken);
         palettePanel.palette = currentPalette;
-        diagramCanvas.updatePaletteDefinition(currentPalette, { iconsOnly: true });
+        eachCanvas((canvas) => canvas.updatePaletteDefinition(currentPalette, { iconsOnly: true }));
       }, 50);
     };
     const named = [
@@ -1973,7 +2168,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     palettePanel.prefixedName = prefixedName;
     typeGuidePanel.prefixedName = prefixedName;
     palettePanel.palette = palette;
-    diagramCanvas.updatePaletteDefinition(palette);
+    eachCanvas((canvas) => canvas.updatePaletteDefinition(palette));
     propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
   };
 
@@ -1986,10 +2181,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   palettePanel.addEventListener('palette-show-assets', () => void runCommand({ command: 'show-assets' }));
 
   // ── Views on the canvas ──────────────────────────────────────────────
-  let active: CanvasViewKind = 'diagram';
+  /** The pane in use shows a diagram, a catalog or a matrix; the canvas toolbar is a diagram's. */
   const setActiveCanvasView = (kind: CanvasViewKind): void => {
-    active = kind;
     activeKind = kind;
+    pane.kind = kind;
     canvasHost.hidden = kind !== 'diagram';
     canvasToolbar.hidden = kind !== 'diagram';
     catalogView.hidden = kind !== 'catalog';
@@ -2003,11 +2198,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     return viewpointManager.getViewpoints().find((v) => v.iri === vpIri);
   };
 
-  /** Put the session's open view on screen, with its viewpoint applied. */
+  const kindOfView = (viewIri: string | undefined): CanvasViewKind => {
+    const type = viewIri ? viewManager.getView?.(viewIri)?.type : undefined;
+    return type === 'Catalog' ? 'catalog' : type === 'Matrix' ? 'matrix' : 'diagram';
+  };
+
+  /** Put the session's open view on screen, in the pane in use, with its viewpoint applied. */
   const showActiveView = (): void => {
     const viewIri = session.activeViewIri;
-    const info = viewIri ? viewManager.getView?.(viewIri) : undefined;
-    const kind: CanvasViewKind = info?.type === 'Catalog' ? 'catalog' : info?.type === 'Matrix' ? 'matrix' : 'diagram';
+    const kind = kindOfView(viewIri);
+    pane.viewIri = viewIri;
     setActiveCanvasView(kind);
     diagramCanvas.showView(kind === 'diagram' ? viewIri : undefined);
     // A catalog lists, and a matrix indexes, the elements the view presents (arch:inView).
@@ -2015,7 +2215,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     matrixView.viewIri = kind === 'matrix' && viewIri ? viewIri : '';
     if (kind === 'catalog') catalogView.refresh();
     if (kind === 'matrix') matrixView.refresh();
+    followActiveView();
+  };
 
+  /** What follows the open view, drawn already: the viewpoint, the tree, the toolbar, the panes' headers. */
+  const followActiveView = (): void => {
+    const viewIri = session.activeViewIri;
+    setActiveCanvasView(pane.kind);
     const viewpoint = viewpointOf(viewIri);
     palettePanel.activeViewpoint = viewpoint && viewpoint.permittedElements.length > 0 ? viewpoint : undefined;
     const permitted = viewpoint ? new Set(viewpoint.permittedElements) : undefined;
@@ -2023,6 +2229,173 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
     modelExplorer.activeViewIri = viewIri;
     refreshToolbar();
+    showPanes();
+  };
+
+  // ── Two views at once: the panes (Req 24; `.agents/tasks/split-view/`) ────
+  /** The marker on what the pane in use has selected, in the other pane (SV-8). */
+  const SELECTED_ELSEWHERE_MARKER = 'la-selected-elsewhere';
+  let syncSelection = syncSelectionOn();
+  /** Being put in use: the session's open view is the pane's, its drawing kept (split view's SV-DD-1). */
+  let switchingPane = false;
+  /** What other collaborators hold: marked and locked in every pane, and in a pane opened later. */
+  let heldByOthers: { marker?: string; iris: ReadonlySet<string> } = { iris: new Set() };
+  let lockedByOthers: ReadonlySet<string> = new Set();
+
+  /** The panes' headers, which pane is in use, and the toolbar's *Split* — as the panes are now. */
+  const showPanes = (): void => {
+    const split = panes.length > 1;
+    for (const p of panes) {
+      const info = p.viewIri ? viewManager.getView?.(p.viewIri) : undefined;
+      p.title.textContent = info ? `${info.label || 'Untitled view'}${info.type !== 'Diagram' ? ` (${info.type.toLowerCase()})` : ''}` : '';
+      p.element.classList.toggle('la-pane-in-use', split && p === pane);
+    }
+    appToolbar.split = layout.split ?? '';
+    appToolbar.syncSelection = syncSelection;
+  };
+
+  /**
+   * Outline in the other pane what is selected in the pane in use (SV-8): on its canvas by a marker, in a catalog
+   * by its row. Nothing with *Sync selection* off, or one pane.
+   */
+  const syncSelectionMarks = (): void => {
+    const on = syncSelection && panes.length > 1;
+    const selected = !on ? [] : activeKind === 'diagram' ? diagramCanvas.selectedIris() : propertyPanel.selectedIri ? [propertyPanel.selectedIri] : [];
+    const marked = new Set(selected);
+    for (const p of panes) {
+      const mark = p !== pane ? marked : new Set<string>();
+      p.canvas.setMarkers(SELECTED_ELSEWHERE_MARKER, mark);
+      if (p !== pane && p.kind === 'catalog') p.catalog.selectedIri = selected.find((iri) => isElement(iri)) ?? '';
+    }
+  };
+
+  /**
+   * Put a pane in use (SV-3): its canvas takes the keys and the clipboard, the find bar moves to it, and the
+   * session opens its view — drawn already, its zoom, selection and undo steps kept — so that everything that acts
+   * on the open view follows.
+   */
+  const usePane = (next: Pane): void => {
+    if (next === pane || !panes.includes(next)) return;
+    const searching = !canvasFind.hidden;
+    if (searching) diagramCanvas.endSearch();
+    diagramCanvas.setInUse(false);
+    pane = next;
+    canvasHost = next.host;
+    catalogView = next.catalog;
+    matrixView = next.matrix;
+    diagramCanvas = next.canvas;
+    viewHistory = next.history;
+    diagramCanvas.setInUse(true);
+    canvasToolbar.activeTool = undefined;
+    canvasHost.append(canvasFind);
+    if (next.viewIri) {
+      switchingPane = true;
+      try {
+        session.openView(next.viewIri);
+      } finally {
+        switchingPane = false;
+      }
+    }
+    if (searching) {
+      if (next.kind === 'diagram') showCanvasSearch(diagramCanvas.search(canvasFind.query));
+      else canvasFind.hidden = true;
+    }
+  };
+
+  /** Bring every pane but the one in use up to date from the store (SV-7, SV-DD-2): once for a burst of changes. */
+  let otherPanesDue = false;
+  const syncOtherPanes = (): void => {
+    if (panes.length < 2 || otherPanesDue) return;
+    otherPanesDue = true;
+    queueMicrotask(() => {
+      otherPanesDue = false;
+      for (const p of [...panes]) {
+        if (p === pane) continue;
+        // Its view deleted — here, by undo, by a collaborator: the pane closes.
+        if (!p.viewIri || !viewManager.getView?.(p.viewIri)) {
+          closePane(p);
+          continue;
+        }
+        if (p.kind === 'diagram') p.canvas.syncFromStore();
+        else if (p.kind === 'catalog') p.catalog.refresh();
+        else p.matrix.refresh();
+      }
+      showPanes();
+      syncSelectionMarks();
+    });
+  };
+
+  /** Show a view in a pane not in use, as it is opened in the one in use — drawn, its own history begun. */
+  const showInPane = (p: Pane, viewIri: string): void => {
+    const kind = kindOfView(viewIri);
+    p.viewIri = viewIri;
+    p.kind = kind;
+    p.history.clear();
+    p.history.visit(viewIri);
+    p.host.hidden = kind !== 'diagram';
+    p.catalog.hidden = kind !== 'catalog';
+    p.matrix.hidden = kind !== 'matrix';
+    p.canvas.setModelIri(session.modelIri ?? DEFAULT_MODEL_IRI);
+    p.canvas.showView(kind === 'diagram' ? viewIri : undefined);
+    p.catalog.viewIri = kind === 'catalog' ? viewIri : '';
+    p.matrix.viewIri = kind === 'matrix' ? viewIri : '';
+    if (kind === 'catalog') p.catalog.refresh();
+    if (kind === 'matrix') p.matrix.refresh();
+  };
+
+  /**
+   * Split the canvas (SV-1): a second pane, after the first, showing `viewIri` — the view in use unless said — and
+   * put in use. Split already, the panes are turned.
+   */
+  const split = async (orientation: SplitOrientation, viewIri = session.activeViewIri): Promise<void> => {
+    if (panes.length > 1) {
+      layout.setOrientation(orientation);
+      showPanes();
+      return;
+    }
+    if (!viewIri || !viewManager.getView?.(viewIri)) return;
+    const next = makePane();
+    // Not in use until it shows its view: its keys unbound, the events about the open view not its own.
+    next.canvas.setInUse(false);
+    next.canvas.setRelationshipNamesShown(canvasToolbar.relationshipNames);
+    next.canvas.setNotationOnly(canvasToolbar.notationOnly);
+    next.canvas.setLockedIris(lockedByOthers);
+    if (heldByOthers.marker) next.canvas.setMarkers(heldByOthers.marker, heldByOthers.iris);
+    panes.push(next);
+    layout.open(next.element, orientation);
+    markViolations();
+    usePane(next);
+    await openView(viewIri);
+    showPanes();
+    syncSelectionMarks();
+  };
+
+  /** Close a pane (SV-4): the other stays, in use, as the one pane. */
+  const closePane = (closing: Pane): void => {
+    if (panes.length < 2 || !panes.includes(closing)) return;
+    const other = panes.find((p) => p !== closing)!;
+    if (closing === pane) usePane(other);
+    panes.splice(panes.indexOf(closing), 1);
+    layout.close(closing.element);
+    closing.dispose();
+    showPanes();
+    syncSelectionMarks();
+  };
+
+  /** *Open beside* (SV-5): the view in the pane not in use, put in use — split first, as last split. */
+  const openBeside = async (viewIri: string): Promise<void> => {
+    if (!viewManager.getView?.(viewIri)) return;
+    if (panes.length < 2) {
+      await split(rememberedOrientation(), viewIri);
+      return;
+    }
+    usePane(panes.find((p) => p !== pane)!);
+    await openView(viewIri);
+  };
+
+  /** Another model opened (SV-9): the split closes, the pane in use staying. */
+  const closeSplit = (): void => {
+    for (const p of [...panes]) if (p !== pane) closePane(p);
   };
 
   // ── Property suggestions ─────────────────────────────────────────────
@@ -2040,13 +2413,54 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     modelNamespace: () => session.namespace()?.namespace ?? DEFAULT_MODEL_BASE,
   });
 
-  // Showing, hiding or resizing a side panel resizes the canvas; diagram-js
-  // caches the viewbox size (zoom-to-fit, scrolling) until told.
-  const canvasResize =
-    typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(() => (diagramCanvas.getDiagram()?.get('canvas') as { resized(): void } | undefined)?.resized())
-      : undefined;
-  canvasResize?.observe(canvasHost);
+  // ── Search on the canvas (Req 23.1–23.5; `.agents/tasks/search/`) ──────
+  // Its find bar over the diagram's top right, inside the host: hidden with it while a catalog or a matrix is open.
+  const canvasFind = document.createElement('find-bar');
+  canvasFind.floating = true;
+  canvasFind.label = 'Search the diagram';
+  canvasFind.selectAllOption = true;
+  canvasFind.hidden = true;
+  canvasHost.append(canvasFind);
+  /** How many of the model's elements and relationships match by name or type, and are not in the open view (Req 23.4). */
+  const elsewhereCount = (query: string): number => {
+    const viewIri = session.activeViewIri;
+    if (!query.trim() || !viewIri) return 0;
+    const inView = new Set([
+      ...viewManager.getNodes(viewIri).map((n) => n.elementIri),
+      ...viewManager.getLinks(viewIri).map((l) => l.relationshipIri),
+    ]);
+    const contents = modelContents();
+    return [...contents.elements, ...contents.relationships.filter((r) => !r.derivation)].filter(
+      (c) => !inView.has(c.iri) && textsMatch([c.label, c.typeLabel], query),
+    ).length;
+  };
+  /** What the find bar shows of the search. */
+  function showCanvasSearch(state: CanvasSearchState): void {
+    canvasFind.count = state.count;
+    canvasFind.current = state.current;
+    const more = elsewhereCount(state.query);
+    canvasFind.elsewhere = more > 0 ? `${more} more in other views` : '';
+  }
+  /** Open the canvas's search — its field focused, its text selected; opened again, it searches its text again. */
+  const openCanvasSearch = (): void => {
+    const wasHidden = canvasFind.hidden;
+    canvasFind.hidden = false;
+    void canvasFind.focusField();
+    if (wasHidden && canvasFind.query) showCanvasSearch(diagramCanvas.search(canvasFind.query));
+  };
+  canvasFind.addEventListener('find-query', (e) => showCanvasSearch(diagramCanvas.search((e as CustomEvent<FindQueryDetail>).detail.query)));
+  canvasFind.addEventListener('find-step', (e) => showCanvasSearch(diagramCanvas.searchStep((e as CustomEvent<FindStepDetail>).detail.direction)));
+  canvasFind.addEventListener('find-select-all', () => diagramCanvas.searchSelectAll());
+  canvasFind.addEventListener('find-close', () => {
+    canvasFind.hidden = true;
+    diagramCanvas.endSearch();
+  });
+  // What matches elsewhere: the model tree, shown, filtered by the same text.
+  canvasFind.addEventListener('find-elsewhere', () => {
+    setExplorerOpen(true);
+    void modelExplorer.focusFilter(canvasFind.query);
+  });
+  canvasToolbar.addEventListener('canvas-search', openCanvasSearch);
 
   // ── Model tree and palette: shown by default, hideable and resizable ──
   const setExplorerOpen = (open: boolean): void => {
@@ -2420,6 +2834,22 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const sayRouted = (routed: number): void =>
     dialogs.toast(routed > 0 ? `Arranged ${plural(routed, 'relationship')}.` : 'The relationships are routed so already.', 'info');
+  /** Said only when nothing changed (DO-2): the change itself is in sight. */
+  const sayReordered = (change: DrawingOrderChange, { selected, changed }: { selected: number; changed: number }): void => {
+    if (changed === 0) dialogs.toast(unchangedMessage(change, selected), 'info');
+  };
+  /** What *Line shape* did (LS-6): how many lines it shaped, or that they are shaped so, and what it left as it was. */
+  const sayShaped = ({ shaped, unchanged, kept }: ShapedLines): void => {
+    const left = kept > 0 ? `${kept} left as ${kept === 1 ? 'it is' : 'they are'}` : '';
+    if (shaped > 0) dialogs.toast(`Shaped ${plural(shaped, 'line')}${left ? `; ${left}` : ''}.`, 'info');
+    else if (unchanged > 0) dialogs.toast(`${unchanged === 1 ? 'The line is' : 'The lines are'} shaped so already${left ? `; ${left}` : ''}.`, 'info');
+    else if (kept > 0)
+      dialogs.toast(
+        `${kept === 1 ? 'The line is' : 'The lines are'} left as ${kept === 1 ? 'it is' : 'they are'}: a line ending on a line or on its own element, between elements that overlap or hold one another, or held by a collaborator keeps its route.`,
+        'warning',
+      );
+    else dialogs.toast('Select a line to give it a shape.', 'info');
+  };
   const sayAligned = (moved: number, grid: GridSettings): void =>
     dialogs.toast(moved > 0 ? `Aligned ${plural(moved, 'element')} to the ${grid.grid} px grid.` : `On the ${grid.grid} px grid already.`, 'info');
   const sayResized = (resized: number): void =>
@@ -2434,10 +2864,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   /** *Arrange relationships…* (Req 22.2): the lines routed again around the elements, which stay. */
   const arrangeRelationshipsDialog = async (): Promise<void> => {
     if (!diagramOpen()) return;
-    const selected = diagramCanvas.arrangeAvailability().selected;
+    // The selected lines count as the selection too (LS-9).
+    const { selected, lines } = diagramCanvas.arrangeAvailability();
+    const ofLines = lines === 1 ? 'the selected line' : `the ${lines} selected lines`;
+    const part =
+      selected === 0 ? ofLines.replace(/^t/, 'T') : `The relationships of ${selectedWords(selected)}${lines > 0 ? `, and ${ofLines}` : ''}`;
     const values = await dialogs.form(
       'Arrange relationships',
-      scopeField(selected, 'Every relationship of the view', `The relationships of ${selectedWords(selected)}`),
+      scopeField(selected + lines, 'Every relationship of the view', part),
       {
         message: 'The lines are routed again at right angles, around the elements in their way; the elements stay where they are.',
         confirmLabel: 'Arrange',
@@ -2634,10 +3068,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const modelChecks = (): ModelQuestion[] => questionsOffered().filter((q) => q.isFinding);
   /** Every violation drawn is marked, whatever the Validation tab's scope: the shapes' and the model checks'. */
   const markViolations = (): void => {
-    diagramCanvas.setMarkers(
-      VIOLATION_MARKER,
-      new Set(validationPanel.allResults.filter((r) => r.severity === 'Violation').map((r) => r.focusNode.value)),
-    );
+    const violations = new Set(validationPanel.allResults.filter((r) => r.severity === 'Violation').map((r) => r.focusNode.value));
+    eachCanvas((canvas) => canvas.setMarkers(VIOLATION_MARKER, violations));
   };
   /**
    * Run the model checks on request (Requirement 12.2) and list their findings
@@ -2713,10 +3145,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // ── Back and forward between views: the history ─────────────────────
   // Every way of opening a view comes through `view-opened`; each opening is a
   // visit, and the view it leaves keeps where it was (visible area, selection)
-  // for when Back or Forward returns to it. Per model.
-  const viewHistory = new ViewHistory((iri) => Boolean(viewManager.getView?.(iri)));
-  /** The view on the canvas: the one being left when another opens. */
-  let shownViewIri: string | undefined;
+  // for when Back or Forward returns to it. Per model, and per pane (each pane's `history`; the pane in use's is
+  // `viewHistory`).
   /** The visit Back or Forward is opening, to put back as it was left. */
   let travelling: ViewVisit | undefined;
 
@@ -3023,15 +3453,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     });
   };
 
-  const report = (message: string, level: 'info' | 'warning' | 'error' = 'info') => {
-    dialogs.toast(message, level);
+  const report = (message: string, level: 'info' | 'warning' | 'error' = 'info', options?: ToastOptions) => {
+    dialogs.toast(message, level, options);
     eventBus.emit('notify', { level, message });
   };
 
-  /** Open a model file's text as File › Open does, and say what it did. */
+  /** Open a model file's text as File › Open does, and say what it did — under the loader (Req 11.13). */
   const openModelText = async (text: string, fileName: string): Promise<void> => {
-    const opened = await app.openModel(text, fileName);
-    const gridOnly = opened.autoPlaced ? await layoutLoaded(session.activeViewIri) : '';
+    let gridOnly = '';
+    const opened = await busy.while(`Opening ${fileName}…`, async () => {
+      const result = await app.openModel(text, fileName);
+      gridOnly = result.autoPlaced ? await layoutLoaded(session.activeViewIri) : '';
+      return result;
+    });
     report(
       `Opened ${fileName}: ${opened.quadCount} triples` +
         (opened.autoPlaced ? `, ${opened.autoPlaced} elements laid out${gridOnly ? ` (${gridOnly})` : ''}` : '') +
@@ -3158,8 +3592,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           if (!(await guardUnsaved('Import'))) return;
           const file = await pickFile('.xml');
           if (!file) return;
-          const result = await app.importArchiMate(file.text, file.name);
-          if (result.autoPlaced) await layoutLoaded(result.viewIri);
+          const result = await busy.while(`Importing ${file.name}…`, async () => {
+            const imported = await app.importArchiMate(file.text, file.name);
+            if (imported.autoPlaced) await layoutLoaded(imported.viewIri);
+            return imported;
+          });
           report(
             `Imported ${result.elementCount} elements, ${result.relationshipCount} relationships, ${result.viewCount} views.`,
           );
@@ -3209,15 +3646,26 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           return;
         }
         case 'shortcuts':
-          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform(), appBase));
+          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform(), BUILD.channel));
           return;
         case 'download': {
           const system = systemOf(globalThis.navigator?.userAgent ?? '');
-          await showDetails('Download the desktop app', downloadBlocks({ ...(system ? { system } : {}), ...(appBase ? { appBase } : {}) }));
+          await showDetails('Download the desktop app', downloadBlocks({ ...(system ? { system } : {}), ...(BUILD.channel ? { channel: BUILD.channel } : {}) }));
           return;
         }
         case 'open-view':
-          if (value) session.openView(value);
+          if (value) await openView(value);
+          return;
+        // *Split* (SV-1, SV-8).
+        case 'split':
+          if (value === 'side-by-side' || value === 'stacked') await split(value);
+          else if (value === 'close') closeSplit();
+          else if (value === 'sync-selection') {
+            syncSelection = !syncSelection;
+            rememberSyncSelection(syncSelection);
+            showPanes();
+            syncSelectionMarks();
+          }
           return;
         case 'new-view':
           return newView((value as ViewKind) ?? 'Diagram');
@@ -3399,7 +3847,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const visit = direction === 'back' ? viewHistory.back() : viewHistory.forward();
     if (!visit) return;
     travelling = visit;
-    session.openView(visit.viewIri);
+    void openView(visit.viewIri);
   };
   // Alt+← and Alt+→ — not in a text field, where they move by word, nor under a dialog.
   const onHistoryKey = (e: KeyboardEvent): void => {
@@ -3425,9 +3873,60 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   globalThis.addEventListener?.('keydown', onFileKey);
 
-  const onModelLoaded: ModelEventHandler = () => {
+  // Ctrl+F (⌘F on a Mac): the search of where the focus is (Req 23.7) — the RDF panel's in it, the tree's filter in
+  // the tree, the canvas's anywhere else while a diagram is open — in place of the browser's own. In the SPARQL
+  // editor, with a catalog or a matrix open, or under a dialog, the browser's own.
+  // Where the pointer was last pressed: the RDF text and the tree's rows take no focus, so a key pressed after a click
+  // on them comes from the page — it goes where the click was.
+  let lastPressed: EventTarget[] = [];
+  const onPressed = (e: Event): void => {
+    lastPressed = e.composedPath?.() ?? [];
+  };
+  globalThis.addEventListener?.('pointerdown', onPressed, true);
+  const onFindKey = (e: KeyboardEvent): void => {
+    const mod = isMacPlatform() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+    if (!mod || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'f') return;
+    if (document.querySelector('.la-dialog')) return;
+    const own = e.composedPath?.() ?? [];
+    const fromPage = own[0] === document.body || own[0] === document.documentElement || own[0] === document;
+    const path = fromPage ? lastPressed : own;
+    if (path.includes(sparqlEditor)) return;
+    if (path.includes(rdfPanel)) {
+      e.preventDefault();
+      void rdfPanel.openSearch();
+      return;
+    }
+    if (path.includes(modelExplorer)) {
+      e.preventDefault();
+      setExplorerOpen(true);
+      void modelExplorer.focusFilter();
+      return;
+    }
+    if (activeKind !== 'diagram' || !session.activeViewIri) return;
+    e.preventDefault();
+    openCanvasSearch();
+  };
+  globalThis.addEventListener?.('keydown', onFindKey);
+
+  /** The model's namespace when it last loaded: where the other pane's view was, if the model has moved since. */
+  let namespaceShown = session.namespace()?.namespace;
+  const onModelLoaded: ModelEventHandler = (event) => {
+    // The other pane (SV-9): the same model moved to another namespace keeps its view, under its new IRI (DD-41
+    // keeps the local part); another model closes it.
+    const previousNamespace = namespaceShown;
+    namespaceShown = session.namespace()?.namespace;
+    const sameModel = Boolean(event.detail?.previousModelIri);
+    for (const p of [...panes]) {
+      if (p === pane) continue;
+      const moved =
+        p.viewIri && previousNamespace && namespaceShown && p.viewIri.startsWith(previousNamespace)
+          ? namespaceShown + p.viewIri.slice(previousNamespace.length)
+          : p.viewIri;
+      if (sameModel && moved && viewManager.getView?.(moved)) showInPane(p, moved);
+      else closePane(p);
+    }
     viewHistory.clear();
-    shownViewIri = undefined;
+    pane.viewIri = undefined;
     warmRelationshipTables();
     void refreshHistory();
     guides.clear();
@@ -3451,14 +3950,24 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const onViewOpened: ModelEventHandler = () => {
+    if (switchingPane) {
+      // Another pane put in use (SV-3): its view is drawn already. The panels follow it, and what is selected in it.
+      followActiveView();
+      const selected = activeKind === 'diagram' ? diagramCanvas.selectedIris() : [];
+      if (selected.length > 0) onCanvasSelection({ type: 'selection-changed', detail: { iri: selected[0], iris: selected } });
+      else selectTheView();
+      rdfPanel.scheduleRefresh();
+      scopeValidation();
+      syncSelectionMarks();
+      return;
+    }
     const viewIri = session.activeViewIri;
     const place = travelling?.viewIri === viewIri ? travelling?.place : undefined;
     if (!travelling) {
-      if (shownViewIri && shownViewIri !== viewIri) viewHistory.leave(placeOnCanvas());
+      if (pane.viewIri && pane.viewIri !== viewIri) viewHistory.leave(placeOnCanvas());
       if (viewIri) viewHistory.visit(viewIri);
     }
     travelling = undefined;
-    shownViewIri = viewIri;
     showActiveView();
     // Back or Forward: the view as it was left.
     if (place) {
@@ -3471,12 +3980,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     // A view opened from a maximized panel (a new view from results, a
     // revealed concept) is what the user wants to see: put the panel back.
     shell.setBottomMaximized(false);
+    syncSelectionMarks();
   };
 
   const onViewsChanged: ModelEventHandler = (event) => {
     // A re-pointed viewpoint on the open view changes what is greyed out.
     if (event.detail?.viewIri === session.activeViewIri) showActiveView();
     else refreshToolbar();
+    // A view renamed is renamed in its pane's header; deleted, its pane closes (SV-7).
+    showPanes();
+    syncOtherPanes();
   };
 
   const onModelChanged: ModelEventHandler = (event) => {
@@ -3539,6 +4052,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     graphPanel.scheduleRefresh();
     if (!catalogView.hidden) catalogView.refresh();
     if (!matrixView.hidden) matrixView.refresh();
+    // The other pane, from the store (SV-7).
+    syncOtherPanes();
   };
   const RDF_REFRESH_EVENTS = [
     'model-changed',
@@ -3572,7 +4087,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // The view open before these listeners: the first visit.
   if (session.activeViewIri) {
     viewHistory.visit(session.activeViewIri);
-    shownViewIri = session.activeViewIri;
+    pane.viewIri = session.activeViewIri;
   }
   scopeValidation();
   eventBus.on('views-changed', onViewsChanged);
@@ -3591,7 +4106,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const refresh = (): void => {
     refreshGraphs();
     modelExplorer.refresh();
-    diagramCanvas.syncFromStore();
+    eachCanvas((canvas) => canvas.syncFromStore());
     refreshToolbar();
   };
 
@@ -3599,7 +4114,6 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (globalThis.document) document.title = pageTitle;
     if (iconRepair) clearTimeout(iconRepair);
     stopIndexing?.();
-    canvasResize?.disconnect();
     eventBus.off('validation-updated', onValidationUpdated);
     eventBus.off('metamodel-loaded', onMetamodelLoaded);
     eventBus.off('model-loaded', onModelLoaded);
@@ -3627,6 +4141,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     shell.removeEventListener('rdf-panel-changed', onRdfPanelChanged);
     globalThis.removeEventListener?.('keydown', onHistoryKey);
     globalThis.removeEventListener?.('keydown', onFileKey);
+    globalThis.removeEventListener?.('keydown', onFindKey);
+    globalThis.removeEventListener?.('pointerdown', onPressed, true);
+    canvasToolbar.removeEventListener('canvas-search', openCanvasSearch);
     propertyPanel.removeEventListener('property-retype', onPropertyRetype);
     sparqlEditor.removeEventListener('results-view-request', onResultsViewRequest);
     sparqlEditor.removeEventListener('sparql-select', onSparqlSelect);
@@ -3653,6 +4170,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('arrange-view', onArrangeView);
     canvasToolbar.removeEventListener('arrange-dialog', onArrangeDialog);
     canvasToolbar.removeEventListener('arrange-quick', onArrangeQuick);
+    canvasToolbar.removeEventListener('line-shape', onLineShape);
+    canvasToolbar.removeEventListener('drawing-order', onDrawingOrder);
     eventBus.off('selection-changed', onArrangeSelection);
     eventBus.off('view-opened', onArrangeSelection);
     eventBus.off('format-painter-changed', onFormatPainterChanged);
@@ -3663,9 +4182,6 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     modelExplorer.removeEventListener('explorer-action', onExplorerAction);
     document.removeEventListener('copy', onTreeCopy);
     modelExplorer.removeEventListener('explorer-move', onExplorerMove);
-    catalogView.removeEventListener('catalog-select', onCatalogSelect);
-    catalogView.removeEventListener('view-members-change', onViewMembersChange);
-    matrixView.removeEventListener('view-members-change', onViewMembersChange);
     validationPanel.removeEventListener('validation-navigate', onValidationNavigate);
     validationPanel.removeEventListener('validation-scope-change', onValidationScopeChange);
     validationPanel.removeEventListener('model-checks-request', onModelChecksEvent);
@@ -3680,7 +4196,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     eventBus.off('open-referenced-view', onOpenReferencedView);
     eventBus.off('open-view', onOpenView);
     modelExplorer.eventBus = undefined;
-    diagramCanvas.destroy();
+    for (const p of panes) p.dispose();
     shell.remove();
   };
 
@@ -3693,10 +4209,37 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     propertyPanel,
     validationPanel,
     sparqlEditor,
-    catalogView,
-    matrixView,
-    canvasHost,
-    diagramCanvas,
+    // The pane in use's (Req 24).
+    get catalogView() {
+      return catalogView;
+    },
+    get matrixView() {
+      return matrixView;
+    },
+    get canvasHost() {
+      return canvasHost;
+    },
+    get diagramCanvas() {
+      return diagramCanvas;
+    },
+    split: (orientation, viewIri) => split(orientation, viewIri),
+    openBeside,
+    closeSplit,
+    usePane: (index) => {
+      const p = panes[index];
+      if (p) usePane(p);
+    },
+    panes: () =>
+      panes.map((p) => ({ element: p.element, canvas: p.canvas, kind: p.kind, ...(p.viewIri ? { viewIri: p.viewIri } : {}), inUse: p === pane })),
+    splitOrientation: () => layout.split,
+    setCanvasMarkers: (marker, iris) => {
+      heldByOthers = { marker, iris };
+      eachCanvas((canvas) => canvas.setMarkers(marker, iris));
+    },
+    setLockedIris: (iris) => {
+      lockedByOthers = iris;
+      eachCanvas((canvas) => canvas.setLockedIris(iris));
+    },
     rdfPanel,
     graphPanel,
     historyPanel,
@@ -3709,7 +4252,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     isPaletteOpen: () => shell.paletteOpen,
     showBottomTab: (tab: BottomTab) => shell.showTab(tab),
     setActiveCanvasView,
-    activeCanvasView: () => active,
+    activeCanvasView: () => activeKind,
     setPaletteAxis: (axisIri) => {
       currentAxisIri = axisIri;
       regeneratePalette();
@@ -3720,6 +4263,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     report,
     confirmReplace: guardUnsaved,
     openModelText,
+    busy: (message, work) => busy.while(message, work),
     addFileMenu,
     setModuleSwitches,
     addSettingsSection,

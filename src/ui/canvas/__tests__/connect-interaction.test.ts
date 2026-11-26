@@ -19,15 +19,15 @@ import {
   relationshipEntryId,
 } from '../rdf-replace-menu-provider.js';
 import { EventBus } from '../../event-bus.js';
-import type { ElementManager, RelationshipManager, Bounds } from '../../../model-manager/interfaces.js';
+import type { ElementManager, RelationshipManager, Bounds } from '@linked-archi/kernel/model-manager/interfaces.js';
 import type {
   PaletteDefinition,
   RelationshipTypeInfo,
-} from '../../../metamodel-manager/interfaces.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import { RENDER_CLASSES } from '../rdf-renderer.js';
 import { buildClassClosure } from '../relationship-resolution.js';
 import { installJsdomSvgSupport } from '../../__tests__/jsdom-svg-support.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 installJsdomSvgSupport();
 

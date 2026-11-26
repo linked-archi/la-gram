@@ -6,9 +6,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { diffByElement } from '../model-manager/model-diff.js';
-import { markdownOfDiff } from '../model-manager/model-diff-text.js';
-import { snapshotOfText } from '../model-manager/model-merge.js';
+import { diffByElement } from '@linked-archi/kernel/model-manager/model-diff.js';
+import { markdownOfDiff } from '@linked-archi/kernel/model-manager/model-diff-text.js';
+import { snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
 import { changedFiles, fileAt, mergeBase } from './git.js';
 import { hasModelExtension, isModel, openModel, wordsOf } from './models.js';
 

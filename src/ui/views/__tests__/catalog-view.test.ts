@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
-import type { RdfStore } from '../../../rdf-engine/interfaces.js';
-import type { ElementManager } from '../../../model-manager/interfaces.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
+import type { RdfStore } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import type { ElementManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import {
   CatalogView,
   type CatalogRow,

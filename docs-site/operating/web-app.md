@@ -5,7 +5,7 @@ description: How to serve la-gram's web app and its documentation from any stati
 # Hosting the web app
 
 la-gram's web app is a folder of static files: `npm run build:web` writes it to `dist/web/`, and each
-release's pipeline builds the same ([Releasing](../developing/releasing.md)). It needs no server
+release's workflow builds the same ([Releasing](../developing/releasing.md)). It needs no server
 program, no database and no account system: any web server that serves files can host it. This page
 says what that server has to do, and shows the rules app.linked.archi's server follows, as nginx
 configuration with placeholders.
@@ -30,12 +30,14 @@ that answers a missing file with 404, or with its own HTML page, is fine either 
 **This version's page** is built into the app's folder too, as `v{version}/index.html`
 (`v0.3.0/index.html`): what `https://app.linked.archi/la-gram/v0.3.0`, the address a model names the la-gram
 version it was edited with by, resolves to ([Properties](../guide/properties.md#last-changed)). Keep the
-pages of earlier versions when a new release replaces the app: app.linked.archi's deploy protects them from
-`rsync --delete`.
+pages of earlier versions when a new release replaces the app: app.linked.archi's server copies every
+version's page into each release it serves.
 
 **The documentation** is built into the app's folder, as `docs/` (`npm run docs:build` writes
 `dist/web/docs/`), and is served from it: `/la-gram/docs/`. Link to it with the trailing slash. Its pages
-need no rule of their own, and run under the policy [below](#content-security-policy).
+need no rule of their own, and run under the policy [below](#content-security-policy). la-gram's own menu
+links the published documentation, https://app.linked.archi/la-gram/docs/, wherever the app is installed:
+an installation elsewhere may serve its copy, but need not.
 
 To try a build locally, any static server does, for example Python's:
 
@@ -49,9 +51,9 @@ python3 -m http.server 41238 --directory dist/web
 
 ## app.linked.archi {#app-linked-archi}
 
-The server at app.linked.archi is nginx. The release copies the build into the folder it serves as
-`/la-gram/`, and deletes what the build no longer has ([web-deploy](../developing/releasing.md#web-deploy)).
-Its rules:
+The server at app.linked.archi is nginx. The server installs each release itself, into a folder of its own,
+and `la-gram/` is a link to it, swapped in one rename
+([Installed by the server](../developing/releasing.md#installed-by-the-server)). Its rules:
 
 - `/` sends visitors to `/la-gram/` with a **302**, a temporary redirect, and `/la-gram`, as people
   type it, to `/la-gram/` with a **301**, written relative so that it holds behind a proxy;
@@ -61,9 +63,12 @@ Its rules:
 - the desktop apps, in `/la-gram/downloads/`, are files like any other: a `.zip` is `application/zip`,
   `SHA256SUMS.txt` `text/plain`, and a `.tar.gz`, which nginx's type list does not name, the server's
   default type (`application/octet-stream` as nginx ships), so it downloads. Each is revalidated on
-  every load, as everything not named by its content is, so a release's replace the last ones at once;
-- `/la-gram-alpha/` is the alpha — the next release as it is being made, deployed from each merge to the
-  default branch ([alpha-deploy](../developing/releasing.md#alpha)) — from the folder beside `la-gram/`,
+  every load, as everything not named by its content is, so a release's replace the last ones at once.
+  The folder itself, `/la-gram/downloads/` (or without the slash), has no page and is not listed: it
+  sends visitors to the documentation's [Download](../getting-started/desktop.md#download) section with a
+  **302**, which links each platform's app;
+- `/la-gram-alpha/` is the alpha — the next release as it is being made, published from each push to
+  `main` ([The alpha](../developing/releasing.md#alpha)) — from the folder beside `la-gram/`,
   `la-gram-alpha/`, with the same rules as `/la-gram/`;
 - anything else on the host is a 404.
 
@@ -85,6 +90,14 @@ server {
     location = /la-gram {
         absolute_redirect off;
         return 301 /la-gram/;
+    }
+    location = /la-gram/downloads/ {
+        absolute_redirect off;
+        return 302 /la-gram/docs/getting-started/desktop/#download;
+    }
+    location = /la-gram/downloads {
+        absolute_redirect off;
+        return 302 /la-gram/docs/getting-started/desktop/#download;
     }
     location ^~ /la-gram/ {
         try_files $uri $uri/ =404;

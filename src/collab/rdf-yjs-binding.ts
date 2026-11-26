@@ -46,10 +46,10 @@
 import * as Y from 'yjs';
 import { DataFactory, Parser as N3Parser } from 'n3';
 import type { NamedNode, Quad } from '@rdfjs/types';
-import { quadKey, type ObservableRdfStore, type StoreChange } from '../rdf-engine/observable-store.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { SingleValued, languageOf } from '../rdf-engine/single-valued.js';
-import { modelQuads } from '../model-manager/model-queries.js';
+import { quadKey, type ObservableRdfStore, type StoreChange } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { SingleValued, languageOf } from '@linked-archi/kernel/rdf-engine/single-valued.js';
+import { modelQuads } from '@linked-archi/kernel/model-manager/model-queries.js';
 
 /** Transaction origin of changes this client made. */
 export const LOCAL_ORIGIN = 'la-gram:local';

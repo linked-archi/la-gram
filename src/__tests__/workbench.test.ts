@@ -14,8 +14,8 @@ import { createApp, type App } from '../app.js';
 import { modelTitle, mountUi, VIOLATION_MARKER, type MountedUi } from '../ui/mount-ui.js';
 import type { DetailBlock, DetailsOptions, Dialogs, FormField, FormOptions, FormValues } from '../ui/dialogs.js';
 import type { NamedPicker } from '../ui/panels/named-picker.js';
-import { labelOf, modelQuads, readModelContents } from '../model-manager/model-queries.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
+import { labelOf, modelQuads, readModelContents } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import { installJsdomSvgSupport } from '../ui/__tests__/jsdom-svg-support.js';
 import { rememberImageSize } from '../ui/canvas/rdf-renderer.js';
 import { KEPT_PICTURE_LIMIT } from '../ui/panels/property-panel.js';
@@ -1516,10 +1516,10 @@ describe('the workbench', () => {
       ]);
       const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
       expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer')).toBe(true);
-      // la-gram's documentation: the copy served beside the web app; every other page, on its site.
+      // la-gram's documentation: the published one, not beside the app (here on localhost); every other page, on its site.
       const [docs, ...others] = links;
       expect(docs!.dataset.link).toBe('la-gram-docs');
-      expect(docs!.href).toBe(new URL('docs/', document.baseURI).href);
+      expect(docs!.href).toBe('https://app.linked.archi/la-gram/docs/');
       expect(others.every((a) => a.href.startsWith('https://'))).toBe(true);
 
       // About, in parts, where the dialogs show parts.
@@ -1632,7 +1632,8 @@ describe('the workbench', () => {
     const shape = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry').get(placed);
     const entries = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(shape) as Record<string, { group: string; action: () => void }>;
     expect(Object.keys(entries)).toEqual([
-      'rename', 'change-type', 'cut', 'copy', 'duplicate', 'append', 'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model',
+      'rename', 'change-type', 'cut', 'copy', 'duplicate', 'append', 'order-front', 'order-forward', 'order-backward', 'order-back',
+      'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model',
     ]);
     entries['graph']!.action();
     expect([ui.shell.bottomTab, ui.graphPanel.rootIri]).toEqual(['graph', placed]);
@@ -1641,15 +1642,23 @@ describe('the workbench', () => {
 
     // On a relationship: its name and type, where to look at it and its ends, its IRI, deleting it.
     const other = els.createElement(`${AM4}BusinessActor`, model, { label: 'Teller' }).value;
-    app.components.viewManager.addElementToView(view, other, { x: 400, y: 100, width: 120, height: 55 });
+    // Below and to the right: a line between the two can bend once.
+    app.components.viewManager.addElementToView(view, other, { x: 400, y: 300, width: 120, height: 55 });
     const drawn = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Association`, sourceIri: placed, targetIri: other, modelIri: model }).iri;
     app.components.viewManager.addRelationshipToView(view, drawn);
     app.components.eventBus.emit('model-changed', { origin: 'test' });
     const registry = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry');
     const line = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(drawn)) as Record<string, { action: () => void }>;
     expect(Object.keys(line)).toEqual([
-      'rename', 'change-type', 'properties', 'reveal-tree', 'show-source', 'show-target', 'copy-iri', 'delete', 'delete-model',
+      'rename', 'change-type', 'line-straight', 'line-right-angles', 'line-horizontal-first', 'line-vertical-first',
+      'properties', 'reveal-tree', 'show-source', 'show-target', 'copy-iri', 'delete', 'delete-model',
     ]);
+    // Line shape (Req 22.9): the line, selected as right-clicking selects it, given one bend; then so already.
+    ui.diagramCanvas.selectIris([drawn]);
+    line['line-vertical-first']!.action();
+    expect(vi.mocked(script.dialogs.toast).mock.calls.at(-1)).toEqual(['Shaped 1 line.', 'info']);
+    line['line-vertical-first']!.action();
+    expect(vi.mocked(script.dialogs.toast).mock.calls.at(-1)).toEqual(['The line is shaped so already.', 'info']);
 
     // On the empty canvas: the open view's — what the model tree offers for a view — and the canvas's.
     const canvasRoot = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { getRootElement(): unknown } }).get('canvas').getRootElement();
@@ -2235,6 +2244,119 @@ describe('the workbench', () => {
     }
   });
 
+  it('Ctrl+F: the canvas’s search, the RDF panel’s in it, the tree’s filter in the tree; what is in other views opens the tree (Req 23)', async () => {
+    const els = app.components.elementManager;
+    const model = app.session.modelIri!;
+    const view = app.session.activeViewIri!;
+    const placed = els.createElement(`${AM4}BusinessActor`, model, { label: 'Zephyr desk' }).value;
+    app.components.viewManager.addElementToView(view, placed, { x: 900, y: 900, width: 120, height: 55 });
+    const unplaced = els.createElement(`${AM4}BusinessActor`, model, { label: 'Zephyr office' }).value;
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const press = (target: EventTarget) => {
+      const event = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, composed: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const bar = ui.canvasHost.querySelector('find-bar')!;
+    expect(bar.hidden).toBe(true);
+    try {
+      // Anywhere else, with a diagram open: the canvas's, over the diagram.
+      expect(press(document.body)).toBe(true);
+      expect(bar.hidden).toBe(false);
+      await bar.updateComplete;
+      const input = bar.shadowRoot!.querySelector('input')!;
+      input.value = 'zephyr';
+      input.dispatchEvent(new Event('input'));
+      expect([bar.count, bar.current]).toEqual([1, 0]);
+      expect(ui.diagramCanvas.selectedIris()).toEqual([placed]);
+      expect(bar.elsewhere).toBe('1 more in other views');
+
+      // What is in other views: the model tree, shown, filtered by the same text.
+      ui.setExplorerOpen(false);
+      await bar.updateComplete;
+      bar.shadowRoot!.querySelector<HTMLElement>('[data-action="elsewhere"]')!.click();
+      await vi.waitFor(() => expect(ui.modelExplorer.filterQuery).toBe('zephyr'));
+      expect(ui.shell.explorerOpen).toBe(true);
+
+      // In the tree, its filter; in the RDF panel, its search.
+      expect(press(ui.modelExplorer)).toBe(true);
+      expect(press(ui.rdfPanel)).toBe(true);
+      await vi.waitFor(() => expect(ui.rdfPanel.searchOpen).toBe(true));
+      ui.rdfPanel.closeSearch();
+      // From the page, after a click in the RDF panel's text, which takes no focus: where the click was.
+      ui.rdfPanel.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+      expect(press(document.body)).toBe(true);
+      await vi.waitFor(() => expect(ui.rdfPanel.searchOpen).toBe(true));
+      ui.rdfPanel.closeSearch();
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+
+      // In the SPARQL editor, and under a dialog, the browser's own.
+      expect(press(ui.sparqlEditor)).toBe(false);
+      const dialog = document.createElement('div');
+      dialog.className = 'la-dialog';
+      document.body.append(dialog);
+      expect(press(document.body)).toBe(false);
+      dialog.remove();
+
+      // Esc closes it: the outlines away, the selection kept.
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(bar.hidden).toBe(true);
+      expect(ui.diagramCanvas.selectedIris()).toEqual([placed]);
+    } finally {
+      await ui.modelExplorer.focusFilter('');
+      ui.selectConcept(undefined);
+      app.components.viewManager.removeElementFromView(view, placed);
+      for (const iri of [placed, unplaced]) els.deleteElement(iri);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+    }
+  });
+
+  it('Drawing order: the keys and the menu bring the selected to the front or send it back, said only when nothing changes (DO-2, DO-3)', async () => {
+    const els = app.components.elementManager;
+    const model = app.session.modelIri!;
+    const view = app.session.activeViewIri!;
+    const views = app.components.viewManager;
+    const lower = els.createElement(`${AM4}BusinessActor`, model, { label: 'Lower desk' }).value;
+    const upper = els.createElement(`${AM4}BusinessActor`, model, { label: 'Upper desk' }).value;
+    views.addElementToView(view, lower, { x: 1200, y: 1200, width: 120, height: 55 });
+    views.addElementToView(view, upper, { x: 1240, y: 1220, width: 120, height: 55 });
+    views.setNodeZOrder(view, views.getNode(view, upper)!.nodeIri, 2);
+    views.setNodeZOrder(view, views.getNode(view, lower)!.nodeIri, 1);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const zOf = (iri: string) => views.getNode(view, iri)?.zOrder;
+    const press = (code: string, shiftKey = false) => {
+      const event = new KeyboardEvent('keydown', { key: code === 'BracketRight' ? ']' : '[', code, ctrlKey: true, shiftKey, bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    try {
+      // The canvas's keys, as after a click on it: no field holds the focus.
+      for (let active = document.activeElement; active && active !== document.body; active = (active as Element & { shadowRoot?: ShadowRoot }).shadowRoot?.activeElement ?? null) {
+        (active as HTMLElement).blur?.();
+      }
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      ui.diagramCanvas.selectIris([lower]);
+      // Ctrl+Shift+]: to the front, above Upper desk.
+      expect(press('BracketRight', true)).toBe(true);
+      expect(zOf(lower)! > zOf(upper)!).toBe(true);
+      // The menu's Bring to front again: already there, and said.
+      const registry = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry');
+      const menu = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(lower)) as Record<string, { action: () => void }>;
+      menu['order-front']!.action();
+      expect(vi.mocked(script.dialogs.toast).mock.calls.at(-1)).toEqual(['Already in front.', 'info']);
+      // Ctrl+[: one step back, below Upper desk again.
+      expect(press('BracketLeft')).toBe(true);
+      expect(zOf(lower)! < zOf(upper)!).toBe(true);
+    } finally {
+      ui.selectConcept(undefined);
+      for (const iri of [lower, upper]) {
+        views.removeElementFromView(view, iri);
+        els.deleteElement(iri);
+      }
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+    }
+  });
+
   it('saves only the model, as TriG, and marks it clean', async () => {
     ui.diagramCanvas.placeExisting; // canvas is ready
     const store = app.components.store;
@@ -2292,11 +2414,61 @@ describe('the workbench', () => {
     expect(app.session.namespace()?.namespace).toMatch(/^https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/$/);
 
     files.push({ name: 'shop.trig', text: trig });
+    // Under the loader (Req 11.13): on the page while it opens, gone after.
+    const loaders: string[] = [];
+    const watch = new MutationObserver(() => {
+      const text = document.querySelector('.la-busy .la-busy-text')?.textContent;
+      if (text && !loaders.includes(text)) loaders.push(text);
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
     await ui.runCommand({ command: 'open-model' });
+    watch.disconnect();
+    expect(loaders).toEqual(['Opening shop.trig…']);
+    expect(document.querySelector('.la-busy')).toBeNull();
 
     expect(modelQuads(app.components.store).length).toBe(before);
     expect(contents().elements.map((e) => e.label)).toContain('Web Shop');
     expect(ui.appToolbar.views.map((v) => v.label).sort()).toEqual(['Application landscape', 'Default View']);
+  });
+
+  it('opens a large diagram under the loader, a small one at once (Req 11.13)', async () => {
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const views = app.components.viewManager;
+    const els = app.components.elementManager;
+    const large = app.session.createView('Diagram', { label: 'Large landscape', open: false });
+    const small = app.session.createView('Diagram', { label: 'Small landscape', open: false });
+    const made: string[] = [];
+    for (let i = 0; i < 500; i++) {
+      const iri = els.createElement(`${AM4}ApplicationComponent`, model, { label: `Component ${i}` }).value;
+      made.push(iri);
+      views.addElementToView(large, iri, { x: (i % 25) * 140, y: Math.floor(i / 25) * 80, width: 120, height: 55 });
+    }
+    views.addElementToView(small, made[0], { x: 0, y: 0, width: 120, height: 55 });
+    app.session.openView(view);
+    const loaders: string[] = [];
+    const watch = new MutationObserver(() => {
+      const text = document.querySelector('.la-busy .la-busy-text')?.textContent;
+      if (text && !loaders.includes(text)) loaders.push(text);
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    try {
+      await ui.runCommand({ command: 'open-view', value: large });
+      expect(app.session.activeViewIri).toBe(large);
+      expect(loaders).toEqual(['Opening Large landscape (500 shapes)…']);
+      expect(document.querySelector('.la-busy')).toBeNull();
+      // Small: at once, as before — opened before the call returns.
+      const opening = ui.runCommand({ command: 'open-view', value: small });
+      expect(app.session.activeViewIri).toBe(small);
+      await opening;
+      expect(loaders).toHaveLength(1);
+    } finally {
+      watch.disconnect();
+      app.session.openView(view);
+      for (const v of [large, small]) app.session.deleteView(v);
+      for (const iri of made) els.deleteElement(iri);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+    }
   });
 
   it('deletes an element from the model through the tree, after confirming', async () => {
@@ -2372,6 +2544,11 @@ describe('the workbench', () => {
       ['copy', 'Copy'],
       ['duplicate', 'Duplicate'],
       ['move-to-folder', 'Move 2 elements to folder…'],
+      // Drawing order, for both (DO-3).
+      ['order-front', 'Bring to front'],
+      ['order-forward', 'Bring forward'],
+      ['order-backward', 'Send backward'],
+      ['order-back', 'Send to back'],
     ]);
     script.answers.push('');
     menu()['move-to-folder']!.action();

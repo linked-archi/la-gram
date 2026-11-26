@@ -80,6 +80,9 @@ double-click, or *Open* in its menu), from *Appears in views* and *Referenced fr
 from a [view reference](canvas.md#view-references) on a diagram (a double-click, or *Open view*), and from
 an element or a relationship the view refines ([Zoom in](canvas.md#zoom-in)).
 
+A diagram of 500 shapes and lines or more takes a moment to draw: a spinner and its name — *Opening
+Landscape (2,941 shapes)…* — show until it is drawn.
+
 1. Open the example model.
 2. In the toolbar's *View*, choose "Who is who (catalog)". The catalog takes the canvas's place.
 
@@ -88,12 +91,55 @@ an element or a relationship the view refines ([Zoom in](canvas.md#zoom-in)).
 ← and → in the toolbar, or ++alt+left++ and ++alt+right++ (++option+left++ and ++option+right++ on a
 Mac), go back to the views you came from, however you got there: the selector, the model tree, *Appears
 in views*, a view reference, *Zoom in*, a revealed concept. Each view comes back as you left it, with its zoom, scroll and selection.
+With the canvas [split](#split-view), each pane has its own history, and ← → act on the pane in use.
 Pointing at ← says where it goes, *Back to How the shop serves its customers (Alt+←)*; with nowhere to
 go, it is greyed out (*Back (no earlier view)*).
 
 1. In the example, open "Who is who (catalog)" from the *View* selector.
 2. Click ←: the diagram comes back, as it was.
 3. Click →: the catalog again.
+
+## Two views at once {#split-view}
+
+***Split***, the two-pane button beside the *View* selector's ＋, divides the canvas into two panes, each
+showing a view: a diagram beside the diagram it details, a diagram beside its catalog, two parts of one
+large diagram. Its menu:
+
+| Entry | Does |
+|---|---|
+| *Side by side* | the panes left and right of a divider; split already, turns them |
+| *One above the other* | the panes above and below a divider; split already, turns them |
+| *Close split* | closes the pane you are not working in; greyed out with one pane |
+| *Sync selection* | outlines, dashed, in the other pane what is selected in the pane you work in: **on**, or off |
+
+The menu ticks the orientation in force and *Sync selection* while it is on; the button stays pressed
+while the canvas is split. The new pane shows the same view; open another in it as any view is opened.
+
+- **The pane in use** is the one you last clicked: its header is blue and it is outlined. The *View*
+  selector, *Viewpoint*, ← and →, undo and redo, the keys, the canvas toolbar, the palette, the Properties
+  tab, the RDF panel's *View* and search act on it, and any view you open opens in it. Each pane keeps its
+  own zoom, selection, undo steps and ← → history.
+- **The header** names the pane's view — a catalog or a matrix with its kind, *Who is who (catalog)* —
+  and × (*Close this pane*) closes it, leaving the other.
+- **The divider**: drag it to share the room, neither pane under 15 %; with the divider focused,
+  ++left++ / ++right++ (++up++ / ++down++ one above the other) move it by 5 %; a double-click shares the
+  room equally. Your browser remembers where it was and which orientation you chose: **side by side**
+  at first.
+- ***Open beside***, in the right-click menu of a view in the model tree and of a view reference on a
+  diagram, opens that view in the other pane, splitting the canvas first if needed.
+- **Both panes stay up to date**: an edit in either, in a panel, by a collaborator or from Git shows in
+  both. Deleting a view closes its pane. Opening another model closes the split; a reload opens one pane.
+
+!!! note "Dragging onto the other pane"
+    A palette entry or a model-tree row dragged onto the canvas lands in the pane in use. To place it in
+    the other pane, click that pane first.
+
+1. Open the example model, and choose *Split › Side by side*: "How the shop serves its customers" is in
+   both panes, the right one in use.
+2. In the *View* selector, choose "Who is who (catalog)": the catalog opens on the right, the diagram
+   stays on the left.
+3. Click *Customer* in the left pane: the left pane is in use, and the catalog marks Customer's row.
+4. Click × on the right pane's header: one pane again.
 
 ## Referenced from {#referenced-from}
 

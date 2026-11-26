@@ -16,7 +16,7 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { GuideRef, TypeGuide } from '../../metamodel-manager/type-guide.js';
+import type { GuideRef, TypeGuide } from '@linked-archi/kernel/metamodel-manager/type-guide.js';
 
 /** The guide's collapsible parts, and which are open until the user says otherwise. */
 export type GuideSection = 'guidance' | 'facts' | 'classification' | 'ontology' | 'changes';

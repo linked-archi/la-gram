@@ -24,9 +24,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram.git",
+    "url": "git+https://github.com/linked-archi/la-gram.git",
     "directory": "packages/la-gram-git"
   },
-  "homepage": "https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/tree/main/packages/la-gram-git",
+  "homepage": "https://github.com/linked-archi/la-gram/tree/main/packages/la-gram-git",
   "keywords": ["architecture", "archimate", "rdf", "shacl", "git", "ci", "merge-driver", "linked-archi"]
 }

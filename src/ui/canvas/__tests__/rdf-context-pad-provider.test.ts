@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RdfContextPadProvider, type ContextPadElement } from '../rdf-context-pad-provider.js';
-import type { ElementManager, RelationshipManager } from '../../../model-manager/interfaces.js';
-import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
+import type { ElementManager, RelationshipManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 
 function createMockElementManager(): ElementManager {
   return {

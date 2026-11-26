@@ -1,5 +1,5 @@
 /** Completion-scheduled remote checks, independent of commit history (Req 18.25). */
-import { snapshotOfText } from '../model-manager/model-merge.js';
+import { snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
 import { GitError } from './errors.js';
 import { bindingKey, destinationKey, observeGit, ObsoleteGitRead, type GitObservation } from './git-observation.js';
 import { sameLines } from './git-merge.js';
@@ -21,6 +21,8 @@ export interface GitSyncStatus {
   autoPull: boolean;
   canCheck: boolean;
   canPull: boolean;
+  /** Whether the tab's *Save to Git* may run now: the model is bound and no Git operation is under way (Req 18.25). */
+  canSave: boolean;
   autoCommit?: AutoCommitSettings;
   nextCommit?: number;
   lastCommit?: number;
@@ -404,10 +406,12 @@ export class GitSync {
       phase = 'paused'; message = 'Automatic checks require browser support for coordinating tabs. Manual Check and Pull remain available.';
     } else if (automated && !this.owns) { phase = 'paused'; message = 'Another tab is checking this file. This tab will take over when available.'; }
     const canAct = !!binding && !this.checking && !this.committing && !this.deps.busy() && !this.unavailable(false);
+    // Saving is the menu's Save to Git, which a shared room or a conflict does not hold back: only a Git operation running.
+    const canSave = !!binding && !this.checking && !this.committing && !this.deps.busy();
     this.deps.publish({ phase, message, where: binding ? `${binding.repository} · ${binding.branch} · ${binding.path}` : undefined,
       local: this.local, incoming: this.observed?.incoming, lastChecked: this.lastChecked,
       nextCheck: this.minutes && this.owns && !this.blocked && !unavailable ? this.due : undefined,
-      intervalMinutes: this.minutes, autoPull: this.autoPull, canCheck: canAct, canPull: canAct,
+      intervalMinutes: this.minutes, autoPull: this.autoPull, canCheck: canAct, canPull: canAct, canSave,
       autoCommit: this.auto, lastCommit: this.lastCommit, canResume: canAct,
       nextCommit: this.autoEnabled() && this.owns && !unavailable && this.commitDue !== undefined ? Math.max(this.commitDue, this.commitRetry) : undefined });
   }

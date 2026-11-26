@@ -24,8 +24,8 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import { DataFactory } from 'n3';
-import type { RdfStore } from '../../rdf-engine/interfaces.js';
-import type { ElementManager, FigureColours, FigureKind, ViewKind } from '../../model-manager/interfaces.js';
+import type { RdfStore } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import type { ElementManager, FigureColours, FigureKind, ViewKind } from '@linked-archi/kernel/model-manager/interfaces.js';
 import {
   colourAlpha,
   fontStyleOf,
@@ -38,17 +38,17 @@ import {
   type FigureMode,
   type ImagePosition,
   imageUri,
-} from '../../model-manager/appearance.js';
+} from '@linked-archi/kernel/model-manager/appearance.js';
 import type { AppearanceSelection, FigureChoices, ImageChoices, ImageScope, LabelChoices } from '../appearance-selection.js';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
-import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
-import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
-import { localName } from '../../model-manager/vocabulary.js';
-import { contextNamesOf } from '../../model-manager/context-names.js';
-import { picturesOf } from '../../model-manager/element-pictures.js';
-import { fieldName, type NameOf } from '../../model-manager/field-names.js';
-import { isQualifiedPredicate } from '../../model-manager/cascade.js';
-import { provenanceOf, type ConceptProvenance } from '../../model-manager/provenance.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import type { PropertySuggestion, ResolvedProperty } from '@linked-archi/kernel/model-manager/property-catalog.js';
+import type { ElementGroup } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { localName } from '@linked-archi/kernel/model-manager/vocabulary.js';
+import { contextNamesOf } from '@linked-archi/kernel/model-manager/context-names.js';
+import { picturesOf } from '@linked-archi/kernel/model-manager/element-pictures.js';
+import { fieldName, type NameOf } from '@linked-archi/kernel/model-manager/field-names.js';
+import { isQualifiedPredicate } from '@linked-archi/kernel/model-manager/cascade.js';
+import { provenanceOf, type ConceptProvenance } from '@linked-archi/kernel/model-manager/provenance.js';
 import './named-picker.js';
 import './property-picker.js';
 import type { NamedOption, NamedPicker, TypedOption } from './named-picker.js';
@@ -498,7 +498,7 @@ export function extractShaclShapes(
   return shapes;
 }
 
-export type { NameOf } from '../../model-manager/field-names.js';
+export type { NameOf } from '@linked-archi/kernel/model-manager/field-names.js';
 
 /**
  * An allowed value's label: its name in the loaded data — reference data names

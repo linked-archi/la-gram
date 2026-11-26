@@ -30,6 +30,11 @@
  *
  * Deterministic: lines in order of id, ties broken by position. A line whose ends overlap, or one of which holds
  * the other, has no route here — the caller keeps its own.
+ *
+ * **Kept lines** (`.agents/tasks/line-shape/`, LS-DD-2): lines already on the diagram that are not routed again — when
+ * a few lines are routed, the rest of the view's. They count as lines routed before: the search weighs crossing them,
+ * their ends hold their places on a side while the routed lines dock around them, and their segments hold their
+ * places in a gap while the routed ones run beside them. They are never moved, and have no route in the answer.
  */
 
 export interface RouterNode {
@@ -51,6 +56,15 @@ export interface RouterEdge {
 export interface Point {
   x: number;
   y: number;
+}
+
+/** A line already on the diagram, left where it is: what the routed lines avoid. */
+export interface KeptLine {
+  id: string;
+  points: readonly Point[];
+  /** Its ends, where they are boxes of the diagram — not a line, for a line ending on one. */
+  source?: string;
+  target?: string;
 }
 
 export interface RouterOptions {
@@ -669,9 +683,16 @@ function sideOf(r: Rect, p: Point): Side | undefined {
  * turning towards the other, and of those turning one way the one turning soonest outermost; each as near where it
  * is as that order allows, the spacing apart — or less where the room is short. Where even the least leaves no room,
  * a crossing comes before lines on top of one another. A bent line moves with its first bend; one that would run
- * through a box stays where it is, and the others are placed about it.
+ * through a box stays where it is, and the others are placed about it. A kept line (`keptIds`) is never moved:
+ * its end stands as a straight line's does, and a routed line on its point moves off it.
  */
-function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], rects: ReadonlyMap<string, Rect>, spacing: number): void {
+function spreadEnds(
+  routes: Map<string, Point[]>,
+  edges: readonly RouterEdge[],
+  rects: ReadonlyMap<string, Rect>,
+  spacing: number,
+  keptIds: ReadonlySet<string> = new Set(),
+): void {
   const edgeOf = new Map(edges.map((e) => [e.id, e]));
   interface End {
     id: string;
@@ -684,6 +705,8 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
     const points = routes.get(e.id);
     if (!points) continue;
     for (const [atStart, nodeId] of [[true, e.source], [false, e.target]] as const) {
+      // A kept line's end on another line is on no box's side.
+      if (!rects.has(nodeId)) continue;
       const side = sideOf(rects.get(nodeId)!, atStart ? points[0] : points[points.length - 1]);
       if (!side) continue;
       const key = `${nodeId} ${side}`;
@@ -694,7 +717,7 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
   /** Straight lines moved at both ends already: left where they are. */
   const settled = new Set<string>();
   for (const [, ends] of [...bySide].sort(([a], [b]) => a.localeCompare(b))) {
-    if (ends.length < 2) continue;
+    if (ends.length < 2 || ends.every((end) => keptIds.has(end.id))) continue;
     const { side, nodeId } = ends[0];
     const r = rects.get(nodeId)!;
     const alongX = side === 'top' || side === 'bottom';
@@ -739,6 +762,8 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
       end: End;
       at: number;
       length: number;
+      /** A kept line's end: stays where it is. */
+      held?: boolean;
     }
     interface Bent {
       end: End;
@@ -748,6 +773,8 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
       at: number;
       /** The first straight line beyond `level` on the bent line's own side that runs past its turn. */
       beyond: number;
+      /** A kept line's end: in the order, where it is. */
+      held?: boolean;
     }
     const outward = (points: Point[], a: number, b: number) =>
       alongX ? Math.abs(points[b].y - points[a].y) : Math.abs(points[b].x - points[a].x);
@@ -756,12 +783,14 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
     for (const end of ends) {
       const { points, a, b } = endPoints(end);
       const at = coordinate(points[a]);
+      // A kept line holds its place: a straight one as a straight line does, a bent one in the order of the bent
+      // lines — the routed ones placed about it as about one that cannot move.
       if (points.length < 3 || settled.has(end.id)) {
-        straight.push({ end, at, length: outward(points, a, b) });
+        straight.push({ end, at, length: outward(points, a, b), ...(keptIds.has(end.id) ? { held: true } : {}) });
         continue;
       }
       const level = coordinate(points[end.atStart ? b + 1 : b - 1]);
-      bent.push({ end, towards: level < at ? -1 : 1, reach: outward(points, a, b), level, at, beyond: NaN });
+      bent.push({ end, towards: level < at ? -1 : 1, reach: outward(points, a, b), level, at, beyond: NaN, ...(keptIds.has(end.id) ? { held: true } : {}) });
     }
     const byId = (x: { end: End }, y: { end: End }) => x.end.id.localeCompare(y.end.id);
     // Straight lines on one point: apart about it, both ends moving.
@@ -772,12 +801,32 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
     }
     for (const [at, together] of atPoint) {
       if (together.length < 2) continue;
-      together.sort(byId).forEach((s, k) => {
-        const to = at + (k - (together.length - 1) / 2) * spacing;
-        if (shiftOf(s.end, to)) s.at = Math.round(to);
-      });
+      if (!together.some((s) => s.held)) {
+        together.sort(byId).forEach((s, k) => {
+          const to = at + (k - (together.length - 1) / 2) * spacing;
+          if (shiftOf(s.end, to)) s.at = Math.round(to);
+        });
+        continue;
+      }
+      // A kept line stays on its point: each routed one moves off it, to the nearest place along the side no other
+      // straight end is within the spacing of, both its ends moving.
+      for (const s of together.filter((t) => !t.held).sort(byId)) {
+        for (let k = 1; k <= 8; k++) {
+          const to = [at + k * spacing, at - k * spacing].find(
+            (p) =>
+              p >= lo + inset &&
+              p <= hi - inset &&
+              straight.every((t) => t === s || Math.abs(t.at - p) >= spacing) &&
+              shiftOf(s.end, p, true),
+          );
+          if (to === undefined) continue;
+          shiftOf(s.end, to);
+          s.at = Math.round(to);
+          break;
+        }
+      }
     }
-    if (bent.length === 0) continue;
+    if (!bent.some((x) => !x.held)) continue;
     // Where each bent line may dock and cross no straight one: between the level it turns to and the first straight
     // line beyond that level on its own side that runs past its turn — one ending sooner it passes by — `gap` from
     // each. Where no place is, the crossing is unavoidable and it may dock anywhere along the side.
@@ -823,14 +872,14 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
     // The spacing, or less where the room is short; where even the least leaves no room, a crossing before lines on
     // top of one another — each the least apart, anywhere along the side. A line that cannot move where it is placed
     // — the move would run through a box — stays where it is, and the others are placed again about it.
-    const stuck = new Set<Bent>();
+    const stuck = new Set<Bent>(bent.filter((x) => x.held));
     const held = (x: Bent) => ({ lower: x.at, upper: x.at });
     for (;;) {
       const placed =
         [spacing, spacing / 2, MIN_STEP]
           .map((gap) => attempt(gap, (x) => (stuck.has(x) ? held(x) : avoidable.has(x) ? crossingFree(x, gap) : along), true))
           .find((p) => p) ?? attempt(MIN_STEP, (x) => (stuck.has(x) ? held(x) : along), false)!;
-      const moves = [...placed].filter(([x, place]) => Math.round(place) !== x.at);
+      const moves = [...placed].filter(([x, place]) => !x.held && Math.round(place) !== x.at);
       const blocked = moves.filter(([x, place]) => !shiftOf(x.end, place, true));
       if (blocked.length === 0) {
         for (const [x, place] of moves) shiftOf(x.end, place);
@@ -845,7 +894,8 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
  * Each inner segment moved to the middle of the gap it runs through — between the nearest boxes on either side,
  * along its length — and segments sharing a gap side by side about its middle, in the order of where they come
  * from and go to. A segment stays between its neighbours' far ends, so no line doubles back; the first and last segments
- * stay with their ends.
+ * stay with their ends. A kept line's segment (`keptIds`) stays where it is, and a routed one sharing its gap
+ * goes as near its own place as it can, the spacing from each held one.
  */
 function centreChannels(
   routes: Map<string, Point[]>,
@@ -854,6 +904,7 @@ function centreChannels(
   margin: number,
   spacing: number,
   clearance: number,
+  keptIds: ReadonlySet<string> = new Set(),
 ): void {
   const rects = [...rectsById.values()];
   interface Segment {
@@ -966,9 +1017,18 @@ function centreChannels(
       const room = above - below - 2 * clearance;
       const step = n < 2 ? 0 : room >= 4 * (n - 1) ? Math.min(spacing, room / (n - 1)) : Math.min(spacing, (above - below) / (n + 1));
       const middle = (below + above) / 2;
+      // Where the kept lines' segments are: each routed one keeps the spacing from them, and from the routed ones
+      // placed before it.
+      const taken = together.filter((s) => keptIds.has(s.id)).map((s) => s.at);
+      if (taken.length === n) continue;
+      const apart = Math.max(MIN_STEP, step);
       together.forEach((s, m) => {
-        const wanted = middle + (m - (n - 1) / 2) * step;
-        const placed = Math.round(s.min <= s.max ? clamp(wanted, s.min, s.max) : s.at);
+        if (keptIds.has(s.id)) return;
+        let placed = Math.round(s.min <= s.max ? clamp(middle + (m - (n - 1) / 2) * step, s.min, s.max) : s.at);
+        if (taken.length > 0) {
+          placed = clearOf(placed, taken, apart, s.min <= s.max ? s.min : s.at, s.min <= s.max ? s.max : s.at, below, above);
+          taken.push(placed);
+        }
         if (placed === s.at) return;
         const points = routes.get(s.id)!;
         const moved = points.slice();
@@ -989,6 +1049,21 @@ function centreChannels(
       });
     }
   }
+}
+
+/**
+ * The place nearest `wanted` at least `apart` from each of `taken`, within `min`–`max` and inside the gap
+ * (`below`–`above`): beside the nearest kept segment where `wanted` is too close to one. Where none is, `wanted`.
+ */
+function clearOf(wanted: number, taken: readonly number[], apart: number, min: number, max: number, below: number, above: number): number {
+  const free = (p: number) => taken.every((t) => Math.abs(t - p) >= apart - 0.5);
+  if (free(wanted)) return wanted;
+  const candidates = taken
+    .flatMap((t) => [t - apart, t + apart])
+    .map(Math.round)
+    .filter((p) => p >= min && p <= max && p > below && p < above && free(p))
+    .sort((a, b) => Math.abs(a - wanted) - Math.abs(b - wanted) || a - b);
+  return candidates[0] ?? wanted;
 }
 
 /**
@@ -1026,11 +1101,15 @@ function flattenUs(routes: Map<string, Point[]>, rectsById: ReadonlyMap<string, 
   }
 }
 
-/** Every line's route, by id; none for a line whose ends overlap, hold one another, or are unknown. */
+/**
+ * Every line's route, by id; none for a line whose ends overlap, hold one another, or are unknown. `kept`: the lines
+ * left where they are, which the routed ones avoid — none of them in the answer.
+ */
 export function routeOrthogonal(
   nodes: readonly RouterNode[],
   edges: readonly RouterEdge[],
   options: RouterOptions = ROUTER_DEFAULTS,
+  kept: readonly KeptLine[] = [],
 ): Map<string, Point[]> {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const rects = new Map(nodes.map((n) => [n.id, rectOf(n)]));
@@ -1093,12 +1172,13 @@ export function routeOrthogonal(
     const region = grow(extent, options.border);
     return search(source, target, obstacles, near(region, edge.id), region, options) ?? simple?.route;
   };
-  const keep = (id: string, route: Point[]) => {
-    routes.set(id, route);
+  /** A route's segments for the crossings; a diagonal one — a kept line's — is not weighed. */
+  const routedOf = (route: readonly Point[]): Routed[] => {
     const segments: Routed[] = [];
     for (let i = 1; i < route.length; i++) {
       const [p, q] = [route[i - 1], route[i]];
       const horizontal = p.y === q.y;
+      if (!horizontal && p.x !== q.x) continue;
       segments.push({
         horizontal,
         at: horizontal ? p.y : p.x,
@@ -1106,20 +1186,36 @@ export function routeOrthogonal(
         hi: Math.max(horizontal ? p.x : p.y, horizontal ? q.x : q.y),
       });
     }
-    segmentsOf.set(id, segments);
+    return segments;
   };
+  const keep = (id: string, route: Point[]) => {
+    routes.set(id, route);
+    segmentsOf.set(id, routedOf(route));
+  };
+  // The kept lines, as lines routed before any of these; rounded, as the routes are, so their ends meet the sides.
+  const routing = new Set(edges.map((e) => e.id));
+  const held = kept
+    .filter((k) => !routing.has(k.id) && k.points.length >= 2)
+    .map((k) => ({ ...k, points: k.points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })) }));
+  for (const k of held) segmentsOf.set(k.id, routedOf(k.points));
   // Each line around those routed before it. (Routing each again around all the others was tried: 2% fewer crossings
   // for 8% more bends and twice the time.)
   for (const edge of routable) {
     const route = routeOne(edge);
     if (route) keep(edge.id, route);
   }
-  spreadEnds(routes, sorted, rects, options.spacing);
+  // The ends and the channels placed with the kept lines among them, held: the routed lines' points are the same
+  // arrays in both maps, moved in place or replaced, and read back after.
+  const heldIds = new Set(held.map((k) => k.id));
+  const withKept = held.length > 0 ? new Map([...held.map((k) => [k.id, k.points] as const), ...routes]) : routes;
+  const allEdges = held.length > 0 ? [...sorted, ...held.map((k) => ({ id: k.id, source: k.source ?? '', target: k.target ?? '' }))] : sorted;
+  spreadEnds(withKept, allEdges, rects, options.spacing, heldIds);
   const endsOf = new Map(sorted.map((e) => [e.id, new Set([e.source, e.target, ...ancestors(e.source), ...ancestors(e.target)])]));
-  centreChannels(routes, rects, endsOf, options.margin, options.channelSpacing, options.bendClearance);
+  centreChannels(withKept, rects, endsOf, options.margin, options.channelSpacing, options.bendClearance, heldIds);
   // Again with the channels placed: lines that left a side together, turning on one level, now turn on two, and the
   // one turning sooner goes outermost.
-  spreadEnds(routes, sorted, rects, options.spacing);
+  spreadEnds(withKept, allEdges, rects, options.spacing, heldIds);
+  if (withKept !== routes) for (const id of routes.keys()) routes.set(id, withKept.get(id)!);
   flattenUs(routes, rects, endsOf);
   for (const [id, points] of routes) routes.set(id, simplify(points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }))));
   return routes;

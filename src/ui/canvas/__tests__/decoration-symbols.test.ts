@@ -8,12 +8,12 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Parser, Store } from 'n3';
-import { buildDecorationSymbols } from '../../../metamodel-manager/notation.js';
+import { buildDecorationSymbols } from '@linked-archi/kernel/metamodel-manager/notation.js';
 import { parseDecorationSymbol, symbolMarkerDefinition } from '../notation-shapes.js';
 import { createRenderHarness, paletteWith } from './render-harness.js';
 
 // Tests run from the project root; under jsdom `import.meta.url` is not a file URL.
-const read = (path: string) => readFileSync(join(process.cwd(), 'assets', path), 'utf8');
+const read = (path: string) => readFileSync(join(process.cwd(), 'node_modules/@linked-archi/kernel/assets', path), 'utf8');
 const MARKERS = 'https://meta.linked.archi/core-vis/markers/';
 
 afterEach(() => {

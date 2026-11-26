@@ -1,4 +1,7 @@
-/** The Git tab reports checks without opening itself or interrupting editing. */
+/**
+ * The Git tab reports checks without opening itself or interrupting editing. Its *Save to Git* is the File menu's
+ * (Req 18.25): the `save` action, run by the module exactly as the menu runs it.
+ */
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { GitSyncStatus } from './git-sync.js';
@@ -44,6 +47,8 @@ export class GitSyncPanel extends LitElement {
         <dt>Last committed</dt><dd>${time(s.lastCommit)}</dd>
       </dl>
       <div class="actions">
+        <button data-action="save" title=${s.where ? `Commit the model to ${s.where}, as File › Save to Git does` : 'Save to Git'}
+          @click=${() => this.action('save')} ?disabled=${!s.canSave}>Save to Git</button>
         <button @click=${() => this.action('check')} ?disabled=${!s.canCheck}>Check for remote changes</button>
         <button @click=${() => this.action('pull')} ?disabled=${!s.canPull}>Pull from Git</button>
         <button @click=${() => this.action('settings')}>Git settings…</button>

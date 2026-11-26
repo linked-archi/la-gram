@@ -272,14 +272,15 @@ describe("the name, the icon and la-gram's menu", () => {
     const links = bar.locator('.dropdown a[data-link]');
     expect(await links.count()).toBeGreaterThan(5);
     expect(await links.evaluateAll((as) => as.every((a) => (a as HTMLAnchorElement).target === '_blank'))).toBe(true);
-    // la-gram's documentation first, the copy beside the app.
+    // la-gram's documentation first: the published one, wherever la-gram runs — the alpha's from an alpha build.
+    const published = /^https:\/\/app\.linked\.archi\/la-gram(-alpha)?\/docs\//;
     expect(await links.first().getAttribute('data-link')).toBe('la-gram-docs');
-    expect(await links.first().evaluate((a) => (a as HTMLAnchorElement).href)).toBe(`${server.baseUrl}/docs/`);
+    expect(await links.first().evaluate((a) => (a as HTMLAnchorElement).href)).toMatch(new RegExp(`${published.source}$`));
     await bar.locator('.dropdown [data-command="shortcuts"]').click();
     await dialog.waitFor({ state: 'visible' });
     expect(await dialog.locator('.la-dialog-title').innerText()).toBe('Keyboard shortcuts');
     expect(await dialog.locator('kbd').count()).toBeGreaterThan(10);
-    expect(await dialog.locator('.la-details-links a').getAttribute('href')).toBe(`${server.baseUrl}/docs/reference/keyboard/`);
+    expect(await dialog.locator('.la-details-links a').getAttribute('href')).toMatch(new RegExp(`${published.source}reference/keyboard/$`));
     await session.screenshot('help-shortcuts');
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
@@ -863,7 +864,8 @@ describe('appending from the context pad', () => {
   });
 
   it('draws the relationships around the selected element in the Graph tab, filters them, and exports query and Turtle', async () => {
-    const actor = page.locator(SHAPE).first();
+    // The actor, by its IRI: the shapes are in drawing order, by IRI, not in the order they were made.
+    const actor = page.locator(`${SHAPE}[data-element-id="${(await model(page)).actors[0]}"]`);
     const box = (await actor.boundingBox())!;
     await page.mouse.click(box.x + box.width + 200, box.y + box.height + 150);
     await actor.click();
@@ -1146,6 +1148,9 @@ describe('appending from the context pad', () => {
     await until(async () => Math.abs(zoomOf(await graphTab(page), middle!, component) / zoomOf(g, middle!, component) - 1) > 0.01, 'the zoom');
     const zoomed = await graphTab(page);
     const zoomIn = zoomOf(zoomed, middle!, component);
+    // One notch of a mouse's wheel zooms in by about 18% (Req 17.14), the first notch as much as any other.
+    expect(zoomIn / zoomOf(g, middle!, component)).toBeGreaterThan(1.15);
+    expect(zoomIn / zoomOf(g, middle!, component)).toBeLessThan(1.2);
     await page.locator('app-shell .tab[data-tab="properties"]').click();
     await page.locator('app-shell .tab[data-tab="graph"]').click();
     await until(async () => (await graphTab(page)).width > 0, 'the drawing shown again');
@@ -1447,7 +1452,7 @@ describe('renaming on the canvas', () => {
             .map((q: any) => `${q.object.value}@${q.object.language}`) as string[],
         actor,
       );
-    const shape = page.locator(SHAPE).first();
+    const shape = page.locator(`${SHAPE}[data-element-id="${actor}"]`);
     const drawn = async () =>
       (await shape.locator('text tspan').evaluateAll((lines) => lines.map((t) => t.textContent ?? '')))
         .join(' ')
@@ -1719,7 +1724,7 @@ describe('changing an element’s type', () => {
           drawnType: app.components.viewManager ? (window as any).__LA_GRAM_UI__.diagramCanvas.getElement(iri)?.typeIri : undefined,
         };
       }, actor);
-    const shape = page.locator(SHAPE).first();
+    const shape = page.locator(`${SHAPE}[data-element-id="${actor}"]`); // by IRI: the shapes are in drawing order
     const menu = page.locator('.djs-popup');
     // Right-click: the context menu; "Change type…" opens the type menu.
     const openTypeMenu = async () => {
@@ -1742,6 +1747,10 @@ describe('changing an element’s type', () => {
       'Copy',
       'Duplicate',
       'Append…',
+      'Bring to front',
+      'Bring forward',
+      'Send backward',
+      'Send to back',
       'Properties',
       'Show in model tree',
       'Show relationship graph',
@@ -1896,7 +1905,8 @@ describe('changing an element’s type', () => {
     await page.mouse.click(mid.x, mid.y, { button: 'right' });
     await menu.waitFor({ state: 'visible' });
     expect(await entries()).toEqual([
-      'Rename', 'Change relationship type…', 'Properties', 'Show in model tree', 'Show source', 'Show target', 'Copy IRI',
+      'Rename', 'Change relationship type…', 'Straight', 'Right angles', 'Horizontal first', 'Vertical first',
+      'Properties', 'Show in model tree', 'Show source', 'Show target', 'Copy IRI',
       'Delete from view', 'Delete from model…',
     ]);
     await page.keyboard.press('Escape');
@@ -2077,7 +2087,7 @@ describe('model questions', () => {
 
     // Right-click → "Ask about this element…": the SPARQL tab, the questions about it.
     await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
-    await page.locator(SHAPE).first().click({ button: 'right' });
+    await page.locator(`${SHAPE}[data-element-id="${actor}"]`).click({ button: 'right' });
     const context = page.locator('.djs-popup.la-context-menu');
     await context.waitFor({ state: 'visible' });
     await context.locator('.entry', { hasText: 'Ask about this element…' }).click();
@@ -3277,6 +3287,10 @@ describe('copy and paste on the canvas', () => {
     await dropActor(page, 420, 150);
     await until(async () => (await model(page)).actors.length === 2, 'two actors');
     const shapes = page.locator(SHAPE);
+    // The last drop leaves its shape selected, and a click on a selected shape deselects it: start clean. (The shapes
+    // are in drawing order, by IRI, not in the order they were dropped.)
+    const host0 = (await page.locator('.la-diagram-host').boundingBox())!;
+    await page.mouse.click(host0.x + host0.width - 40, host0.y + host0.height - 40);
     await shapes.nth(0).click();
     await shapes.nth(1).click({ modifiers: ['Shift'] });
 
@@ -3385,5 +3399,274 @@ describe('arranging a view', () => {
     await page.keyboard.press('ControlOrMeta+z');
     await until(async () => JSON.stringify(await boxes()) === JSON.stringify(before), 'undo');
     findings.push('arrange view: laid out with no overlaps, undone in one step: ok');
+  }, 120_000);
+
+  it('gives one line a shape from the toolbar’s Line shape menu, the other line staying, and undoes it in one step', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const { view, lines } = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (label: string, x: number, y: number) => {
+        const iri = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x, y, width: 100, height: 50 });
+        return iri;
+      };
+      const general = make('General', 100, 100);
+      const detail = make('Detail', 400, 300);
+      const other = make('Other', 100, 500);
+      const relate = (s: string, t: string) => {
+        const r = app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: s, targetIri: t, modelIri: m }).iri;
+        app.components.viewManager.addRelationshipToView(v, r);
+        return r as string;
+      };
+      const drawn = [relate(detail, general), relate(detail, other)];
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return { view: v as string, lines: drawn };
+    });
+    const routes = () =>
+      page.evaluate(
+        ([v, ls]) => (ls as string[]).map((r) => (window as any).__LA_GRAM_APP__.components.viewManager.getLinks(v).find((l: any) => l.relationshipIri === r).waypoints),
+        [view, lines] as const,
+      ) as Promise<Array<Array<{ x: number; y: number }>>>;
+    const before = await routes();
+    const button = page.locator('canvas-toolbar button[data-action="line-shape-menu"]');
+    expect(await button.isDisabled()).toBe(true);
+
+    await page.evaluate((r) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([r]), lines[0]);
+    await until(async () => !(await button.isDisabled()), 'Line shape enabled by the selected line');
+    await button.click();
+    await page.locator('canvas-toolbar .menu button[data-line-shape="vertical-first"]').click({ timeout: 10_000 });
+    // Out of Detail's top, up to General's middle, into its right side.
+    const shaped = [{ x: 450, y: 300 }, { x: 450, y: 125 }, { x: 200, y: 125 }];
+    await until(async () => JSON.stringify((await routes())[0]) === JSON.stringify(shaped), 'the line shaped');
+    expect((await routes())[1]).toEqual(before[1]);
+
+    await page.keyboard.press('ControlOrMeta+z');
+    await until(async () => JSON.stringify(await routes()) === JSON.stringify(before), 'undo');
+    findings.push('line shape: one line given one bend from the toolbar, the other line staying, undone in one step: ok');
+  }, 120_000);
+});
+
+describe('the loader', () => {
+  it('shows a loader while a large diagram opens from the toolbar’s View list, gone once it is drawn (Req 11.13)', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const large = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const m = app.session.modelIri;
+      const v = app.session.createView('Diagram', { label: 'Large landscape', open: false });
+      for (let i = 0; i < 600; i++) {
+        const iri = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', m, { label: `C ${i}` }).value;
+        app.components.viewManager.addElementToView(v, iri, { x: (i % 30) * 140, y: Math.floor(i / 30) * 80, width: 120, height: 55 });
+      }
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return v as string;
+    });
+    // What was on the page while it opened: the page is held, so watched from inside it.
+    await page.evaluate(() => {
+      const w = window as any;
+      w.__loader = [];
+      new MutationObserver(() => {
+        const text = document.querySelector('.la-busy .la-busy-text')?.textContent;
+        if (text && !w.__loader.includes(text)) w.__loader.push(text);
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    await page.locator('app-toolbar select[aria-label="Open view"]').selectOption(large);
+    await until(async () => (await page.locator('.djs-container .djs-shape').count()) === 600, 'the large view drawn');
+    await until(async () => (await page.locator('.la-busy').count()) === 0, 'the loader gone');
+    expect(await page.evaluate(() => (window as any).__loader)).toEqual(['Opening Large landscape (600 shapes)…']);
+    findings.push('loader: shown while a 600-shape view opened from the toolbar, gone once drawn: ok');
+  }, 120_000);
+});
+
+describe('the split view', () => {
+  it('shows two views side by side: keys in the pane in use only, the selection outlined in the other, the divider dragged (Req 24)', async () => {
+    const { session, page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const iris = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, main] = [app.session.modelIri, app.session.activeViewIri];
+      app.session.renameView(main, 'Main');
+      const detail = app.session.createView('Diagram', { label: 'Detail', open: false });
+      const made = ['Web Shop', 'Payments'].map((label, i) => {
+        const iri = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', m, { label }).value;
+        for (const v of [main, detail]) app.components.viewManager.addElementToView(v, iri, { x: 80 + i * 220, y: 120, width: 150, height: 70 });
+        return iri;
+      });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return { main, detail, webShop: made[0], payments: made[1] };
+    });
+    const first = page.locator('.la-pane').nth(0);
+    const second = page.locator('.la-pane').nth(1);
+    const shape = (pane: typeof first, iri: string) => pane.locator(`.djs-shape[data-element-id]`).filter({ has: page.locator(`text=${iri === iris.webShop ? 'Web Shop' : 'Payments'}`) });
+
+    await page.locator('app-toolbar button[data-menu="split"]').click();
+    await page.locator('app-toolbar .dropdown.split [data-value="side-by-side"]').click();
+    await until(async () => (await page.locator('.la-pane').count()) === 2, 'two panes');
+    const [a, b] = [await first.boundingBox(), await second.boundingBox()];
+    expect(a!.x + a!.width).toBeLessThan(b!.x);
+    expect(Math.abs(a!.y - b!.y)).toBeLessThan(2);
+    expect(Math.abs(a!.width - b!.width)).toBeLessThan(10);
+    await until(async () => (await second.locator(SHAPE).count()) === 2 && (await first.locator(SHAPE).count()) === 2, 'both panes drawn');
+    expect(await second.getAttribute('class')).toContain('la-pane-in-use');
+
+    // Detail in the second pane, Web Shop selected there; then Web Shop selected in the first, which is put in use.
+    await page.locator('app-toolbar select[aria-label="Open view"]').selectOption(iris.detail);
+    await until(async () => (await page.locator('.la-pane-title').nth(1).textContent()) === 'Detail', 'Detail in the second pane');
+    await shape(second, iris.webShop).click();
+    await shape(first, iris.webShop).click();
+    expect(await first.getAttribute('class')).toContain('la-pane-in-use');
+    expect(await page.evaluate(() => (window as any).__LA_GRAM_APP__.session.activeViewIri)).toBe(iris.main);
+    // Sync selection: outlined in the other pane, which keeps its own selection.
+    await until(async () => (await second.locator('.djs-element.la-selected-elsewhere').count()) === 1, 'the selection outlined in the other pane');
+    // One context pad on the page: the pane in use's.
+    expect(await page.locator('.djs-context-pad.open').count()).toBe(1);
+    expect(await first.locator('.djs-context-pad.open').count()).toBe(1);
+    await session.screenshot('split-view');
+
+    // Delete takes it out of the view in use only: Main loses it, Detail keeps both.
+    await page.keyboard.press('Delete');
+    await until(async () => (await first.locator(SHAPE).count()) === 1, 'Web Shop out of Main');
+    const nodes = await page.evaluate((v) => (window as any).__LA_GRAM_APP__.components.viewManager.getNodes(v.detail).length, iris);
+    expect(nodes).toBe(2);
+    expect(await second.locator(SHAPE).count()).toBe(2);
+
+    // The divider dragged 200 px to the left.
+    const divider = await page.locator('.la-pane-divider').boundingBox();
+    await page.mouse.move(divider!.x + divider!.width / 2, divider!.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(divider!.x + divider!.width / 2 - 200, divider!.y + 100, { steps: 5 });
+    await page.mouse.up();
+    const narrower = await first.boundingBox();
+    expect(Math.abs(a!.width - 200 - narrower!.width)).toBeLessThan(6);
+
+    // Closed by its ×: one pane, Main, as before.
+    await second.locator('.la-pane-close').click();
+    await until(async () => (await page.locator('.la-pane').count()) === 1, 'one pane');
+    expect(await page.evaluate(() => (window as any).__LA_GRAM_APP__.session.activeViewIri)).toBe(iris.main);
+    findings.push('split view: two panes side by side, Delete in the pane in use only, the selection outlined in the other, the divider dragged, closed: ok');
+  }, 120_000);
+});
+
+describe('drawing order', () => {
+  it('sends a shape behind another from the toolbar’s Order menu, and it stays behind once saved and opened again', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      for (const [label, x] of [['Lower', 200], ['Upper', 260]] as const) {
+        const iri = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x, y: 200, width: 160, height: 80 });
+      }
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+    });
+    /** The shapes' names in the order their graphics are painted: the last on top. */
+    const painted = () =>
+      page.evaluate(() => {
+        const registry = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('elementRegistry');
+        return [...document.querySelectorAll('.la-diagram-host .djs-element.djs-shape')]
+          .map((g) => registry.get(g.getAttribute('data-element-id'))?.businessObject?.label as string | undefined)
+          .filter((label) => label === 'Lower' || label === 'Upper');
+      });
+    const iriOf = (label: string) =>
+      page.evaluate((l) => {
+        const registry = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('elementRegistry');
+        return registry.getAll().find((e: any) => e.businessObject?.kind === 'element' && e.businessObject?.label === l)?.businessObject?.iri as string;
+      }, label);
+    // Whichever is on top now — the IRIs decide — is sent behind the other.
+    const [, top] = await painted();
+    const bottom = top === 'Upper' ? 'Lower' : 'Upper';
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), await iriOf(top!));
+    const button = page.locator('canvas-toolbar button[data-action="order-menu"]');
+    await until(async () => !(await button.isDisabled()), 'Order enabled by the selection');
+    await button.click();
+    await page.locator('canvas-toolbar .menu button[data-order="back"]').click({ timeout: 10_000 });
+    await until(async () => JSON.stringify(await painted()) === JSON.stringify([top, bottom]), 'sent behind');
+
+    // Saved and opened again: still behind.
+    const text = await page.evaluate(() => (window as any).__LA_GRAM_APP__.saveModel('turtle').text as string);
+    expect(text).toContain('arch-vis:zOrder');
+    const opening = page.evaluate((t) => (window as any).__LA_GRAM_UI__.openModelText(t, 'ordered.ttl'), text);
+    const dialog = page.locator('.la-dialog .la-button.primary');
+    if (await dialog.isVisible({ timeout: 2_000 }).catch(() => false)) await dialog.click();
+    await opening;
+    await until(async () => (await painted()).length === 2, 'the model opened again');
+    expect(await painted()).toEqual([top, bottom]);
+    findings.push('drawing order: sent behind from the toolbar, kept through a save and an open: ok');
+  }, 120_000);
+});
+
+describe('search', () => {
+  it('Ctrl+F searches the diagram — outlined, stepped, what is elsewhere — and, after a click in it, the RDF panel’s text, highlighted', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const placed = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (type: string, label: string, at?: { x: number; y: number }) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, m, { label }).value;
+        if (at) app.components.viewManager.addElementToView(v, iri, { ...at, width: 120, height: 55 });
+        return iri as string;
+      };
+      const drawn = [make('ApplicationService', 'Order service', { x: 100, y: 100 }), make('ApplicationComponent', 'Orders', { x: 400, y: 300 })];
+      make('ApplicationComponent', 'Order archive');
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return drawn;
+    });
+    const marked = (marker: string) => page.evaluate((m) => document.querySelectorAll(`.la-diagram-host .djs-element.${m}`).length, marker);
+    const selected = () => page.evaluate(() => ((window as any).__LA_GRAM_UI__.diagramCanvas.selectedIris() as string[]));
+
+    // A click on the empty diagram, then Ctrl+F.
+    const host = (await page.locator('.la-diagram-host').boundingBox())!;
+    await page.mouse.click(host.x + host.width - 40, host.y + host.height - 40);
+    await page.keyboard.press('ControlOrMeta+f');
+    const bar = page.locator('.la-diagram-host > find-bar');
+    await bar.waitFor({ state: 'visible', timeout: 10_000 });
+    await page.keyboard.type('order');
+    await until(async () => (await bar.locator('.count').innerText()) === '1 of 2', 'the matches counted');
+    expect(await bar.locator('[data-action="elsewhere"]').innerText()).toBe('1 more in other views');
+    expect([await marked('la-search-match'), await marked('la-search-current')]).toEqual([2, 1]);
+    expect(await selected()).toEqual([placed[0]]);
+    await page.keyboard.press('Enter');
+    await until(async () => (await bar.locator('.count').innerText()) === '2 of 2', 'the next match');
+    expect(await selected()).toEqual([placed[1]]);
+    await session.screenshot('search-canvas');
+    await page.keyboard.press('Escape');
+    await bar.waitFor({ state: 'hidden' });
+    expect(await marked('la-search-match')).toBe(0);
+
+    // The RDF panel: a click in its text, then Ctrl+F there.
+    await page.locator('app-toolbar button[data-command="toggle-rdf"]').click();
+    const panel = page.locator('rdf-panel');
+    await until(async () => (await panel.locator('.code').innerText()).includes('Order service'), 'the Turtle');
+    await panel.locator('.code').click({ position: { x: 20, y: 10 } });
+    await page.keyboard.press('ControlOrMeta+f');
+    const rdfBar = panel.locator('find-bar');
+    await rdfBar.waitFor({ state: 'visible', timeout: 10_000 });
+    await page.keyboard.type('Order');
+    await until(async () => /^1 of \d+$/.test(await rdfBar.locator('.count').innerText()), 'the text searched');
+    const painted = await page.evaluate(() => {
+      const highlights = (CSS as any).highlights as Map<string, { size: number }>;
+      return [highlights.get('la-rdf-match')?.size ?? 0, highlights.get('la-rdf-current')?.size ?? 0];
+    });
+    expect(painted[0]).toBeGreaterThanOrEqual(2);
+    expect(painted[1]).toBe(1);
+    await page.locator('rdf-panel find-bar button[data-action="match-case"]').click();
+    await page.locator('rdf-panel find-bar input').fill('order');
+    await until(async () => (await rdfBar.locator('.count').innerText()) === 'No matches', 'matched by case');
+    await page.locator('rdf-panel find-bar input').fill('Order');
+    await until(async () => /^1 of \d+$/.test(await rdfBar.locator('.count').innerText()), 'matched by case again');
+    await session.screenshot('search-rdf-panel');
+    await page.locator('rdf-panel find-bar input').press('Escape');
+    await rdfBar.waitFor({ state: 'hidden' });
+    expect(await page.evaluate(() => ((CSS as any).highlights as Map<string, unknown>).size)).toBe(0);
+    findings.push('search: the diagram by Ctrl+F — outlined, stepped, elsewhere counted — and the RDF panel’s text, highlighted, by case: ok');
   }, 120_000);
 });

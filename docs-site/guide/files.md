@@ -34,7 +34,8 @@ or ++enter++ opens it at its first entry and ++arrow-left++ or ++esc++ closes it
 open model, after asking ([Unsaved changes](#unsaved-changes)), and says what it did: *Opened
 shop.ttl: 192 triples.*, with how many elements it laid out when the file had no geometry, and whether an
 older vocabulary was migrated. Metamodels the file declares that could not be loaded are named
-(*Could not load: …*).
+(*Could not load: …*). While a large file opens, a spinner says so (*Opening shop.trig…*); it shows only
+when opening takes more than a moment. Importing an ArchiMate exchange file shows it too.
 
 A file of RDF that is not a la-gram model is opened too: la-gram adopts its model resource, its
 membership and a view. When no view has diagram geometry, every element is placed on the first diagram

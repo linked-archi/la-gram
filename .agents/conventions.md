@@ -47,17 +47,17 @@ reference is the `la-modeller-excalidraw` spec, adapted in `.agents/specs/la-gra
 - Model data lives in the store's **default graph**; each metamodel document in a
   named graph keyed by its ontology IRI. Never write model data to a named graph
   at runtime; never read "all quads" when you mean the model (`modelQuads`).
-- IRIs are minted with `rdf-engine/iri.ts` in the layout every Linked.Archi tool
+- IRIs are minted with `@linked-archi/kernel/rdf-engine/iri.js` in the layout every Linked.Archi tool
   shares (DD-41): `{ns}{kind}/{uuid}`, a node or a line in its view's IRI
   (`{view}#node-{uuid}`), a part under its owner (`partIri`: `{node}-style` after
   a `#`, `{element}/name/{hash}` elsewhere); never counters. Names minted before
   keep theirs (`{ns}element-{uuid}`, `{ns}node-{uuid}-style`) and are read either
   way (`isPartNamed`); never rename a part. Mint through the
-  managers, which look the namespace up (`model-manager/model-namespace.ts`);
+  managers, which look the namespace up (`@linked-archi/kernel/model-manager/model-namespace.js`);
   never hard-code a base.
 - Labels and other human text are language-tagged (`@en` by default) — the
   Linked.Archi shapes reject plain strings.
-- RDF terms for the model layer come from `model-manager/vocabulary.ts` (`IRI`,
+- RDF terms for the model layer come from `@linked-archi/kernel/model-manager/vocabulary.js` (`IRI`,
   `T`, `triple`, `langLiteral`…); do not re-declare predicate constants.
 - Every removal a user can undo has a `collect…` twin returning exactly the quads
   it removes.
@@ -77,16 +77,19 @@ reference is the `la-modeller-excalidraw` spec, adapted in `.agents/specs/la-gra
 src/
   app.ts                  App: metamodels, session, I/O, validation, events
   index.ts                entry point, URL parameters
-  rdf-engine/             store, observable wrapper, IRIs, parser/serializer, SHACL
-  metamodel-manager/      asset sources, loader, catalogue, palette, notation, viewpoints
-  model-manager/          session, namespace, element/relationship/view managers, cascade, queries,
-                          property catalog, migration
-  import-export/          model I/O, ArchiMate exchange import, SVG/PNG, legacy TTL I/O
+  import-export/          ArchiMate exchange import, SVG/PNG, legacy TTL adapter
   ui/                     shell, mount-ui, dialogs, panels/, canvas/, views/
+  __tests__/kernel/        retained app-dependent kernel integration tests
   collab/                 Y.Doc binding, collaboration start-up
   platform/               web vs. Electron file access
 server/collab-server.mjs  Hocuspocus server with RDF persistence
-assets/                   bundled metamodels (mirror of meta.linked.archi)
+vendor/                   pinned kernel archive, installed by npm
+node_modules/@linked-archi/kernel/
+  src/rdf-engine/          store, IRIs, serialization and validation
+  src/metamodel-manager/   loaders, palette, notation, taxonomy and viewpoints
+  src/model-manager/       model operations, diff, merge, session and provenance
+  src/import-export/      complete-model I/O
+  assets/                 the installed bundled metamodel snapshot
 tests/browser/            Playwright suite against dist/web
 docs/                     broader tool specification
 ```
@@ -101,9 +104,9 @@ docs/                     broader tool specification
 
 - Specs are living documents, not gates: a change and the documents that describe
   it go in together.
-- Keep the bundled assets byte-identical to their meta source; refresh them with
-  `npm run sync-assets` from the published site by default, or explicitly use a
-  local checkout (`npm run sync-assets -- --meta <checkout>`). Never edit the copies here.
+- Model logic and bundled semantic assets are maintained in `linked-archi-kernel` (https://github.com/linked-archi/kernel). Fix and test them there,
+  then install the same qualified archive in la-gram and the workspace. Never edit `node_modules` or maintain
+  a parallel copy here. The kernel-migration task records package integration and its reasons.
 - A piece of work another person or agent may have to continue gets a folder,
   `.agents/tasks/<name>/`, written before the work: its README (goal, what was
   decided), `requirements.md`, `design.md` and `tasks.md` (a checklist, ticked as
@@ -130,8 +133,8 @@ A change is finished when each of these says what la-gram does now:
    *Writing the documentation* says (`docs-site/developing/documentation.md`): UI
    labels exactly as la-gram shows them, each option with its values, its default
    in bold and an example. A new page goes into `mkdocs.yml`'s `nav`.
-7. **Bundled assets**, when the change needs meta's: refreshed from the published site by default,
-   or explicitly from a `linked-archi-meta` checkout (`docs-site/developing/assets.md`).
+7. **Bundled assets**, when meta changes: qualify an updated kernel package and install it with the lockfile
+   and vendored archive together (`docs-site/developing/assets.md`).
 8. **Build.** `npm run build`, then `npm run docs:build` — strict, a warning fails
    it — after the app's build, which empties `dist/web/`, where the site is built.
 

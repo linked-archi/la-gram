@@ -45,7 +45,8 @@ folders, opens in its folders. To keep an Archi model's folders, export it from 
 ## Filter {#filter}
 
 *Filter by name or type…*, under the header, keeps the rows whose name or type has what you type, in
-folded folders too. *Nothing matches.* says when nothing does.
+folded folders too. *Nothing matches.* says when nothing does. ++ctrl+f++ (++cmd+f++ on a Mac) in the tree
+puts the cursor in it, and the diagram's [search](canvas.md#search) sets it with *N more in other views*.
 
 1. Type "pay" in *Filter by name or type…*.
 2. Under *Elements*, the tree shows "Payments" and "Card payment" only.

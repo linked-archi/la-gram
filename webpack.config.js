@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import webpack from 'webpack';
@@ -10,6 +11,8 @@ import { VersionPagePlugin } from './scripts/version-page.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+const KERNEL_ASSETS = path.join(path.dirname(require.resolve('@linked-archi/kernel/package.json')), 'assets');
 
 /**
  * Shared settings used by all three build targets.
@@ -22,9 +25,6 @@ const sharedResolve = {
     '.js': ['.ts', '.js'],
   },
   alias: {
-    '@rdf-engine': path.resolve(__dirname, 'src/rdf-engine'),
-    '@metamodel-manager': path.resolve(__dirname, 'src/metamodel-manager'),
-    '@model-manager': path.resolve(__dirname, 'src/model-manager'),
     '@ui': path.resolve(__dirname, 'src/ui'),
     '@platform': path.resolve(__dirname, 'src/platform'),
     '@import-export': path.resolve(__dirname, 'src/import-export'),
@@ -32,25 +32,25 @@ const sharedResolve = {
 };
 
 const sharedModuleRules = [
-  { test: /\.ts$/, use: 'ts-loader', exclude: /node_modules/ },
+  { test: /\.ts$/, use: { loader: 'ts-loader', options: { allowTsInNodeModules: true } }, exclude: /node_modules[\\/](?!@linked-archi[\\/]kernel[\\/])/ },
   { test: /\.wasm$/, type: 'asset/resource' },
 ];
 
 const sharedExperiments = { asyncWebAssembly: true };
 
 /**
- * The page of the version built (`scripts/version-page.mjs`), from package.json. Built in CI from a commit
- * rather than a release tag, it names the commit (GitLab's `CI_COMMIT_SHA`); built for a channel
- * (`LA_GRAM_CHANNEL=alpha`), the channel's app.
+ * The page of the version built (`scripts/version-page.mjs`), from package.json. Built on GitHub Actions from
+ * a commit rather than a release tag, it names the commit (GitHub's `GITHUB_SHA`, which every step has);
+ * built for a channel (`LA_GRAM_CHANNEL=alpha`), the channel's app. Built anywhere else, no commit.
  */
 function versionPage() {
   const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
   const channel = process.env.LA_GRAM_CHANNEL;
-  const commit = process.env.CI_COMMIT_TAG ? undefined : process.env.CI_COMMIT_SHA;
+  const commit = process.env.GITHUB_REF_TYPE === 'tag' ? undefined : process.env.GITHUB_SHA;
   return new VersionPagePlugin({
     version: pkg.version,
     licence: pkg.license,
-    repository: 'https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram',
+    repository: 'https://github.com/linked-archi/la-gram',
     ...(commit ? { commit } : {}),
     ...(channel ? { app: `https://app.linked.archi/la-gram-${channel}/` } : {}),
   });
@@ -109,7 +109,7 @@ function buildInfo(desktop) {
  * assets keep theirs.
  */
 function assetsVersion() {
-  const root = path.resolve(__dirname, 'assets');
+  const root = KERNEL_ASSETS;
   const hash = createHash('sha256');
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
@@ -157,7 +157,7 @@ const bundledAssetsPlugin = () =>
   new CopyWebpackPlugin({
     patterns: [
       {
-        from: path.resolve(__dirname, 'assets'),
+        from: KERNEL_ASSETS,
         to: 'assets',
         // Skip dotfiles; everything else under assets/ is shipped as-is.
         globOptions: { ignore: ['**/.*'] },
@@ -339,11 +339,11 @@ export default (_env, argv) => {
     externalsType: 'module',
     externals: [
       ({ request }, callback) =>
-        request && !request.startsWith('.') && !path.isAbsolute(request) ? callback(null, request) : callback(),
+        request && !request.startsWith('@linked-archi/kernel') && !request.startsWith('.') && !path.isAbsolute(request) ? callback(null, request) : callback(),
     ],
     resolve: { ...sharedResolve },
     module: {
-      rules: [{ test: /\.ts$/, use: 'ts-loader', exclude: /node_modules/ }],
+      rules: [{ test: /\.ts$/, use: { loader: 'ts-loader', options: { allowTsInNodeModules: true } }, exclude: /node_modules[\\/](?!@linked-archi[\\/]kernel[\\/])/ }],
       // Left for Node: `new URL(…, import.meta.url)` finds files beside the bundle; no worker runs in Node.
       parser: { javascript: { importMeta: false, url: false, worker: false } },
     },
@@ -352,7 +352,7 @@ export default (_env, argv) => {
       buildFlags(),
       new CopyWebpackPlugin({
         patterns: [
-          { from: path.resolve(__dirname, 'assets'), to: 'assets', globOptions: { ignore: ['**/.*'] } },
+          { from: KERNEL_ASSETS, to: 'assets', globOptions: { ignore: ['**/.*'] } },
           { from: path.resolve(__dirname, 'ci'), to: 'ci' },
           // A file: a destination without an extension is taken for a folder (LICENSE/LICENSE).
           { from: path.resolve(__dirname, 'LICENSE'), to: 'LICENSE', toType: 'file' },

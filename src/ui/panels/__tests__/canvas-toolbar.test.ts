@@ -199,6 +199,77 @@ describe('CanvasToolbar', () => {
     expect(asked).toEqual(['distribute-vertical', 'align-bottom']);
   });
 
+  it('Line shape: disabled until a line is selected, then a menu of the four shapes, each picked once (Req 22.9)', async () => {
+    await mount();
+    const button = root().querySelector<HTMLButtonElement>('button[data-action="line-shape-menu"]')!;
+    expect(button.getAttribute('aria-label')).toBe('Line shape');
+    expect(button.disabled).toBe(true);
+    toolbar.linesSelected = 1;
+    await toolbar.updateComplete;
+    expect(button.disabled).toBe(false);
+
+    // Opening it closes the arrange menu.
+    root().querySelector<HTMLButtonElement>('button[data-action="arrange-menu"]')!.click();
+    await toolbar.updateComplete;
+    button.click();
+    await toolbar.updateComplete;
+    expect(root().querySelector('button[data-action="arrange-menu"]')!.getAttribute('aria-expanded')).toBe('false');
+    const items = Array.from(root().querySelectorAll<HTMLButtonElement>('.menu button[data-line-shape]'));
+    expect(items.map((b) => b.textContent?.trim())).toEqual(['Straight', 'Right angles', 'Horizontal first', 'Vertical first']);
+    expect(items.every((b) => b.querySelector('svg'))).toBe(true);
+
+    const picked: string[] = [];
+    document.body.addEventListener('line-shape', (e) => picked.push((e as CustomEvent<{ shape: string }>).detail.shape));
+    items[2].click();
+    await toolbar.updateComplete;
+    expect(picked).toEqual(['horizontal-first']);
+    expect(root().querySelector('.menu')).toBeNull();
+
+    // The selection gone, the menu closes.
+    button.click();
+    await toolbar.updateComplete;
+    toolbar.linesSelected = 0;
+    await toolbar.updateComplete;
+    await toolbar.updateComplete;
+    expect(root().querySelector('.menu')).toBeNull();
+  });
+
+  it('Order: disabled until an element or a figure is selected, then a menu of the four (DO-3)', async () => {
+    await mount();
+    const button = root().querySelector<HTMLButtonElement>('button[data-action="order-menu"]')!;
+    expect(button.getAttribute('aria-label')).toBe('Order');
+    expect(button.disabled).toBe(true);
+    toolbar.arrangeSelected = 1;
+    await toolbar.updateComplete;
+    button.click();
+    await toolbar.updateComplete;
+    const items = Array.from(root().querySelectorAll<HTMLButtonElement>('.menu button[data-order]'));
+    expect(items.map((b) => b.textContent?.trim())).toEqual(['Bring to front', 'Bring forward', 'Send backward', 'Send to back']);
+    const asked: string[] = [];
+    document.body.addEventListener('drawing-order', (e) => asked.push((e as CustomEvent<{ change: string }>).detail.change));
+    items[3].click();
+    await toolbar.updateComplete;
+    expect(asked).toEqual(['back']);
+    expect(root().querySelector('.menu')).toBeNull();
+    // Nothing selected any more: closed.
+    button.click();
+    await toolbar.updateComplete;
+    toolbar.arrangeSelected = 0;
+    await toolbar.updateComplete;
+    expect(root().querySelector('.menu')).toBeNull();
+  });
+
+  it('🔍 asks for the search of the diagram (Req 23.2)', async () => {
+    await mount();
+    const button = root().querySelector<HTMLButtonElement>('button[data-action="search"]')!;
+    expect(button.getAttribute('aria-label')).toBe('Search the diagram');
+    expect(button.title).toContain('Ctrl+F');
+    let asked = 0;
+    document.body.addEventListener('canvas-search', () => asked++);
+    button.click();
+    expect(asked).toBe(1);
+  });
+
   it('says in the match and grid buttons what their dialogs last chose', async () => {
     await mount();
     const title = (action: string) => root().querySelector(`button[data-quick="${action}"]`)!.getAttribute('title');

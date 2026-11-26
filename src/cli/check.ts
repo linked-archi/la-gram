@@ -21,11 +21,11 @@
  */
 import { readFileSync, realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
-import type { ValidationResult } from '../rdf-engine/interfaces.js';
-import { shapeIriOf } from '../rdf-engine/finding-shape.js';
-import { parseModelText } from '../import-export/model-io.js';
-import { detectFormat } from '../metamodel-manager/asset-sources.js';
-import { LAYOUT_CATEGORIES, layoutReport, type LayoutCategory, type LayoutReport } from '../model-manager/iri-conformance.js';
+import type { ValidationResult } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import { shapeIriOf } from '@linked-archi/kernel/rdf-engine/finding-shape.js';
+import { parseModelText } from '@linked-archi/kernel/import-export/model-io.js';
+import { detectFormat } from '@linked-archi/kernel/metamodel-manager/asset-sources.js';
+import { LAYOUT_CATEGORIES, layoutReport, type LayoutCategory, type LayoutReport } from '@linked-archi/kernel/model-manager/iri-conformance.js';
 import { fileAt, mergeBase, topLevel } from './git.js';
 import {
   asLaGramWrites,

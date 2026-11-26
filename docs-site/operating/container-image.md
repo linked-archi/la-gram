@@ -37,7 +37,7 @@ $ docker build --build-arg VERSION=0.1.0 -t la-gram-git:docs-example packages/la
 …
 #11 naming to docker.io/library/la-gram-git:docs-example done
 $ docker image inspect --format '{{json .Config.Labels}}' la-gram-git:docs-example
-{"org.opencontainers.image.description":"la-gram's architecture models in Git: checked, rewritten as la-gram writes them, compared and merged by element","org.opencontainers.image.documentation":"https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/tree/main/packages/la-gram-git","org.opencontainers.image.licenses":"Apache-2.0","org.opencontainers.image.source":"https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram","org.opencontainers.image.title":"la-gram-git","org.opencontainers.image.version":"0.1.0"}
+{"org.opencontainers.image.description":"la-gram's architecture models in Git: checked, rewritten as la-gram writes them, compared and merged by element","org.opencontainers.image.documentation":"https://github.com/linked-archi/la-gram/tree/main/packages/la-gram-git","org.opencontainers.image.licenses":"Apache-2.0","org.opencontainers.image.source":"https://github.com/linked-archi/la-gram","org.opencontainers.image.title":"la-gram-git","org.opencontainers.image.version":"0.1.0"}
 ```
 
 Another base image, Node 20's:
@@ -93,9 +93,8 @@ $ docker run --rm -i la-gram-git:docs-example sh -c 'cat > /repo/shop.ttl && la-
 
 ## Tags {#tags}
 
-Each la-gram-git release publishes the image to la-gram's GitLab container registry, as
-`$CI_REGISTRY_IMAGE/la-gram-git`, which for la-gram's project is
-`registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git`:
+Each la-gram-git release publishes the image to GitHub's container registry, as
+`ghcr.io/linked-archi/la-gram-git`:
 
 | Tag | For release `0.1.0` | For a pre-release `0.2.0-rc.1` |
 |---|---|---|
@@ -108,12 +107,7 @@ The version, major and `latest` tags each cover `linux/amd64` and `linux/arm64`,
 take the image for their platform. Each platform's image is built and tried on its own platform before
 the tags are made ([Releasing](../developing/releasing.md#container-image)). The CI templates' variations
 use `:0` ([la-gram-git in CI](ci.md#variations)). Until the first la-gram-git release, the registry has
-no tag, and a pull answers *no such manifest*: build the image yourself, below.
-
-```console
-$ docker manifest inspect registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
-no such manifest: registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
-```
+no tag, and a pull fails: build the image yourself, below.
 
 ## Build it yourself {#build-it-yourself}
 
@@ -137,7 +131,7 @@ $ docker run --rm la-gram-git:docs-example la-gram-git --version
 
 To copy the published image into your own registry, pull its tag and push it under your name, or copy
 the multi-platform list with `docker buildx imagetools create --tag <your-registry>/la-gram-git:0
-registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0`.
+ghcr.io/linked-archi/la-gram-git:0`.
 
 Remove what the build left behind with `docker image rm la-gram-git:docs-example` and
 `rm packages/la-gram-git/linked-archi-la-gram-git-*.tgz`.

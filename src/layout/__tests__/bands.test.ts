@@ -6,8 +6,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { DataFactory, Parser } from 'n3';
 import type { Quad } from '@rdfjs/types';
-import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
-import { fetchAssetText } from '../../metamodel-manager/bundled-assets.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { fetchAssetText } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { DIAGRAM_GROUP_ORDER, bandsOf, withNeighbourBands } from '../bands.js';
 import { ARRANGE_DEFAULTS, arrangeSettings, rememberArrangeSettings } from '../../ui/arrange-settings.js';
 

@@ -138,7 +138,7 @@ This was not tested in a packaged app. If a save seems to do nothing, look in yo
 1. Open la-gram's menu, at the top left, and choose *About la-gram*.
 2. Choose *Copy version info*: la-gram copies one line with its version, where it runs, the metamodels
    loaded and the bundle's snapshot.
-3. Choose *Report a problem or an idea*, in the same menu, which opens la-gram's issues on GitLab, and
+3. Choose *Report a problem or an idea*, in the same menu, which opens la-gram's issues on GitHub, and
    paste the line into a new issue, with what you did, what you expected, and what happened. A model
    file that shows the problem helps; use one without confidential content.
 
@@ -162,6 +162,8 @@ These are not available in la-gram today. Some are planned; none is promised for
 - **A collaboration room bound to a Git branch.**
 - **Automatic Git commits.** Regular checks and optional automatic pull are available; use
   *Save to Git* to commit local changes.
+- **More than two panes**, dragging an element from one pane into the other, and the split kept over a
+  reload ([Two views at once](guide/models-and-views.md#split-view)).
 
 ### Pasting does nothing {#copy-and-paste}
 

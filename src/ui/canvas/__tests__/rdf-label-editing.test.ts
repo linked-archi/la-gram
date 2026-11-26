@@ -3,8 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 import { RdfLabelEditingProvider, RelabelElementHandler, isRenamable, isViewReference, normalizeLabel, type RelabelContext } from '../rdf-label-editing.js';
 import { NOTATION_DEFAULTS } from '../notation-shapes.js';
 import type { RdfChangeContext } from '../rdf-modeling.js';

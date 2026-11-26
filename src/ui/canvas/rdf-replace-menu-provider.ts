@@ -44,9 +44,9 @@
  * the menu shows.
  */
 
-import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
-import type { RelationshipManager } from '../../model-manager/interfaces.js';
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import type { RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { RelationshipManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref } from './notation-shapes.js';
 
 /** A relationship type's icon as the palette has it — published, or drawn from its notation. */

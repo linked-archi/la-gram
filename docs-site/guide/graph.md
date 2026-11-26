@@ -109,7 +109,8 @@ is not stepped onto, so what lies beyond them is not reached either.
 | click a node or a line | selects that element or relationship, on the canvas and in the Properties tab |
 | **double-click a node** | makes it the graph's centre, and selects it |
 | drag an element | moves it. With Force, the elements linked to it follow, and when you let go it settles back among them. Drag the element in the middle and the graph follows it; it stays where you drop it |
-| drag the background, scroll | moves and zooms the graph |
+| drag the background | moves the graph |
+| scroll, or pinch on a trackpad | zooms in and out about the pointer. A notch of a mouse's wheel zooms by about a sixth, and scrolling as far on a trackpad zooms as far; a pinch follows your fingers |
 
 With Rings and Tree, and with Force on a graph of more than 100 elements, a dragged element moves alone.
 Where you drag elements is the drawing's only: nothing is saved with the model, and a reload lays the

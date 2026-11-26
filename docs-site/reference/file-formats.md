@@ -187,6 +187,7 @@ from the metamodel (here ArchiMate 4.0, `am4:`):
 | `arch-vis:ArchNode`, `arch-vis:Link` | geometry | a box in a diagram, a line in a diagram |
 | `arch-vis:archElement`, `arch-vis:archRelationship` | a node, a link | what it draws |
 | `arch-vis:bounds-x`, `-y`, `-w`, `-h` | a node | its place and size, as `xsd:double` |
+| `arch-vis:zOrder` | a node | what it is drawn above: among the nodes in the same place, the higher above, as `xsd:integer`; none for 0 — and nodes with the same, in the order of their IRIs |
 | `arch-vis:view` | a node, a link | the diagram it is in |
 | `arch:prefVisNotation`, `arch:altVisNotation` | an element | its own picture for every presentation; one for a presentation, a `schema:ImageObject` with its `schema:contentUrl` and `arch:inPresentationContext` |
 | `arch-vis:style` | a node, a link | its own look: one for every presentation, and one for each (`arch:inPresentationContext` on the style). Among its values, the pictures: `arch-vis:image` inside it, at `arch-vis:imagePosition`; `arch-vis:iconSymbol`, a picture in place of its glyph, as its figure (`arch-vis:IconCentric`) or its badge (`arch-vis:ShapeWithBadge`); `arch-vis:useElementPicture true`, its element's picture there instead |

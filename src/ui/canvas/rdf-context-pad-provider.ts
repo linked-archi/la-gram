@@ -34,8 +34,8 @@
  * the provider falls back to mutating the model directly.
  */
 
-import type { RelationshipManager, ElementManager } from '../../model-manager/interfaces.js';
-import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
+import type { RelationshipManager, ElementManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import { isViewReference } from './view-reference.js';
 import {

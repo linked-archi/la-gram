@@ -1,5 +1,5 @@
 /** No-dialog same-file writes, with reconciliation and uncertain-response recovery (Req 18.26). */
-import { snapshotOfText } from '../model-manager/model-merge.js';
+import { snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
 import { AutoCommitStore, autoCommitKey, type PendingCommit } from './auto-commit-settings.js';
 import type { GitBinding } from './bindings.js';
 import { GitError } from './errors.js';

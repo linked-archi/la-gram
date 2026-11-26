@@ -14,9 +14,9 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Quad, NamedNode } from '@rdfjs/types';
-import type { RdfStore } from '../../rdf-engine/interfaces.js';
-import type { ViewManager } from '../../model-manager/interfaces.js';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import type { RdfStore } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import type { ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import { addableTypes, elementsOfType, renderAddPicker, viewMembers, type AddableType, type ViewMember } from './view-members.js';
 
 /** The axis value meaning "every member". */

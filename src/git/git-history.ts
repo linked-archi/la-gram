@@ -17,7 +17,7 @@
  * still bound to the file (DD-41), and undo does not take the move back.
  */
 import type { HistoryGitCommit, HistoryGitSource } from '../ui/panels/history-panel.js';
-import { snapshotModel, snapshotOfText } from '../model-manager/model-merge.js';
+import { snapshotModel, snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
 import type { GitBinding } from './bindings.js';
 import { GitError } from './errors.js';
 import { Access, type GitOpenContext } from './git-open.js';

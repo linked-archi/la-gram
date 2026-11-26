@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import type { ModelContents } from '../../../model-manager/model-queries.js';
+import type { ModelContents } from '@linked-archi/kernel/model-manager/model-queries.js';
 import {
   ModelExplorer,
   actionsFor,
@@ -14,7 +14,7 @@ import {
   type TreeNode,
 } from '../model-explorer.js';
 import { EventBus } from '../../event-bus.js';
-import { modelFolderOf } from '../../../model-manager/folders.js';
+import { modelFolderOf } from '@linked-archi/kernel/model-manager/folders.js';
 
 const M = 'urn:m';
 const contents = (): ModelContents => ({
@@ -252,6 +252,8 @@ describe('actionsFor', () => {
   it('offers view management on a view and view creation on the model', () => {
     expect(actionsFor({ id: 'v', iri: 'v', kind: 'view', label: 'V', children: [] }).map((a) => a.action)).toEqual([
       'open-view',
+      // In the canvas's other pane (Req 24).
+      'open-view-beside',
       'rename-view',
       'set-viewpoint',
       'duplicate-view',
@@ -264,8 +266,9 @@ describe('actionsFor', () => {
 
   it('offers to reference a view in the open diagram — another view, with a diagram open (VR-2)', () => {
     const view = (iri: string): TreeNode => ({ id: iri, iri, kind: 'view', label: iri, children: [] });
-    expect(actionsFor(view('v'), { openDiagram: 'd' }).slice(0, 2)).toEqual([
+    expect(actionsFor(view('v'), { openDiagram: 'd' }).slice(0, 3)).toEqual([
       { action: 'open-view', label: 'Open' },
+      { action: 'open-view-beside', label: 'Open beside' },
       { action: 'reference-in-view', label: 'Reference in the open view' },
     ]);
     // Its own row, or with no diagram open — a catalog or a matrix, or nothing — no.
@@ -278,7 +281,7 @@ describe('actionsFor', () => {
     expect(find(tree, (n) => n.iri === `${M}/view/2`)?.placed).toBe(true);
     expect(find(tree, (n) => n.iri === `${M}/view/1`)?.placed).toBeUndefined();
     const placed: TreeNode = { id: 'v', iri: 'v', kind: 'view', label: 'v', placed: true, children: [] };
-    expect(actionsFor(placed, { openDiagram: 'd' }).slice(0, 3).map((a) => a.action)).toEqual(['open-view', 'reveal', 'reference-in-view']);
+    expect(actionsFor(placed, { openDiagram: 'd' }).slice(0, 4).map((a) => a.action)).toEqual(['open-view', 'open-view-beside', 'reveal', 'reference-in-view']);
     expect(actionsFor({ ...placed, placed: undefined }).map((a) => a.action)).not.toContain('reveal');
   });
 
@@ -382,6 +385,21 @@ describe('<model-explorer>', () => {
 
   const row = (el: ModelExplorer, iri: string) =>
     el.shadowRoot!.querySelector<HTMLElement>(`.row[data-iri="${iri}"]`)!;
+
+  it('focusFilter: the filter set from outside, focused with its text selected (Req 23.4, 23.7)', async () => {
+    const el = await mount();
+    await el.focusFilter('cust');
+    const input = el.shadowRoot!.querySelector<HTMLInputElement>('.filter-input')!;
+    expect(el.filterQuery).toBe('cust');
+    expect(input.value).toBe('cust');
+    expect(el.shadowRoot!.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 4]);
+    expect(row(el, `${M}/element/c`)).not.toBeNull();
+    expect(row(el, `${M}/element/a`)).toBeNull();
+    // Without a text, the filter keeps its own.
+    await el.focusFilter();
+    expect(el.filterQuery).toBe('cust');
+  });
 
   it('renders the tree and selects on click', async () => {
     const el = await mount();

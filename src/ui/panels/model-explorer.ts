@@ -65,9 +65,9 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { ModelContents, ConceptSummary, FolderSummary, RelationshipSummary } from '../../model-manager/model-queries.js';
-import { FOLDER_KINDS, folderLayout, folderWithin, type FolderKind } from '../../model-manager/folders.js';
-import type { ViewInfo } from '../../model-manager/interfaces.js';
+import type { ModelContents, ConceptSummary, FolderSummary, RelationshipSummary } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { FOLDER_KINDS, folderLayout, folderWithin, type FolderKind } from '@linked-archi/kernel/model-manager/folders.js';
+import type { ViewInfo } from '@linked-archi/kernel/model-manager/interfaces.js';
 import type { EventBus, ModelEventHandler, ModelEventType } from '../event-bus.js';
 
 /** Kinds of row in the tree. */
@@ -145,6 +145,8 @@ export type ExplorerAction =
   | 'new-matrix'
   | 'new-element'
   | 'open-view'
+  /** The view in the canvas's other pane, split first if need be (Req 24). */
+  | 'open-view-beside'
   | 'reference-in-view'
   | 'rename-view'
   | 'duplicate-view'
@@ -537,6 +539,7 @@ export function actionsFor(
     case 'view':
       return [
         { action: 'open-view', label: 'Open' },
+        { action: 'open-view-beside', label: 'Open beside' },
         // Referenced in the open diagram: its references selected there, as an element's boxes are.
         ...(node.placed ? [{ action: 'reveal' as const, label: 'Select on canvas' }] : []),
         ...(options.openDiagram && node.iri !== options.openDiagram
@@ -951,6 +954,23 @@ export class ModelExplorer extends LitElement {
     if (!this._subscribed) return;
     for (const type of REFRESH_EVENTS) this._subscribed.off(type, this._refresh);
     this._subscribed = undefined;
+  }
+
+  /**
+   * Focus the filter, its text selected — set to `query` first when one is given: Ctrl/⌘+F in the tree (Req 23.7),
+   * and what a search finds in other views (Req 23.4).
+   */
+  async focusFilter(query?: string): Promise<void> {
+    if (query !== undefined) this._filterQuery = query;
+    await this.updateComplete;
+    const input = this.renderRoot.querySelector<HTMLInputElement>('.filter-input');
+    input?.focus();
+    input?.select();
+  }
+
+  /** What the tree is filtered by. */
+  get filterQuery(): string {
+    return this._filterQuery;
   }
 
   private _emit<T>(name: string, detail: T): void {

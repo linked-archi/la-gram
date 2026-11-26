@@ -1,7 +1,45 @@
 # la-gram on @linked-archi/kernel — tasks
 
-Recorded 2026-11-20. **Not started.** Criteria refer to [requirements.md](requirements.md); the stages and choices
+## K02b shared candidate — 2026-11-26
+
+- [x] Pin the same draft archive as the workspace, `0.1.5-k02b.0`, SHA-256
+  `7781026305766c8b8f0b3cd2e20bba6171b625fb3bdc472e255cc57a5b387b41`.
+- [x] Run the packed kernel's conformance fixture through `App` and the normal inline validation path.
+  The existing CI test suite runs the check. The previous editable-model regression still runs.
+- [x] The isolated build on `c0d399f` passed typecheck, web/Electron/CLI builds and strict docs.
+  The built and clean-installed la-gram-git checked the smoke fixture and the documentation examples
+  with their expected advisories. See the file-level [justification](workspace-integration-changes.md).
+- [x] All 2,069 unit and timing tests, 95 web browser checks and two Electron smoke checks passed. The
+  workspace harness passed 23 checks on the matching archive, including ArchiMate 3.2 and Studio handoffs.
+- [x] Pin `0.1.5-k02b.1` in place of `k02b.0` (2026-11-26), with the workspace: the same candidate with drawing
+  order (core-vis 0.10, `drawing-order.ts`), packed from kernel `a9f0b38` as `k02b.0` was — SHA-256
+  `f37701a717664d8f8ac82796c2755158ea462d6c71dca0d82144078a64783474`; it differs from `k02b.0` only in the two
+  core-vis files, the drawing-order modules and the version. la-gram's 2,069 unit tests passed on it before its
+  drawing-order change, and every check after (the change log). `vendor/linked-archi-kernel-0.1.5-k02b.0.tgz` is
+  no longer installed.
+- [ ] Adopt the reviewed registry version with the workspace after K02b publication.
+
+Recorded 2026-11-20. **Implementation verified 2026-11-24; documentation follow-up remains.** Criteria refer to [requirements.md](requirements.md); the stages and choices
 are in [design.md](design.md).
+
+## Owner-requested sequence, 2026-11-24
+
+1. [x] Re-read PD-16, PD-17 and WD-15. ArchiMate 4.0 is the bundled default; the chosen metamodel controls content.
+2. [x] Check current integration: workspace typecheck, 34 tests, library/site build, all 11 CSP host checks;
+   la-gram browser **4 files / 95 tests**; Electron main/preload/renderer build; CLI `check` on
+   `docs-site/examples` and `packages/la-gram-git/smoke`; packed CLI installed in a clean temporary consumer and
+   checked the smoke model. All passed. Build size warnings remain.
+3. [x] `scripts/verify-interoperability.mjs` passed in the workspace: canonical download, field edit, exact
+   undo/redo, protected dirty configuration, durable recovery, views/questions, la-gram canvas rename, and
+   complete RDF equality on return. Both browser error lists were empty.
+4. [x] la-gram unit suite **118 files / 2041 tests**, plus the added real-App interoperability test, passed.
+5. [x] Kernel verification commit: `fa73c6ef49b6b4b63fd62a1c531502dade8c5257` (source checkpoint `0cee219`).
+   The copies removed by this migration match that kernel's source; the manifest records each destination and hash.
+6. [x] Step 3: complete KM-12–14 docs/API inventory and remove the kernel's copy-transition instructions.
+7. [x] Step 4: remove the workspace-specific facade from the kernel. See the neutral package boundary result below.
+
+E1/A is **open** for the Studio-generated extension and remaining workspace acceptance criteria. The browser
+handoff covers both ArchiMate 4.0 and 3.2. Shared persistence and live rooms have their own gates.
 
 ## Documentation before implementation
 
@@ -12,39 +50,100 @@ are in [design.md](design.md).
 
 ## Stage 0: one code base
 
-- [ ] The kernel's K01 tests pass in the kernel repository.
-- [ ] Commit la-gram's work in progress on these modules.
-- [ ] Compare: `diff -r` of `src/rdf-engine`, `src/metamodel-manager`, `src/model-manager`, `model-io.ts`, the
+- [x] The kernel's K01 tests pass in the kernel repository.
+- [x] Commit la-gram's work in progress on these modules.
+- [x] Compare: `diff -r` of `src/rdf-engine`, `src/metamodel-manager`, `src/model-manager`, `model-io.ts`, the
       fixtures and `assets/` against the kernel. Port every difference to the kernel, with its test (KM-1).
-- [ ] `npm pack` in the kernel.
+- [x] `npm pack` in the kernel.
 
 ## Stage 1: the package beside la-gram's copies
 
-- [ ] Install the tarball (KM-2); `npm ls n3 oxigraph rdf-validate-shacl` shows one copy each (KM-3).
-- [ ] `ts-loader` rules, la-gram-git `externals`, Vitest `server.deps.inline` (KM-DD-3).
-- [ ] `KERNEL_ASSETS` in `bundledAssetsPlugin`, la-gram-git's copy and `assetsVersion()` (KM-DD-4, KM-7).
-- [ ] Remove the three aliases (KM-8).
-- [ ] `npm run typecheck`, `npm test`, `npm run build` pass.
+- [x] Install the tarball (KM-2); `npm ls n3 oxigraph rdf-validate-shacl` shows one copy each (KM-3).
+- [x] `ts-loader` rules, la-gram-git `externals`, Vitest `server.deps.inline` (KM-DD-3).
+- [x] `KERNEL_ASSETS` in `bundledAssetsPlugin`, la-gram-git's copy and `assetsVersion()` (KM-DD-4, KM-7).
+- [x] Remove the three aliases (KM-8).
+- [x] `npm run typecheck`, `npm test`, `npm run build` pass.
 
 ## Stage 2: imports
 
-- [ ] `rewrite-imports.mjs`; run it; review: only import lines changed (KM-DD-1).
-- [ ] `npm run typecheck`, `npm test`, `npm run build`, `npm run test:browser:build` pass.
+- [x] `rewrite-imports.mjs`; run it; review: only import lines changed (KM-DD-1).
+- [x] `npm run typecheck`, `npm test`, `npm run build`, `npm run test:browser:build` pass.
 
 ## Stage 3: delete the copies
 
-- [ ] Delete the three modules, `model-io.ts` and its test, `assets/`, the moved tests and fixtures, `sync-assets`
+- [x] Delete the three modules, `model-io.ts` and its test, `assets/`, the moved tests and fixtures, `sync-assets`
       and its test and npm script (KM-9, KM-13).
-- [ ] Move the 14 to `src/__tests__/kernel/`; add *kernel-deps.test* and *kernel-assets.test* (KM-10, KM-3, KM-4, KM-7).
-- [ ] Every check in KM-11, including la-gram-git's check of `docs-site/examples` and the smoke model, and
+- [x] Move the 14 to `src/__tests__/kernel/`; add *kernel-deps.test* and *kernel-assets.test* (KM-10, KM-3, KM-4, KM-7).
+- [x] Every check in KM-11, including la-gram-git's check of `docs-site/examples` and the smoke model, and
       byte-identical saves of the example models.
-- [ ] `npm run package` once (design, *Open questions*).
-- [ ] The commit names the kernel commit the deleted files match (KM-15).
+- [x] `npm run package` produced a macOS ARM64 Electron distributable on draft kernel 0.1.4
+  (design, *Open questions*).
+- [x] The commit names the kernel commit the deleted files match (KM-15).
 
 ## Stage 4: documentation
 
-- [ ] `api-usage.md`: the kernel files and names la-gram imports (KM-12).
-- [ ] la-gram: `README.md`, `.agents/conventions.md`, the design's module paths, Req 1.9, `docs-site/developing/`,
+- [x] `api-usage.md`: the kernel files and names la-gram imports (KM-12).
+- [x] la-gram: `README.md`, `.agents/conventions.md`, the design's module paths, Req 1.9, `docs-site/developing/`,
       the change log (KM-14). `npm run docs:build` passes.
-- [ ] Kernel: remove *While la-gram still holds a copy* from its conventions; tick L01 in its plan.
-- [ ] Platform: L01 done in `linked-archi-platform/docs/plan.md`.
+- [x] Kernel: remove *While la-gram still holds a copy* from its conventions; tick L01 in its plan.
+- [x] Platform plan records the L01 package migration and its verified checks. E1/A has separate exit criteria.
+
+## Documentation result — owner step 3, 2026-11-24
+
+KM-12: `api-usage.md` inventories **59 module paths**, exported names and callers from the application TypeScript;
+`inventory-api.mjs` reproduces it. KM-13/14: README, conventions/file tree, requirements, design, task log and
+four developing pages now describe the installed kernel. Obsolete local synchronization instructions are removed.
+The kernel's copy-transition section is removed, and its README/design/plan describe package delivery.
+`npm run docs:build` passed with strict MkDocs: no warnings. No runtime code changed in this documentation step.
+
+Checkboxes above record the final checked implementation, not separate green intermediate commits. The initial
+source work was already checkpointed by the owner; the implementation commits are kernel `fa73c6e`, la-gram
+`e6c6155`, workspace `65e6cd7`. The 2026-11-25 entry below records the later fixture ownership and equivalence checks. E1/A and the optional
+Electron packaging check stay open.
+
+## Owner step 4 — neutral package boundary, 2026-11-24
+
+- [x] Package 0.1.1 removes the workspace application facade; same archive installed in both consumers.
+- [x] Consumer interoperability test now exercises the real App against neutral shared RDF fixtures.
+- [x] Typecheck and **119 files / 2,042 tests**; full web/Electron/CLI build; CLI documentation and smoke checks pass.
+- [x] Browser suite: **4 files / 95 tests**; two-application browser handoff, isolated installed CLI smoke check
+  and strict docs build all pass.
+
+Every changed la-gram file and its reason is in `workspace-integration-changes.md`. No production canvas code changed.
+
+## S01 asset refresh and migration closure checks — 2026-11-25
+
+- [x] Install the same kernel 0.1.2 archive in the workspace and la-gram. Source commit
+  `8fce481af632591094b04f1e7facb17ceac32b4e` carries S01 metadata, the neutral presentation reader and the
+  shared canonical fixture. Both lockfiles match archive integrity.
+- [x] Compare the real App at the pre-migration commit `208271c` and the current App with 0.1.2. Each opened
+  `docs-site/examples/shop.ttl` and `src/__tests__/fixtures/merge/model.trig` in a scratch checkout. Both
+  Turtle and TriG saves matched byte for byte with the same test UUID sequence (KM-11).
+- [x] Delete the duplicate ModelIO test and 15 merge/diff fixtures (KM-9). The test differs from the kernel's
+  copy by imports alone, and every fixture matches byte for byte. Checksums are in the migration manifest.
+  The unique App and CLI checks continue to run in this consumer.
+- [x] Web/desktop/CLI builds, 95 browser tests, CLI examples/smoke checks, installed CLI smoke and strict docs
+  build passed. The actual workspace and modeller exchanged both ArchiMate 4.0 and 3.2 RDF.
+- [x] Typecheck and the remaining 118 unit files / 2,023 tests passed after the duplicate test removal.
+
+## RDF labels review on draft 0.1.3
+
+- [x] Use the shared draft kernel 0.1.3 with the revised ontology and taxonomy label handling. The same archive
+  is installed in the workspace. This remains a working-tree change.
+- [x] Typecheck, 2,023 unit tests, web/Electron/CLI builds, 95 browser tests, CLI example and smoke checks and
+  the strict docs build passed. The real two-application RDF handoff passed for ArchiMate 4.0 and 3.2.
+
+## SHACL presentation on draft 0.1.4 — 2026-11-25
+
+- [x] Install the same draft 0.1.4 archive as the workspace. It restores the pre-S01 core and removes the
+  field-presence measure from shared code. The lockfile pins the matching archive integrity.
+- [x] Typecheck, 2,023 unit tests, web/Electron/CLI builds, 95 browser tests, CLI example and smoke checks and
+  the strict docs build passed. The real browser handoff passed for ArchiMate 4.0 and 3.2, including the saved
+  definition's RDF value and language. The final repack trims a trailing blank line.
+- [x] Requalify the installed archive after meta review at `d46b2c1`. Web, Electron and CLI builds,
+  95 browser tests and CLI example and smoke checks passed using the workspace's exact archive.
+- [x] Package the macOS ARM64 Electron app at la-gram `5094a61` on the reviewed 0.1.4 archive.
+  The packager created `dist/packages/la-gram-darwin-arm64`. It reported webpack size warnings and the absence
+  of an optional `.icon` file. The package contains the `.icns` icon and all 272 renderer assets match the
+  installed kernel. The packaged app started and loaded ArchiMate 4.0 with a disposable profile and mock
+  keychain. A normal launch in the test environment waited on macOS Keychain.

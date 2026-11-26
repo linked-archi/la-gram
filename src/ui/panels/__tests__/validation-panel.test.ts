@@ -3,7 +3,7 @@ import type {
   ValidationResult,
   ValidationReport,
   ShaclValidator,
-} from '../../../rdf-engine/interfaces.js';
+} from '@linked-archi/kernel/rdf-engine/interfaces.js';
 import type { NamedNode, Quad } from '@rdfjs/types';
 import {
   ValidationPanel,

@@ -6,10 +6,10 @@
  * unless the canvas draws the notation alone.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import type { VisualStyle } from '../../../metamodel-manager/notation.js';
-import type { ElementTypeInfo } from '../../../metamodel-manager/interfaces.js';
-import { effectiveRenderingMode } from '../../../metamodel-manager/notation.js';
-import type { Appearance } from '../../../model-manager/appearance.js';
+import type { VisualStyle } from '@linked-archi/kernel/metamodel-manager/notation.js';
+import type { ElementTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { effectiveRenderingMode } from '@linked-archi/kernel/metamodel-manager/notation.js';
+import type { Appearance } from '@linked-archi/kernel/model-manager/appearance.js';
 import { NOTATION_DEFAULTS } from '../notation-shapes.js';
 import {
   RENDER_CLASSES,

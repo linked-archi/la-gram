@@ -8,7 +8,7 @@
  * is left where it no longer belongs.
  */
 
-import type { NodeInfo, Point, ViewManager } from '../model-manager/interfaces.js';
+import type { NodeInfo, Point, ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
 import type { LayoutEdge, LayoutInput, LayoutNode, LayoutResult } from './layout-types.js';
 
 export interface ViewLayoutContext {

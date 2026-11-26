@@ -5,7 +5,7 @@
  * changed elsewhere: the address by *Save to Git as…*, the account by the token given for the host.
  */
 
-import { accountText, type GitAccount } from '../model-manager/provenance.js';
+import { accountText, type GitAccount } from '@linked-archi/kernel/model-manager/provenance.js';
 import type { FormField } from '../ui/dialogs.js';
 import type { GitBinding } from './bindings.js';
 import { fileLink } from './link.js';

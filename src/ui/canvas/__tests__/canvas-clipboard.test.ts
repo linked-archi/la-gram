@@ -5,14 +5,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DataFactory, Parser } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
-import { OxigraphElementManager } from '../../../model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
-import { OxigraphViewManager } from '../../../model-manager/view-manager.js';
-import { CLIPBOARD_MIME, copyFromView, writeFragment, type PasteResult } from '../../../model-manager/clipboard.js';
-import { T, langLiteral, nn, triple } from '../../../model-manager/vocabulary.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { CLIPBOARD_MIME, copyFromView, writeFragment, type PasteResult } from '@linked-archi/kernel/model-manager/clipboard.js';
+import { T, langLiteral, nn, triple } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import { CanvasClipboard, PASTE_STEP, pasteMessage, type CanvasClipboardHost } from '../canvas-clipboard.js';
 
 const MODEL = 'https://model.example.com/m/model';
@@ -185,6 +185,30 @@ describe('duplicate (R11)', () => {
     expect(copyOfA.bounds).toMatchObject({ x: 100 + PASTE_STEP, y: 100 + PASTE_STEP });
     expect(clipboard.canPaste()).toBe(false);
     expect(host.notices[0]).toEqual(['Pasted 2 new elements and 1 new relationship; 1 property left out.', 'info']);
+  });
+
+  it('puts what it pasted in front of what it overlaps, in the same recorded step (drawing order, DO-4)', async () => {
+    const steps: string[] = [];
+    const placed: string[][] = [];
+    const ordering = new CanvasClipboard(
+      {
+        ...host,
+        record: (apply) => {
+          steps.push('record');
+          apply();
+          steps.push('recorded');
+          return true;
+        },
+        placeInFront: (nodes) => {
+          steps.push('in front');
+          placed.push([...nodes]);
+        },
+      },
+      { source: () => ({ metamodelIris: [] }), prefixes: () => ({}) },
+    );
+    const result = (await ordering.duplicate())!;
+    expect(steps).toEqual(['record', 'in front', 'recorded']);
+    expect(placed).toEqual([result.nodes]);
   });
 });
 

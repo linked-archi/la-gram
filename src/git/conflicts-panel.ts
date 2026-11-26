@@ -20,7 +20,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { Quad } from '@rdfjs/types';
-import { quadsOfSnapshot, type MergeConflict, type MergeSide } from '../model-manager/model-merge.js';
+import { quadsOfSnapshot, type MergeConflict, type MergeSide } from '@linked-archi/kernel/model-manager/model-merge.js';
 import type { FocusDescription } from '../ui/panels/validation-panel.js';
 
 /** A conflict, and which side was chosen. */

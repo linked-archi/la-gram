@@ -7,8 +7,8 @@ import type {
   ElementTypeInfo,
   RelationshipTypeInfo,
   ViewpointInfo,
-} from '../../metamodel-manager/interfaces.js';
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { elementIconDataUri, iconHref } from '../canvas/notation-shapes.js';
 import { sharedNames } from '../show-iris.js';
 

@@ -15,13 +15,13 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createApp } from '../app.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { modelQuads, readModelContents } from '../model-manager/model-queries.js';
-import { relationshipClassOf } from '../model-manager/cascade.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { modelQuads, readModelContents } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { relationshipClassOf } from '@linked-archi/kernel/model-manager/cascade.js';
 import { buildModelTree, type TreeNode } from '../ui/panels/model-explorer.js';
 import { hexColour } from '../ui/figure-bar.js';
-import { nn as namedNode } from '../model-manager/vocabulary.js';
-import { layoutReport } from '../model-manager/iri-conformance.js';
+import { nn as namedNode } from '@linked-archi/kernel/model-manager/vocabulary.js';
+import { layoutReport } from '@linked-archi/kernel/model-manager/iri-conformance.js';
 import { Parser } from 'n3';
 import type { Quad } from '@rdfjs/types';
 

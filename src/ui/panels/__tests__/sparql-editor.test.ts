@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { RdfStore, SparqlResult } from '../../../rdf-engine/interfaces.js';
+import type { RdfStore, SparqlResult } from '@linked-archi/kernel/rdf-engine/interfaces.js';
 import {
   SparqlEditor,
   sparqlStreamParser,
@@ -15,7 +15,7 @@ import {
   type ResultsViewRequestDetail,
   type QueryExecuteDetail,
 } from '../sparql-editor.js';
-import type { ModelQuestion } from '../../../model-manager/questions.js';
+import type { ModelQuestion } from '@linked-archi/kernel/model-manager/questions.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
